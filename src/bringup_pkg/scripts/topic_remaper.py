@@ -23,12 +23,12 @@ class TopicRemapper:
         self.imu_pub.publish(msg)
 
         msg.header.frame_id = 'base_link'
-        msg.orientation.x = -msg.orientation.y
-        msg.orientation.y = msg.orientation.x
-        msg.linear_acceleration.x = -msg.linear_acceleration.x
-        msg.linear_acceleration.z = -msg.linear_acceleration.z
-        msg.angular_velocity.x = -msg.angular_velocity.x
-        msg.angular_velocity.z = -msg.angular_velocity.z
+        # msg.orientation.x = -msg.orientation.y
+        # msg.orientation.y = msg.orientation.x
+        # msg.linear_acceleration.x = -msg.linear_acceleration.x
+        # msg.linear_acceleration.z = -msg.linear_acceleration.z
+        # msg.angular_velocity.x = -msg.angular_velocity.x
+        # msg.angular_velocity.z = -msg.angular_velocity.z
         self.imu_pub_correct.publish(msg)
         
     def gps_callback(self, msg):
@@ -38,7 +38,7 @@ class TopicRemapper:
 
     def points_callback(self, msg):
         msg.header.stamp = rospy.Time.now()
-        msg.header.frame_id = 'lidar_link'
+        msg.header.frame_id = 'os_sensor'
         self.points_pub.publish(msg)
 
 if __name__ == '__main__':
