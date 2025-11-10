@@ -114,8 +114,8 @@ fi
 #export ROS_IP=192.168.131.1 # This computer
 
 #Custom aliases to run the code
-alias sc='. ~/jackal_autonomy_stack/devel/setup.bash'
-alias build='cd ~/jackal_autonomy_stack && catkin build && sc'
+alias sc='. ~/autonomy_stack/devel/setup.bash'
+alias build='cd ~/autonomy_stack && catkin build && sc'
 alias sim='roslaunch jackal_gazebo empty_world.launch'
 alias ost='roslaunch ouster_ros driver.launch  sensor_hostname:=169.254.208.119'
 alias vn='roslaunch vectornav vectornav.launch'

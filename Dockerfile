@@ -57,6 +57,8 @@ RUN apt-get update && apt-get install -y \
     ros-noetic-robot-localization   \
     ros-noetic-robot-state-publisher  \
     ros-noetic-pcl-ros             \
+    ros-noetic-ros-numpy     \   # for liorf
+    ros-noetic-cv-bridge     \   # for liorf 
     && rm -rf /var/lib/apt/lists/*
     
 # Install dependencies for Ouster driver 
