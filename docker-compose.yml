@@ -1,0 +1,50 @@
+services:
+  ros_noetic:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: autonomy-container
+    image: ubuntu-20-noetic:latest
+    user: user
+    environment:
+      # Linux
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=${XAUTHORITY} # not sure if this is actually needed
+
+      # Windows 10/11 using WSLg (part of WSL2)
+      - DISPLAY
+      - WAYLAND_DISPLAY
+      - XDG_RUNTIME_DIR
+      - PULSE_SERVER
+
+
+    volumes:
+      # The repository files and the bashrc file
+      - ./:/home/user/autonomy_stack/
+      - ./docker/.bashrc:/home/user/.bashrc
+
+      # Windows Display forwarding
+      #- /mnt/wslg:/mnt/wslg
+      - /tmp/.X11-unix:/tmp/.X11-unix
+
+      # Other folders you may want to volume in
+      # - /home/$USER/.ros/:/home/user/.ros/
+      - /home/$USER/bags/:/home/user/bags/
+
+    working_dir: /home/user/autonomy_stack
+    privileged: true
+    network_mode: host
+    ipc: host
+
+    # group_add: # If you need to add docker user to a group
+    #   - ${SHARED_GROUP:-1004}
+    
+    # deploy: # uncomment this if you want to use GPU (only needed for cuda/neural nets)
+    #   resources:
+    #     reservations:
+    #       devices:
+    #        - driver: nvidia
+    #          count: 1
+    #          capabilities: [gpu]
+    command: ["bash"]
+
