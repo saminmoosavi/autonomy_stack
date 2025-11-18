@@ -73,36 +73,21 @@ RUN useradd -m -u $UID -g $GID -s /bin/bash $UNAME
 
 # Allow the user to run sudo without a password
 RUN echo "$UNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
 # Switch to the non-root user for other images
 USER $UNAME
 
 RUN LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$LD_LIBRARY_PATH
 
 # Create workspace
-RUN mkdir -p ~/IEA_Target_Tracking/src
-COPY src /home/user/IEA_Target_Tracking/src
-RUN cd ~/IEA_Target_Tracking && \
+RUN mkdir -p ~/autonomy_stack_ros_humble/src
+COPY src /home/user/autonomy_stack_ros_humble/src
+RUN cd ~/autonomy_stack_ros_humble && \
     sudo apt update && \
     sudo rosdep init && \
     rosdep update
     
 RUN cd ~/IEA_Target_Tracking && rosdep install --from-paths src --ignore-src -r -y
 
-# Piksi dependencies
-RUN cd ~/ && \
-    git clone https://github.com/swift-nav/libsbp.git && \
-    cd libsbp && \
-    git checkout v4.11.0 && \
-    cd c && \
-    git submodule update --init --recursive && \
-    mkdir build && \
-    cd build && \
-    cmake DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF ../ && \
-    make && \
-    sudo make install
-
-RUN sudo apt update && sudo apt install -y ros-humble-gps-msgs libserialport-dev
 
 # Copy entrypoint
 COPY docker/entrypoint.sh /

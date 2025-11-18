@@ -5,13 +5,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: yolo-container
-    image: yolo-humble:latest
+    container_name: autonomy-humble-container
+    image: ubuntu-22-humble:latest
     user: user
     environment:
       # Linux
-      # - DISPLAY=${DISPLAY}
-      # - XAUTHORITY=${XAUTHORITY} # not sure if this is actually needed
+       - DISPLAY=${DISPLAY}
+       - XAUTHORITY=${XAUTHORITY} # not sure if this is actually needed
 
       # Windows 10/11 using WSLg (part of WSL2)
       - DISPLAY
@@ -26,18 +26,18 @@ services:
       #- CYCLONEDDS_URI=file:///home/user/IEA_Target_Tracking/docker/rtk_cyclonedds.xml
     volumes:
       # The repository files and the bashrc file
-      - ./:/home/user/IEA_Target_Tracking/
+      - ./:/home/user/autonomy_stack_ros_humble/
       - ./docker/.bashrc:/home/user/.bashrc
 
       # Windows Display forwarding
-      - /mnt/wslg:/mnt/wslg
+      #- /mnt/wslg:/mnt/wslg
       - /tmp/.X11-unix:/tmp/.X11-unix
 
       # Other folders you may want to volume in
       # - /home/$USER/.ros/:/home/user/.ros/
       - /home/$USER/bags/:/home/user/bags/
 
-    working_dir: /home/user/IEA_Target_Tracking/
+    working_dir: /home/user/autonomy_stack_ros_humble/
     privileged: true
     network_mode: host
     ipc: host
