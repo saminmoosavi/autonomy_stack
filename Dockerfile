@@ -1,0 +1,110 @@
+# Start from CUDA NN Docker Image
+FROM nvidia/cuda:11.7.1-cudnn8-devel-ubuntu22.04
+
+# Args for User
+ARG UNAME=user
+ARG UID=1000
+ARG GID=1000
+
+# Ensure that installs are non-interactive
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install ROS2 Humble and other dependencies
+RUN apt update && apt install locales && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && \
+    apt -y clean && \
+    rm -rf /var/lib/apt/lists/*
+ENV LANG=en_US.UTF-8
+
+RUN apt update && \
+    apt install -y curl gnupg2 lsb-release && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key  -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    apt update && \
+    apt install -y  -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" keyboard-configuration && \
+    apt install -y ros-humble-desktop && \
+    apt install -y python3-colcon-common-extensions && \
+    apt install -y ros-humble-v4l2-camera && \
+    apt install -y git && \
+    apt install -y xterm && \
+    apt install -y wget && \
+    apt install -y pciutils && \
+    apt -y clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install setup utils and basic dependencies
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+        sudo \
+        iputils-ping \
+        udev \
+        usbutils \
+        net-tools \
+        wget \
+        iproute2 \
+        curl \
+        nano \
+        git \
+        python3-pip \
+        ros-humble-rqt* \
+        ros-humble-rmw-cyclonedds-cpp \
+        ros-humble-tf-transformations \
+        ros-humble-navigation2 \
+	    ros-humble-nav2-bringup \
+	    ros-humble-turtlebot3* \
+        ros-humble-velodyne-description \
+        ros-humble-plotjuggler \
+        ros-humble-plotjuggler-ros \
+        python3-rosdep \
+        ros-humble-ament-cmake-clang-format \
+     && apt purge -y --auto-remove \
+     && rm -rf /var/lib/apt/lists/*
+     
+# Python3 Packages required by task allocation
+RUN pip3 install \
+    numpy \
+    matplotlib \
+    transforms3d \
+    utm
+
+# Create user
+RUN groupadd -g $GID $UNAME
+RUN useradd -m -u $UID -g $GID -s /bin/bash $UNAME
+
+# Allow the user to run sudo without a password
+RUN echo "$UNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Switch to the non-root user for other images
+USER $UNAME
+
+RUN LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$LD_LIBRARY_PATH
+
+# Create workspace
+RUN mkdir -p ~/IEA_Target_Tracking/src
+COPY src /home/user/IEA_Target_Tracking/src
+RUN cd ~/IEA_Target_Tracking && \
+    sudo apt update && \
+    sudo rosdep init && \
+    rosdep update
+    
+RUN cd ~/IEA_Target_Tracking && rosdep install --from-paths src --ignore-src -r -y
+
+# Piksi dependencies
+RUN cd ~/ && \
+    git clone https://github.com/swift-nav/libsbp.git && \
+    cd libsbp && \
+    git checkout v4.11.0 && \
+    cd c && \
+    git submodule update --init --recursive && \
+    mkdir build && \
+    cd build && \
+    cmake DCMAKE_CXX_STANDARD=17 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF ../ && \
+    make && \
+    sudo make install
+
+RUN sudo apt update && sudo apt install -y ros-humble-gps-msgs libserialport-dev
+
+# Copy entrypoint
+COPY docker/entrypoint.sh /
+# ENTRYPOINT ["/entrypoint.sh"]
+CMD ["/bin/bash"]
