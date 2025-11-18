@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: autonomy-container
-    image: ubuntu-20-noetic:latest
+    image: ubuntu-22-humble:latest
     user: user
     environment:
       # Linux
