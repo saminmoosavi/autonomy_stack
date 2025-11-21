@@ -18,7 +18,19 @@ launch RViz
 ```bash
 roslaunch jackal_viz view_robot.launch
 ```
-
+### Setup the nerwork
+Setting up ROS master at Jackal's IP address! Add the following line to .bashrc:
+```bash
+export ROS_MASTER_URI=http://192.168.131.1:11311/  # Jackal
+export ROS_HOSTNAME=192.168.131.50 # This computer
+export ROS_IP=192.168.131.50 # This computer
+```
+Add this Jackal
+```bash
+export ROS_MASTER_URI=http://192.168.131.1:11311/  # Jackal
+export ROS_HOSTNAME=192.168.131.1 # This computer
+export ROS_IP=192.168.131.1 # This computer
+```
 ### Navigation
 Without the map
 ```bash
