@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   ros_humble:
     build:
@@ -9,15 +7,16 @@ services:
     image: ubuntu-22-humble:latest
     user: user
     environment:
-      # Linux
-       - DISPLAY=${DISPLAY}
-       - XAUTHORITY=${XAUTHORITY} # not sure if this is actually needed
 
+      # Linux
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=${XAUTHORITY} # not sure if this is actually needed
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       # Windows 10/11 using WSLg (part of WSL2)
-      - DISPLAY
-      - WAYLAND_DISPLAY
-      - XDG_RUNTIME_DIR
-      - PULSE_SERVER
+      # - DISPLAY
+      # - WAYLAND_DISPLAY
+      # - XDG_RUNTIME_DIR
+      # - PULSE_SERVER
 
       # ROS pieces
       # - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
@@ -36,6 +35,7 @@ services:
       # Other folders you may want to volume in
       # - /home/$USER/.ros/:/home/user/.ros/
       - /home/$USER/bags/:/home/user/bags/
+      - /home/$USER/clearpath/:/home/user/clearpath/
 
     working_dir: /home/user/autonomy_stack_ros_humble/
     privileged: true
@@ -46,10 +46,10 @@ services:
     #   - ${SHARED_GROUP:-1004}
 
     deploy: # uncomment this if you want to use GPU (only needed for cuda/neural nets)
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+     resources:
+       reservations:
+         devices:
+           - driver: nvidia
+             count: 1
+             capabilities: [gpu]
     command: ["bash"]

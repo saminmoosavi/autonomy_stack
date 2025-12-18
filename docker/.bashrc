@@ -116,26 +116,9 @@ if ! shopt -oq posix; then
   fi
 fi
 
-alias sc='. ~/IEA_Target_Tracking/install/setup.bash'
-alias build='cd ~/IEA_Target_Tracking && colcon build --symlink-install && sc'
-
-alias yolo1='ros2 launch target_tracking_bringup yolov7-tiny.launch.py image:=/flir_camera/image_raw namespace:=camera1'
-alias yolo2='ros2 launch target_tracking_bringup yolov7-tiny.launch.py image:=/flir_camera2/image_raw namespace:=camera2'
-alias cam1='ros2 launch spinnaker_camera_driver driver_node.launch.py camera_type:=blackfly_s serial:="17430745"'
-#alias cam2 ='ros2 launch spinnaker_camera_driver driver_node.launch.py camera_type:=blackfly_s serial:="17430740"'
-alias sub='ros2 run infraware_ros SensorStacker'
-alias filter='ros2 run infraware_ros FilterInfra'
-alias filterVeh='ros2 run infraware_ros FilterVehicle'
-alias infra='ros2 launch infraware_ros infraware_launch.py INFRA:=True'
-alias infraVehicle='ros2 launch infraware_ros infraware_launch.py INFRA:=False'
-alias sensor='ros2 launch infraware_ros vehicle_sensors_launch.py Spoofed:=False'
-alias spoof='ros2 launch infraware_ros vehicle_sensors_launch.py Spoofed:=True'
-#function camera1 { # This doesnt work as a function or alias but if you paste this into the terminal it will work, weird quotes break it
-#    ros2 launch spinnaker_camera_driver driver_node.launch.py camera_type:=blackfly_s serial:="'17430745'"
-#}
-# cd src/infraware_ros/infraware_ros
-alias sim='ros2 launch target_tracking_bringup sim.launch.py'
+alias sc='. ~/autonomy_stack_ros_humble/devel/setup.bash'
+alias build='cd ~/autonomy_stack_ros_humble && catkin build && sc'
 source /opt/ros/humble/setup.bash
 # Source workspace, then gazebo
-sc
-. /usr/share/gazebo-11/setup.bash
+#sc
+#. /usr/share/gazebo-11/setup.bash

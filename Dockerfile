@@ -49,6 +49,10 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         ros-humble-rqt* \
         ros-humble-rmw-cyclonedds-cpp \
         ros-humble-tf-transformations \
+        ros-humble-ros-gz\
+        ros-humble-clearpath-desktop\
+        ros-humble-clearpath-nav2-demos\
+        ros-humble-clearpath-simulator\
         ros-humble-navigation2 \
 	    ros-humble-nav2-bringup \
 	    ros-humble-turtlebot3* \
@@ -61,16 +65,29 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
      && rm -rf /var/lib/apt/lists/*
      
 # Python3 Packages required by task allocation
-RUN pip3 install \
+RUN pip install \
     numpy \
     matplotlib \
     transforms3d \
-    utm
+    utm \
+    networkx \
+    openai \
+    ros2_numpy \
+    ultralytics
+    
+RUN pip install \
+    opencv-python>=4.8.1.78 \
+    typing-extensions>=4.4.0 \
+    ultralytics==8.3.168 \
+    lap>=0.5.12
+    
+# install yolo
+#RUN pip install -U ultralytics
+
 
 # Create user
 RUN groupadd -g $GID $UNAME
 RUN useradd -m -u $UID -g $GID -s /bin/bash $UNAME
-
 # Allow the user to run sudo without a password
 RUN echo "$UNAME ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 # Switch to the non-root user for other images
@@ -86,10 +103,11 @@ RUN cd ~/autonomy_stack_ros_humble && \
     sudo rosdep init && \
     rosdep update
     
-RUN cd ~/IEA_Target_Tracking && rosdep install --from-paths src --ignore-src -r -y
+RUN cd ~/autonomy_stack_ros_humble && rosdep install --from-paths src --ignore-src -r -y
 
 
 # Copy entrypoint
 COPY docker/entrypoint.sh /
-# ENTRYPOINT ["/entrypoint.sh"]
+RUN sudo chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["/bin/bash"]
