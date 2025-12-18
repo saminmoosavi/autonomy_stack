@@ -1,4 +1,5 @@
 #docker
+install/
 build/
 devel/
 logs/
