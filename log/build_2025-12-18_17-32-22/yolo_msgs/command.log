@@ -1,6 +1,0 @@
-Invoking command in '/home/user/autonomy_stack_ros_humble/build/yolo_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/user/autonomy_stack_ros_humble/src/detection_ros_pkgs/yolo_ros/yolo_msgs -DCMAKE_INSTALL_PREFIX=/home/user/autonomy_stack_ros_humble/install/yolo_msgs
-Invoked command in '/home/user/autonomy_stack_ros_humble/build/yolo_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /home/user/autonomy_stack_ros_humble/src/detection_ros_pkgs/yolo_ros/yolo_msgs -DCMAKE_INSTALL_PREFIX=/home/user/autonomy_stack_ros_humble/install/yolo_msgs
-Invoking command in '/home/user/autonomy_stack_ros_humble/build/yolo_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/user/autonomy_stack_ros_humble/build/yolo_msgs -- -j22 -l22
-Invoked command in '/home/user/autonomy_stack_ros_humble/build/yolo_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /home/user/autonomy_stack_ros_humble/build/yolo_msgs -- -j22 -l22
-Invoking command in '/home/user/autonomy_stack_ros_humble/build/yolo_msgs': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/user/autonomy_stack_ros_humble/build/yolo_msgs
-Invoked command in '/home/user/autonomy_stack_ros_humble/build/yolo_msgs' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /home/user/autonomy_stack_ros_humble/build/yolo_msgs
