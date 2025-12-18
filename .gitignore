@@ -1,6 +1,7 @@
 #docker
-install/
 build/
+install/
+log\
 devel/
 logs/
 .vscode/
