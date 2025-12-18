@@ -36,3 +36,13 @@ Run the SLAM in simulation
 ```bash
 ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
 ```
+Run realsense camera
+```bash
+sudo chmod a+rw /dev/video48 /dev/video49 /dev/video50 /dev/video51 /dev/video52 /dev/video53
+ros2 launch realsense2_camera rs_launch.py serial_no:="'135122079298'"
+```
+Run Yolo, make sure the input camera is set correctly in the launch file.
+for simulation, set it to /a200_0000/sensors/camera_0/color/image and for realsense camera to /camera/camera/color/image_raw. 
+```bash
+ros2 launch yolo_bringup yolo.launch.py
+```

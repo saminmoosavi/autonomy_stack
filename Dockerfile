@@ -80,7 +80,9 @@ RUN pip install \
     typing-extensions>=4.4.0 \
     ultralytics==8.3.168 \
     lap>=0.5.12
-    
+
+RUN apt-get update && apt-get install -y ros-humble-realsense2-*
+
 # install yolo
 #RUN pip install -U ultralytics
 
