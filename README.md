@@ -35,6 +35,7 @@ ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/
 Run the SLAM in simulation
 ```bash
 ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
+ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true
 ```
 Run realsense camera
 ```bash
@@ -46,3 +47,16 @@ for simulation, set it to /a200_0000/sensors/camera_0/color/image and for realse
 ```bash
 ros2 launch yolo_bringup yolo.launch.py
 ```
+
+Run tracker with yolo:
+```bash
+ros2 run spine_ros2 tracker_with_yolo
+```
+
+Run SPINE:
+```bash
+ros2 launch spine_ros2 spine.launch.py ns:=a200_0000
+```
+-----------------------------------------------------------
+#Tutorial on how to run the waypoint follower with nav2
+

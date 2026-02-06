@@ -115,10 +115,10 @@ if ! shopt -oq posix; then
     . /etc/bash_completion
   fi
 fi
-
-alias sc='. ~/autonomy_stack_ros_humble/devel/setup.bash'
-alias build='cd ~/autonomy_stack_ros_humble && catkin build && sc'
 source /opt/ros/humble/setup.bash
+alias sc='. ~/autonomy_stack_ros_humble/install/setup.bash'
+alias build='cd ~/autonomy_stack_ros_humble && colcon build --symlink-install && sc'
+
 # Source workspace, then gazebo
 #sc
 #. /usr/share/gazebo-11/setup.bash

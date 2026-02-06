@@ -61,6 +61,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         ros-humble-plotjuggler-ros \
         python3-rosdep \
         ros-humble-ament-cmake-clang-format \
+        ros-humble-message-filters \
      && apt purge -y --auto-remove \
      && rm -rf /var/lib/apt/lists/*
      
