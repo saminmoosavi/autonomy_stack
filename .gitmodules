@@ -3,5 +3,5 @@
 	url = https://github.com/mgonzs13/yolo_ros
 [submodule "src/planning_ros_pkgs/SPINE"]
 	path = src/planning_ros_pkgs/SPINE
-	url = https://github.com/saminmoosavi/autonomy_stack.git
+	url = https://github.com/saminmoosavi/SPINE.git
 	branch = ros2-humble
