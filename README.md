@@ -1,6 +1,3 @@
-https://docs.clearpathrobotics.com/docs/ros/tutorials/simulator/simulate
-https://docs.clearpathrobotics.com/docs/ros/installation/offboard_pc
-The offboard computer will need a copy of the robot.yaml file to generate the same setup.bash file as the robot.
 # Install:
 First build the docker container by cd into /autonomy_stack_ros_humble directory and run 
 ```bash
