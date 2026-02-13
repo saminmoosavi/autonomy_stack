@@ -31,6 +31,7 @@ Create the clearpath folder in your home directory:
 mkdir ~/clearpath/
 ```
 Copy the robot.yaml file into the setup folder.
+
 **Note: If you have workspaces defined in robot.yaml that do not exist on the offboard computer, remove them.
 
 Generate the setup.bash file:
@@ -41,7 +42,7 @@ ros2 run clearpath_generator_common generate_bash -s /home/user/clearpath
 
 Add the following line to your ~/.bashrc file to automatically source the generated setup.bash file in new terminals:
 If you are running in docker, make sure you give docker access to this directory.
-# Run navigation and slam 
+# Run navigation and SLAM 
 Start the simulation
 ```bash
 ros2 launch clearpath_gz simulation.launch.py
@@ -63,7 +64,7 @@ View the path and maps in  RViz
 ```bash
 ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true
 ```
-# Run yolo
+# Run YOLO
 If running in simulation, skip directly to launching YOLO.
 
 For a physical RealSense camera, start the RealSense drivers
@@ -82,7 +83,7 @@ To run YOLO, make sure the input camera topic is set correctly:
 ```bash
 ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/a200_0000/sensors/camera_0/color/image
 ```
-# Run Spine
+# Run SPINE
 When working with YOLO, detections must be projected into 3D coordinates. This is done by associating detected bounding boxes with the depth camera. The coordinates are then transformed into the map frame.
 
 Run the tracker for YOLO:
