@@ -54,15 +54,15 @@ ros2 topic pub /a200_0000/cmd_vel geometry_msgs/msg/Twist \
 ```
 If it passed the test, launch the nav2 in simulation
 ```bash
-ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
+ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=false setup_path:=/home/user/clearpath/
 ```
 Run the SLAM package in simulation
 ```bash
-ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
+ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=false setup_path:=/home/user/clearpath/
 ```
 View the path and maps in  RViz
 ```bash
-ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true
+ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=false
 ```
 # Run YOLO
 If running in simulation, skip directly to launching YOLO.
@@ -86,14 +86,13 @@ ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/a200_0000/sens
 # Run SPINE
 When working with YOLO, detections must be projected into 3D coordinates. This is done by associating detected bounding boxes with the depth camera. The coordinates are then transformed into the map frame.
 
-Run the tracker for YOLO:
-```bash
-ros2 run spine_ros2 tracker_with_yolo
-```
-Once the labels are generated and projected by the tracker and YOLO, launch Spine:
+Launch Spine:
 ```bash
 ros2 launch spine_ros2 spine.launch.py ns:=a200_0000
 ```
-
+To give a mission goal to it 
+```bash
+ros2 service call /a200_0000/region_goal spine_interface_ros2/srv/Task task:" R2"
+```
 
 
