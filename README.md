@@ -54,15 +54,15 @@ ros2 topic pub /a200_0000/cmd_vel geometry_msgs/msg/Twist \
 ```
 If it passed the test, launch the nav2 in simulation
 ```bash
-ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=false setup_path:=/home/user/clearpath/
+ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
 ```
 Run the SLAM package in simulation
 ```bash
-ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=false setup_path:=/home/user/clearpath/
+ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
 ```
 View the path and maps in  RViz
 ```bash
-ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=false
+ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true
 ```
 # Run YOLO
 If running in simulation, skip directly to launching YOLO.
