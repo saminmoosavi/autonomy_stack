@@ -41,10 +41,14 @@ services:
     privileged: true
     network_mode: host
     ipc: host
+    
 
     # group_add: # If you need to add docker user to a group
     #   - ${SHARED_GROUP:-1004}
-
+    devices:
+      - "/dev/bus/usb/:/dev/bus/usb/"
+    group_add:
+      - dialout
     deploy: # uncomment this if you want to use GPU (only needed for cuda/neural nets)
      resources:
        reservations:
