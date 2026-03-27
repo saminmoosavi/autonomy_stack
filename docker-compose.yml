@@ -36,6 +36,7 @@ services:
       # - /home/$USER/.ros/:/home/user/.ros/
       - /home/$USER/bags/:/home/user/bags/
       - /home/$USER/clearpath/:/home/user/clearpath/
+      - home/$USER/.cache/huggingface:/home/.cache/huggingface
 
     working_dir: /home/user/autonomy_stack_ros_humble/
     privileged: true
