@@ -36,12 +36,14 @@ services:
       # - /home/$USER/.ros/:/home/user/.ros/
       - /home/$USER/bags/:/home/user/bags/
       - /home/$USER/clearpath/:/home/user/clearpath/
+      - /home/$USER/jackal_setup/:/home/user/jackal_setup/
       - /home/$USER/.cache/huggingface:/home/.cache/huggingface
 
     working_dir: /home/user/autonomy_stack_ros_humble/
     privileged: true
     network_mode: host
     ipc: host
+    pid : host
     
 
     # group_add: # If you need to add docker user to a group

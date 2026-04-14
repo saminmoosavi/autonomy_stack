@@ -40,9 +40,11 @@ source /opt/ros/humble/setup.bash
 ros2 run clearpath_generator_common generate_bash -s /home/user/clearpath
 ```
 
+
 Add the following line to your ~/.bashrc file to automatically source the generated setup.bash file in new terminals:
 If you are running in docker, make sure you give docker access to this directory.
 # Run navigation and SLAM 
+## Husky simulation
 Start the simulation
 ```bash
 ros2 launch clearpath_gz simulation.launch.py
@@ -64,6 +66,16 @@ View the path and maps in  RViz
 ```bash
 ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true
 ```
+## Jackal robot
+For a physical clearpath Jackal, copy the robot.yaml into ~/jackal_setup.Then inside the docker container generate the setup file. 
+```bash
+mkdir ~/jackal_setup/
+ros2 run clearpath_generator_common generate_bash -s /home/user/jackal_setup
+source /opt/ros/humble/setup.bash
+ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
+ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
+ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0611
+```
 # Run YOLO
 If running in simulation, skip directly to launching YOLO.
 
@@ -74,6 +86,8 @@ ros2 launch realsense2_camera rs_launch.py serial_no:="'135122079298'"
 If you encounter permission issues, try:
 ```bash
 sudo chmod a+rw /dev/video48 /dev/video49 /dev/video50 /dev/video51 /dev/video52 /dev/video53
+or
+sudo chmod 777 /dev/video*
 ```
 To run YOLO, make sure the input camera topic is set correctly:
 
