@@ -5,3 +5,6 @@
 	path = src/planning_ros_pkgs/SPINE
 	url = https://github.com/saminmoosavi/SPINE.git
 	branch = ros2-humble
+[submodule "fast_downward"]
+	path = fast_downward
+	url = https://github.com/aibasel/downward.git

@@ -128,6 +128,6 @@ alias goal='ros2 service call /a200_0000/region_goal spine_interface_ros2/srv/Ta
 # Source workspace, then gazebo
 #sc
 #. /usr/share/gazebo-11/setup.bash
-export ROS_DOMAIN_ID=0
+export ROS_DOMAIN_ID=0  # 0 for jackal, 5 for warthog
 export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp

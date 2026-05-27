@@ -67,7 +67,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
      
 # Python3 Packages required by task allocation
 RUN pip install \
-    numpy \
+    "numpy < 2"\
     matplotlib \
     transforms3d \
     utm \
@@ -87,8 +87,54 @@ RUN apt-get update && apt-get install -y ros-humble-realsense2-*
 # install yolo
 #RUN pip install -U ultralytics
 
+#stl packages
+RUN pip install \
+      scipy \
+      pandas \
+      tensorflow \
+      tensorflow-datasets \
+      torch \
+      torchvision \
+      transformers \
+      datasets \
+      accelerate \
+      trl \
+      drake==1.51.1 \
+      git+https://github.com/vincekurtz/stlpy.git 
 
+RUN python3 -m pip install --force-reinstall \
+    "numpy>=1.23,<2" \
+    matplotlib
+## fix version mismatch
+RUN python3 - <<'PY'
+from pathlib import Path
+import site
+
+for base in site.getsitepackages():
+    p = Path(base) / "stlpy/solvers/drake/drake_micp.py"
+    if p.exists():
+        p.write_text(p.read_text().replace(
+            "from pydrake.solvers.branch_and_bound import MixedIntegerBranchAndBound",
+            "from pydrake.solvers import MixedIntegerBranchAndBound",
+        ))
+
+    p = Path(base) / "stlpy/solvers/drake/drake_smooth.py"
+    if p.exists():
+        p.write_text(p.read_text().replace(
+            "from pydrake.solvers.all import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
+            "from pydrake.solvers import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
+        ))
+PY
 # Create user
+
+RUN apt update && apt install -y cmake g++ make python3 git
+### Instruction for fast downward
+#RUN cd ~/autonomy_stack_ros_humble/src && \
+#   git clone https://github.com/aibasel/downward.git fast_downward && \
+#   cd fast_downward && \
+#   ./build.py
+
+
 RUN groupadd -g $GID $UNAME
 RUN useradd -m -u $UID -g $GID -s /bin/bash $UNAME
 # Allow the user to run sudo without a password

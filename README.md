@@ -54,6 +54,10 @@ To test the simulation, drive the robot in a circle
 ros2 topic pub /a200_0000/cmd_vel geometry_msgs/msg/Twist \
 "{linear: {x: 0.5}, angular: {z: 0.3}}"
 ```
+```bash
+ros2 topic pub -r 10 /j100_0611/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}, angular: {z: 0.3}}"
+```
+
 If it passed the test, launch the nav2 in simulation
 ```bash
 ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
@@ -66,6 +70,14 @@ View the path and maps in  RViz
 ```bash
 ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true
 ```
+save the map 
+```bash
+ros2 run nav2_map_server map_saver_cli -f "factory_sim_map" --ros-args -p map_subscribe_transient_local:=true -r __ns:=/a200_0000
+```
+run localization in a pre built map
+```bash
+ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy_stack_ros_humble/factory_sim_map.yaml use_sim_time:=true setup_path:=/home/user/clearpath/
+```
 ## Jackal robot
 For a physical clearpath Jackal, copy the robot.yaml into ~/jackal_setup.Then inside the docker container generate the setup file. 
 ```bash
@@ -75,6 +87,14 @@ source /opt/ros/humble/setup.bash
 ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
 ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
 ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0611
+```
+
+with ouster sensor:
+```bash
+ros2 launch clearpath_nav2_demos nav2.launch.py scan_topic:=/j100_0611/sensors/lidar3d_0/scan setup_path:=/home/user/jackal_setup/ use_sim_time:=false
+ros2 launch clearpath_nav2_demos slam.launch.py scan_topic:=/j100_0611/sensors/lidar3d_0/scan setup_path:=/home/user/jackal_setup/ use_sim_time:=false
+
+
 ```
 # Run YOLO
 If running in simulation, skip directly to launching YOLO.
@@ -92,8 +112,9 @@ sudo chmod 777 /dev/video*
 To run YOLO, make sure the input camera topic is set correctly:
 
   - For simulation: /a200_0000/sensors/camera_0/color/image
-
   - For RealSense camera: /camera/camera/color/image_raw
+  - For jackal change topic to: /j100_0611/sensors/camera_0/color/image
+
 ```bash
 ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/a200_0000/sensors/camera_0/color/image
 ```
