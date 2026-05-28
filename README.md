@@ -52,6 +52,21 @@ ros2 run clearpath_generator_common generate_bash -s /home/user/clearpath
 Add the following line to your ~/.bashrc file to automatically source the generated setup.bash file in new terminals:
 If you are running in docker, make sure you give docker access to this directory.
 # Run navigation and SLAM 
+
+## Quick start: full simulation pipeline (one command)
+`run_sim.sh` brings up the entire verified pipeline inside the container — Gazebo (Jackal) → Nav2 + SLAM → lidar scan relay → `evo_skill` plan deploy — with all the host-specific fixes already applied (loopback DDS, loopback gz-transport, 3D→2D scan relay). The robot drives the PDDL/STL plan in the warehouse world.
+
+```bash
+# on the HOST (once), so the Gazebo GUI can reach your X server:
+xhost +local:
+
+# inside the container:
+./run_sim.sh
+```
+Useful env overrides: `NS` (robot namespace, default `/j100_0000`), `WORLD` (default `warehouse`), `TARGET` (goal region, default `R10`), `RVIZ=true`, `NO_EVO=1` (bring up sim + Nav2 + SLAM only). Logs are written to `/tmp/evo_sim/{sim,nav2,slam,relay,evo}.log`. Press `Ctrl-C` to tear the whole pipeline down. Verify the robot is moving with `ign model -m j100_0000/robot -p` (run twice and compare the pose).
+
+The sections below explain each stage manually (and the fixes the script applies for you).
+
 ## Husky simulation
 Start the simulation
 ```bash
@@ -81,6 +96,11 @@ ros2 topic pub /a200_0000/cmd_vel geometry_msgs/msg/Twist \
 ros2 topic pub -r 10 /j100_0611/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.5}, angular: {z: 0.3}}"
 ```
 
+**Before launching Nav2/SLAM on a multi-NIC host (VPN, bridges):** export `ROS_LOCALHOST_ONLY=1` in *every* terminal (sim, Nav2, SLAM, evo). Otherwise the default DDS drops traffic and Nav2's `lifecycle_manager` hangs forever on "Configuring controller_server". Pinning DDS to loopback fixes it.
+```bash
+export ROS_LOCALHOST_ONLY=1
+```
+
 If it passed the test, launch the nav2 in simulation
 ```bash
 ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
@@ -88,6 +108,11 @@ ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/
 Run the SLAM package in simulation
 ```bash
 ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/
+```
+**Scan topic relay (required in sim):** the sim Jackal has only a 3D lidar publishing `/<ns>/sensors/lidar3d_0/scan`, but Clearpath SLAM/Nav2 subscribe to `/<ns>/sensors/lidar2d_0/scan` (no publisher), and `slam.launch.py` has no `scan_topic` argument. Without scans, SLAM never builds a map and Nav2's costmaps stay inactive. Relay the 3D scan onto the 2D topic (`scan_relay.py` is a tiny rclpy node in the repo root, used because `topic_tools` is not installed):
+```bash
+python3 ~/autonomy_stack_ros_humble/scan_relay.py \
+  /j100_0000/sensors/lidar3d_0/scan /j100_0000/sensors/lidar2d_0/scan
 ```
 View the path and maps in  RViz
 ```bash
@@ -166,5 +191,14 @@ Note: pruning all build cache forces every layer to rebuild from scratch, which 
 
 ## Permission errors on mounted workspace files
 Rebuild the image with your host UID/GID — see the build-arg note in **Install** above.
+
+## Gazebo opens but the robot never spawns
+gz-transport picked the wrong network interface. `export IGN_IP=127.0.0.1` (Garden/Harmonic: `GZ_IP`) before launching. See the simulation section.
+
+## Nav2 lifecycle_manager hangs on "Configuring controller_server"
+The configure response was lost over DDS on a multi-NIC host. `export ROS_LOCALHOST_ONLY=1` in every terminal (all nodes must share it) and relaunch.
+
+## SLAM never builds a map / Nav2 costmaps "no map received" / "frame map does not exist"
+SLAM is subscribed to `lidar2d_0/scan`, but the sim Jackal only publishes `lidar3d_0/scan`. Run the scan relay (see the SLAM step above). `run_sim.sh` does this automatically.
 
 
