@@ -86,6 +86,7 @@ ros2 run clearpath_generator_common generate_bash -s /home/user/jackal_setup
 source /opt/ros/humble/setup.bash
 ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
 ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
+ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy_stack_ros_humble/lens_lab_map.yaml use_sim_time:=false setup_path:=/home/user/jackal_setup/
 ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0611
 ```
 
