@@ -203,4 +203,7 @@ The configure response was lost over DDS on a multi-NIC host. `export ROS_LOCALH
 ## SLAM never builds a map / Nav2 costmaps "no map received" / "frame map does not exist"
 SLAM is subscribed to `lidar2d_0/scan`, but the sim Jackal only publishes `lidar3d_0/scan`. Run the scan relay (see the SLAM step above). `run_sim.sh` does this automatically.
 
+## YOLO detects nothing / `yolo_node` dies with "No module named 'clip'"
+`yolo-world` is open-vocabulary and needs the `clip` package for text prompts; setting classes crashes the node without it. The Dockerfile installs CLIP (`pip install git+https://github.com/openai/CLIP.git`). Also note yolo-world detects nothing until classes are set — `run_sim.sh` calls `/yolo/set_classes` with `person` automatically (override with `YOLO_CLASSES`). The sim camera FOV is widened to 2.0 rad in `clearpath_sensors_description/urdf/intel_realsense.urdf.xacro` (done in the Dockerfile) so the robot sees people over a wider angle. Walking actors are non-collision, so only this camera path can avoid them.
+
 

@@ -6,8 +6,9 @@
 # On the HOST first allow the GUI:  xhost +local:
 #
 # Env overrides: NS (default: auto-detected from ~/clearpath/robot.yaml), WORLD,
-#   TARGET, WS, LOGDIR, NO_EVO=1 (skip evo), RVIZ=true,
-#   SPAWN_TIMEOUT (default 180s), NAV2_TIMEOUT (default 180s)
+#   TARGET, WS, LOGDIR, NO_EVO=1 (skip evo), NO_YOLO=1 (skip YOLO),
+#   YOLO_CLASSES (default "person"; comma-list for more), RVIZ=true,
+#   SPAWN_TIMEOUT (default 180s), NAV2_TIMEOUT (default 180s), YOLO_TIMEOUT (90s)
 set -o pipefail   # NOTE: no 'set -u' — ROS setup.bash references unbound vars
 
 WS=${WS:-$HOME/autonomy_stack_ros_humble}
@@ -40,9 +41,9 @@ cleanup() {
   kill "${PIDS[@]}" 2>/dev/null || true
   # children survive (pid:host); kill the node processes directly
   for p in "ros2 launch clearpath_gz" "ros2 launch clearpath_nav2_demos" \
-           "ros2 launch evo_skill_ros" "ign gazebo" "/ros_gz_bridge/" \
-           "/ros_gz_image/" nav2_ slam_toolbox "evo_skill_ros/lib" \
-           scan_relay.py robot_state_publisher robot_localization/ekf_node; do
+           "ros2 launch evo_skill_ros" "ros2 launch yolo_bringup" "ign gazebo" \
+           "/ros_gz_bridge/" "/ros_gz_image/" nav2_ slam_toolbox "evo_skill_ros/lib" \
+           yolo_ros scan_relay.py robot_state_publisher robot_localization/ekf_node; do
     pkill -9 -f "$p" 2>/dev/null || true
   done
   echo "[run_sim] done."
@@ -63,9 +64,10 @@ wait_for() { # timeout_s  description  test-command...
 # Robust spawn detection: gz model list OR (transport-independent) a ROS
 # odometry publisher under the namespace. Either is sufficient.
 robot_spawned() {
-  ign model --list 2>/dev/null | grep -q "${NS#/}/robot" && return 0
+  # timeout-wrap every CLI call: a hung gz/ros2 discovery call must not stall the loop
+  timeout 8 ign model --list 2>/dev/null | grep -q "${NS#/}/robot" && return 0
   local pc
-  pc=$(ros2 topic info "${NS}/platform/odom" 2>/dev/null | awk -F': ' '/Publisher count/{print $2}')
+  pc=$(timeout 8 ros2 topic info "${NS}/platform/odom" 2>/dev/null | awk -F': ' '/Publisher count/{print $2}')
   [ "${pc:-0}" -ge 1 ]
 }
 
@@ -114,7 +116,7 @@ fi
 
 # 4) Wait for Nav2 to finish lifecycle activation ----------------------------
 if ! wait_for "${NAV2_TIMEOUT:-180}" "Nav2 to activate (waypoint_follower)" \
-  bash -c "[ \"\$(ros2 lifecycle get ${NS}/waypoint_follower 2>/dev/null)\" = 'active [3]' ]"; then
+  bash -c "[ \"\$(timeout 8 ros2 lifecycle get ${NS}/waypoint_follower 2>/dev/null)\" = 'active [3]' ]"; then
   echo "[run_sim] ERROR: Nav2 did not activate. Check $LOGDIR/nav2.log and $LOGDIR/slam.log"
   echo "[run_sim] Common causes: scan relay not feeding ${NS}/sensors/lidar2d_0/scan (no map),"
   echo "[run_sim] or DDS dropping traffic (ensure ROS_LOCALHOST_ONLY=1 everywhere)."
@@ -138,7 +140,36 @@ else
   echo "[run_sim] evo_skill plan deploy launched (target_region=$TARGET)."
 fi
 
-echo "[run_sim] pipeline is UP. Logs: $LOGDIR/{sim,nav2,slam,relay,evo}.log"
+# 6) YOLO detection -> /yolo/tracking. tracker_with_yolo turns that into 3D
+#    /tracks, which evo's STL layer treats as human obstacles. A person must be
+#    in the camera's view to register. Skip with NO_YOLO=1.
+if [ "${NO_YOLO:-0}" = "1" ]; then
+  echo "[run_sim] NO_YOLO=1 -> skipping YOLO (people won't register as STL obstacles)."
+else
+  ros2 launch yolo_bringup yolo-world.launch.py \
+    input_image_topic:="${NS}/sensors/camera_0/color/image" \
+    > "$LOGDIR/yolo.log" 2>&1 &
+  PIDS+=($!)
+  echo "[run_sim] YOLO launched on ${NS}/sensors/camera_0/color/image -> /yolo/tracking."
+  # yolo-world is open-vocabulary: it detects NOTHING until classes are set.
+  # Wait for the set_classes service, then prompt it (default: person). Run in
+  # the background so it doesn't block bringup.
+  YOLO_CLASSES="${YOLO_CLASSES:-person}"
+  (
+    if wait_for "${YOLO_TIMEOUT:-90}" "YOLO set_classes service" \
+        bash -c "timeout 6 ros2 service list 2>/dev/null | grep -q /yolo/set_classes"; then
+      timeout 15 ros2 service call /yolo/set_classes yolo_msgs/srv/SetClasses \
+        "{classes: [${YOLO_CLASSES}]}" >/dev/null 2>&1 \
+        && echo "[run_sim] YOLO classes set: [${YOLO_CLASSES}]" \
+        || echo "[run_sim] WARNING: failed to set YOLO classes; people won't be detected."
+    else
+      echo "[run_sim] WARNING: /yolo/set_classes never appeared; people won't be detected."
+    fi
+  ) &
+  PIDS+=($!)
+fi
+
+echo "[run_sim] pipeline is UP. Logs: $LOGDIR/{sim,nav2,slam,relay,evo,yolo}.log"
 echo "[run_sim] verify motion:  ign model -m ${NS#/}/robot -p   (run twice)"
 echo "[run_sim] Ctrl-C to tear everything down."
 wait

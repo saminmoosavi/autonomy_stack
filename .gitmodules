@@ -10,4 +10,4 @@
 	url = https://github.com/aibasel/downward.git
 [submodule "src/planning_ros_pkgs/evo_skill"]
 	path = src/planning_ros_pkgs/evo_skill
-	url = https://github.com/saminmoosavi/evo_skill_ros.git
+	url = git@github.com:saminmoosavi/evo_skill_ros.git
