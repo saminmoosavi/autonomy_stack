@@ -63,7 +63,9 @@ xhost +local:
 # inside the container:
 ./run_sim.sh
 ```
-Useful env overrides: `NS` (robot namespace, default `/j100_0000`), `WORLD` (default `warehouse`), `TARGET` (goal region, default `R10`), `RVIZ=true`, `NO_EVO=1` (bring up sim + Nav2 + SLAM only). Logs are written to `/tmp/evo_sim/{sim,nav2,slam,relay,evo}.log`. Press `Ctrl-C` to tear the whole pipeline down. Verify the robot is moving with `ign model -m j100_0000/robot -p` (run twice and compare the pose).
+Useful env overrides: `NS` (robot namespace — **auto-detected from `~/clearpath/robot.yaml`** if unset), `WORLD` (default `warehouse`), `TARGET` (goal region, default `R10`), `RVIZ=true`, `NO_EVO=1` (bring up sim + Nav2 + SLAM only), `SPAWN_TIMEOUT`/`NAV2_TIMEOUT` (default 180s each). Logs are written to `/tmp/evo_sim/{sim,nav2,slam,relay,evo}.log`. Press `Ctrl-C` to tear the whole pipeline down. Verify the robot is moving with `ign model -m <ns>/robot -p` (run twice and compare the pose).
+
+> **"Waiting for robot to spawn" forever?** The robot's gazebo model name is `<namespace>/robot`, where `<namespace>` comes from `~/clearpath/robot.yaml`. If your robot uses a different serial/namespace than the default, the script now auto-detects it — but if detection misses, run `ign model --list` to see the real name and rerun with `NS=/your_namespace ./run_sim.sh`. The spawn check also has a ROS fallback in case `ign model --list` can't reach the gz server.
 
 The sections below explain each stage manually (and the fixes the script applies for you).
 
