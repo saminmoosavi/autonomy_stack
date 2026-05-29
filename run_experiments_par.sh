@@ -26,6 +26,7 @@ CREPO=/home/user/autonomy_stack_ros_humble        # repo mount point inside cont
 IMAGE=${IMAGE:-ubuntu-22-humble:latest}
 CLEARPATH_DIR=${CLEARPATH_DIR:-$HOME/clearpath}   # host clearpath config (robot.yaml etc.)
 HF_CACHE=${HF_CACHE:-$HOME/.cache/huggingface}
+BRINGUP_LOCK=${BRINGUP_LOCK:-/tmp/evo_bringup.lock}  # serialize Nav2 bringup across workers
 OUT=$HOSTREPO/results/factory_missions
 LOGROOT_HOST=$OUT/_log                       # host view of per-run logs (on /home)
 LOGROOT_CONT=$CREPO/results/factory_missions/_log
@@ -123,31 +124,52 @@ run_one() {    # $1=worker $2=plan $3=rep $4=target
   local attempt
   for attempt in 1 2; do
     echo "[w$k] ===== plan$p rep$r (target=$tgt, ${nwalk:-?} walkers, attempt $attempt) ====="
+    rm -rf "$ld_host"; mkdir -p "$ld_host"
+
+    # ---- BRINGUP under a global lock: only one worker restarts + activates Nav2
+    # at a time. Concurrent Nav2 bringup starves the lifecycle DDS handshake;
+    # concurrent navigation (after UP) is fine, so the lock is released once UP.
+    local up=0
+    exec 9>"$BRINGUP_LOCK"
+    flock 9
+    echo "[w$k] plan$p rep$r: bringup lock acquired"
     teardown "$name"
     docker restart "$name" >/dev/null
     ensure_worker "$k"
-    if ! wait_ros "$name"; then echo "[w$k] plan$p rep$r: ROS not ready (attempt $attempt)"; continue; fi
-    sleep 4
-    rm -rf "$ld_host"; mkdir -p "$ld_host"
+    if wait_ros "$name"; then
+      sleep 4
+      docker exec -d "$name" bash -lc "
+        source /opt/ros/humble/setup.bash;
+        source $CREPO/install/setup.bash;
+        cd $CREPO;
+        PLAN=$CREPO/factory_mission_plans/factory_mission_${p}.txt \
+        TARGET=$tgt WORLD=$CREPO/${vbase} \
+        MULTICAM=1 METRICS=1 UNTIL_SUCCESS=1 \
+        METRICS_DURATION=$BACKSTOP NAV2_TIMEOUT=300 YOLO_TIMEOUT=120 \
+        COSTMAP_EDIT_RADIUS=0.3 STL_REPLAN_COOLDOWN=5.0 \
+        LOGDIR=$ld_cont \
+        ./run_sim.sh > $ld_cont/runsim.log 2>&1
+      "
+      local bdl=$((SECONDS + 420))
+      while [ $SECONDS -lt $bdl ]; do
+        if grep -aq "pipeline is UP" "$ld_host/runsim.log" 2>/dev/null; then up=1; break; fi
+        if grep -aq "SCAND-shield runtime metrics" "$ld_host/evo.log" 2>/dev/null; then up=1; break; fi
+        if grep -aq "ERROR: Nav2 did not activate\|ERROR: no robot under namespace\|ERROR: robot did not spawn" "$ld_host"/*.log 2>/dev/null; then break; fi
+        sleep 5
+      done
+    fi
+    flock -u 9; exec 9>&-
+    echo "[w$k] plan$p rep$r: bringup lock released (up=$up)"
 
-    docker exec -d "$name" bash -lc "
-      source /opt/ros/humble/setup.bash;
-      source $CREPO/install/setup.bash;
-      cd $CREPO;
-      PLAN=$CREPO/factory_mission_plans/factory_mission_${p}.txt \
-      TARGET=$tgt WORLD=$CREPO/${vbase} \
-      MULTICAM=1 METRICS=1 UNTIL_SUCCESS=1 \
-      METRICS_DURATION=$BACKSTOP NAV2_TIMEOUT=300 YOLO_TIMEOUT=120 \
-      COSTMAP_EDIT_RADIUS=0.3 STL_REPLAN_COOLDOWN=5.0 \
-      LOGDIR=$ld_cont \
-      ./run_sim.sh > $ld_cont/runsim.log 2>&1
-    "
+    if [ "$up" != 1 ]; then
+      echo "[w$k] plan$p rep$r: attempt $attempt bringup failed"
+      teardown "$name"; continue
+    fi
 
-    local deadline=$((SECONDS + RUN_TIMEOUT)) got=0 bfail=0
+    # ---- NAVIGATE (lock released; overlaps other workers freely) ----
+    local deadline=$((SECONDS + RUN_TIMEOUT)) got=0
     while [ $SECONDS -lt $deadline ]; do
       if grep -aq "SCAND-shield runtime metrics" "$ld_host/evo.log" 2>/dev/null; then got=1; break; fi
-      if grep -aq "ERROR: Nav2 did not activate\|ERROR: no robot under namespace\|ERROR: robot did not spawn" "$ld_host"/*.log 2>/dev/null; then
-        bfail=1; break; fi
       sleep 10
     done
     sleep 6
@@ -156,7 +178,7 @@ run_one() {    # $1=worker $2=plan $3=rep $4=target
       echo "[w$k] plan$p rep$r: captured ($(grep -ao 'succ.*: [a-z]*' "$sm" | head -1))"
       teardown "$name"; return
     fi
-    echo "[w$k] plan$p rep$r: attempt $attempt failed ($([ "$bfail" = 1 ] && echo bringup || echo timeout)/no-summary)"
+    echo "[w$k] plan$p rep$r: attempt $attempt no summary (timeout)"
     teardown "$name"
   done
   : > "$sm"   # leave empty so the cleanup pass / resume retries it
