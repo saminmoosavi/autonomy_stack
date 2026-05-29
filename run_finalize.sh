@@ -4,10 +4,12 @@
 set -uo pipefail
 cd /home/mvarun/Research/temp/autonomy_stack
 OUT=results/factory_missions
+REPS=${REPS:-3}
+TOTAL=$((5 * REPS))
 
 count_missing() {
   local n=0 p r sm
-  for p in 01 02 03 04 05; do for r in 1 2 3; do
+  for p in 01 02 03 04 05; do for r in $(seq 1 "$REPS"); do
     sm=$OUT/plan${p}_rep${r}.summary
     { [ -s "$sm" ] && grep -q "SCAND-shield runtime metrics" "$sm"; } || n=$((n+1))
   done; done
@@ -22,7 +24,7 @@ while :; do
   [ "$d" -ge "$NW" ] && break
   sleep 30
 done
-echo "=== parallel batch finished; missing summaries: $(count_missing)/15 ==="
+echo "=== parallel batch finished; missing summaries: $(count_missing)/$TOTAL ==="
 
 # cleanup pass: re-run sequentially (WORKERS=1) so only the failed items redo,
 # one at a time, with minimal contention. Up to 2 cleanup rounds.
@@ -30,10 +32,10 @@ for round in 1 2; do
   m=$(count_missing)
   [ "$m" = 0 ] && break
   echo "=== cleanup round $round: $m missing -> sequential rerun ==="
-  WORKERS=1 ./run_experiments_par.sh
+  WORKERS=1 REPS=$REPS ./run_experiments_par.sh
 done
 
-echo "=== final missing: $(count_missing)/15 ==="
+echo "=== final missing: $(count_missing)/$TOTAL ==="
 echo "=== GENERATING TABLE ==="
 python3 gen_results_table.py
 echo

@@ -11,3 +11,11 @@ __pycache__/
 #ros
 .catkin_tools/
 .catkin_workspace
+
+# experiment outputs / generated artifacts
+results/
+worlds/_variants/
+.claude/
+evo_plan_deploy_log.json
+*.summary
+*.density

@@ -75,6 +75,27 @@ Useful env overrides: `NS` (robot namespace — **auto-detected from `~/clearpat
 
 > **"Waiting for robot to spawn" forever?** The robot's gazebo model name is `<namespace>/robot`, where `<namespace>` comes from `~/clearpath/robot.yaml`. If your robot uses a different serial/namespace than the default, the script now auto-detects it — but if detection misses, run `ign model --list` to see the real name and rerun with `NS=/your_namespace ./run_sim.sh`. The spawn check also has a ROS fallback in case `ign model --list` can't reach the gz server.
 
+## Batch experiments: SCAND-shield metrics over factory missions
+`run_experiments_par.sh` reproduces the full multi-mission results table on any machine: it runs every plan in `factory_mission_plans/factory_mission_*.txt` × `REPS` repeats, each as a complete MULTICAM + populated-warehouse run, and collects SCAND-shield metrics. Designed for a multi-GPU/many-core host.
+
+```bash
+# Prereqs: docker image built (see Dockerfile / build.sh); ~/clearpath generated
+# with the 4-camera robot.yaml (cp robot_4cam.yaml ~/clearpath/robot.yaml && generate_bash);
+# an X display for gz rendering (xhost +local:). Run on the HOST (it manages containers):
+WORKERS=2 REPS=3 ./run_experiments_par.sh        # 5 plans × 3 reps across 2 worker containers
+
+# then build the LaTeX table from whatever has completed (resumable):
+python3 gen_results_table.py                      # -> results/factory_missions/results_table.tex
+```
+The harness is **self-locating** (repo path derived from the script) and **resumable** (a run with a captured summary is skipped). Key behaviors:
+- Spins up `WORKERS` isolated worker containers (`evo_w1..N`) with distinct `ROS_DOMAIN_ID` + `IGN_PARTITION` and their own PID namespace, restarting each between runs for a clean gz/DDS state. **Use ≤2–3 workers** — more saturates CPU and starves the Nav2 lifecycle handshake at bringup (staggered starts via `STAGGER` mitigate this; flaky bringups auto-retry once).
+- Per-plan **goal region is auto-derived** from the plan's last `move`.
+- **Crowd density is randomized per repeat** (`make_density_world.py`): rep1 sparse (4–7 walkers), rep2 medium (8–11), rep3 dense (12–16) — exact count/subset seeded by `(plan,rep)` for reproducibility. Each run records its walker count.
+- Each run uses `UNTIL_SUCCESS` with a `BACKSTOP`-second budget; metrics include **succ, path-progress (% of planned route completed), proxemics (intimate/personal/social), P_int, min clearance**, and the mined dynamics/TTC envelope.
+- Env: `WORKERS` (2), `REPS` (3), `BACKSTOP` (600s), `RUN_TIMEOUT` (660s), `STAGGER` (100s), `IMAGE`, `CLEARPATH_DIR` (`$HOME/clearpath`), `HF_CACHE`, `DISPLAY`.
+
+`run_finalize.sh` is a convenience wrapper that waits for the parallel batch, runs a zero-contention sequential cleanup pass for any failed runs, then prints the table. Outputs land in `results/factory_missions/` (git-ignored).
+
 The sections below explain each stage manually (and the fixes the script applies for you).
 
 ## Husky simulation

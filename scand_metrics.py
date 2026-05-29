@@ -164,6 +164,10 @@ class ScandMetrics(Node):
         self._path_prev = None
         self.min_human_clr = float("inf")
         self.reached_goal = False
+        # planned waypoint route (from goal-topic Path) for path-progress
+        self.path_poly = []          # [(x,y), ...] plan waypoints
+        self.path_total = 0.0        # total polyline length
+        self.max_progress_arc = 0.0  # furthest arc-length along the route reached
         self.env_ok = {k: 0 for k, _, _ in ENVELOPE}     # ticks the bound held
         self.env_n = {k: 0 for k, _, _ in ENVELOPE}      # ticks the signal was defined
         self.env_ext = {}                                 # extreme observed value
@@ -198,6 +202,15 @@ class ScandMetrics(Node):
     def goal_cb(self, msg):
         # last waypoint of the plan's published path = mission goal
         if msg.poses:
+            # store the full waypoint polyline for path-progress
+            poly = [(ps.pose.position.x, ps.pose.position.y) for ps in msg.poses]
+            if poly != self.path_poly:
+                self.path_poly = poly
+                self.path_total = sum(
+                    math.hypot(poly[i + 1][0] - poly[i][0], poly[i + 1][1] - poly[i][1])
+                    for i in range(len(poly) - 1)
+                )
+                self.max_progress_arc = 0.0
             p = msg.poses[-1].pose.position
             new_goal = (p.x, p.y)
             if self.goal != new_goal or self.goal_src != "plan":
@@ -207,6 +220,28 @@ class ScandMetrics(Node):
                 )
             self.goal = new_goal
             self.goal_src = "plan"
+
+    def _proj_arc(self, rx, ry):
+        """Arc-length along the planned polyline of the point nearest to (rx,ry)."""
+        if len(self.path_poly) < 2:
+            return 0.0
+        best_d = float("inf")
+        best_arc = 0.0
+        cum = 0.0
+        for i in range(len(self.path_poly) - 1):
+            ax, ay = self.path_poly[i]
+            bx, by = self.path_poly[i + 1]
+            dx, dy = bx - ax, by - ay
+            seg2 = dx * dx + dy * dy
+            t = 0.0 if seg2 <= 1e-9 else max(0.0, min(1.0, ((rx - ax) * dx + (ry - ay) * dy) / seg2))
+            cx, cy = ax + t * dx, ay + t * dy
+            d = math.hypot(rx - cx, ry - cy)
+            seglen = math.sqrt(seg2)
+            if d < best_d:
+                best_d = d
+                best_arc = cum + t * seglen
+            cum += seglen
+        return best_arc
 
     def human_positions(self):
         """Combined human (name, x, y) list: gz-published people + scripted actors."""
@@ -320,6 +355,11 @@ class ScandMetrics(Node):
         # path length
         if self._path_prev is not None:
             self.path_len += math.hypot(rx - self._path_prev[0], ry - self._path_prev[1])
+        # path progress: furthest point reached along the planned waypoint route
+        if self.path_total > 0.0:
+            arc = self._proj_arc(rx, ry)
+            if arc > self.max_progress_arc:
+                self.max_progress_arc = arc
         self._path_prev = (rx, ry)
         # proxemics
         if math.isfinite(min_clr):
@@ -378,6 +418,12 @@ class ScandMetrics(Node):
                   f"({self.goal[0]:.2f}, {self.goal[1]:.2f})")
             print(f"  succ (reached goal, no collision)                : "
                   f"{'yes' if (self.reached_goal and self.collisions == 0) else 'no'}")
+            if self.path_total > 0.0:
+                prog = 100.0 if self.reached_goal else min(100.0, 100.0 * self.max_progress_arc / self.path_total)
+                print(f"  path progress (route completed)                  : "
+                      f"{prog:.1f}%  ({self.max_progress_arc:.1f}/{self.path_total:.1f} m)")
+            else:
+                print(f"  path progress (route completed)                  : n/a (no plan path)")
             print(f"  SPL                                              : n/a (needs optimal-path length)")
             print(f"  ct% (collision-terminated)                       : "
                   f"{100.0 if self.collisions and not self.reached_goal else 0.0:.1f}")
