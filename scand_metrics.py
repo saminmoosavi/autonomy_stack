@@ -40,6 +40,7 @@ import sys
 
 import rclpy
 from rclpy.node import Node
+from nav_msgs.msg import Path as NavPath
 from rosgraph_msgs.msg import Clock
 from tf2_msgs.msg import TFMessage
 
@@ -130,9 +131,15 @@ class ScandMetrics(Node):
         self.coll_r = args.collision_radius
         self.ahead_cos = args.ahead_cos
         self.goal = None
+        self.goal_src = "none"
         if args.goal:
             gx, gy = (float(v) for v in args.goal.split(","))
             self.goal = (gx, gy)
+            self.goal_src = "--goal arg"
+        # The goal extracted from the plan: evo publishes the plan's waypoints as
+        # a Path; its last pose is the mission's final destination. Subscribing
+        # keeps the metric goal aligned with whatever plan evo is executing.
+        self._goal_topic = args.goal_topic
 
         # latest world poses: name -> (x, y, yaw, t_s)
         self.poses = {}
@@ -170,6 +177,9 @@ class ScandMetrics(Node):
                       f"/world/{args.world}/dynamic_pose/info"):
             self.create_subscription(TFMessage, topic, self.tf_cb, 50)
 
+        if self._goal_topic:
+            self.create_subscription(NavPath, self._goal_topic, self.goal_cb, 10)
+
         self.create_timer(1.0 / args.rate, self.tick)
         self.start_s = self._now()
         self._announced = False
@@ -183,6 +193,19 @@ class ScandMetrics(Node):
 
     def clock_cb(self, msg):
         self.sim_time = msg.clock.sec + msg.clock.nanosec / 1e9
+
+    def goal_cb(self, msg):
+        # last waypoint of the plan's published path = mission goal
+        if msg.poses:
+            p = msg.poses[-1].pose.position
+            new_goal = (p.x, p.y)
+            if self.goal != new_goal or self.goal_src != "plan":
+                self.get_logger().info(
+                    f"Goal from plan ({self._goal_topic}): "
+                    f"({new_goal[0]:.2f}, {new_goal[1]:.2f})"
+                )
+            self.goal = new_goal
+            self.goal_src = "plan"
 
     def human_positions(self):
         """Combined human (name, x, y) list: gz-published people + scripted actors."""
@@ -346,17 +369,15 @@ class ScandMetrics(Node):
         print("Table-2 style (per-run):")
         print(f"  coll (proximity onsets, < {self.coll_r:.2f} m of a human) : {self.collisions}")
         if self.goal is not None:
-            spl = ""
-            if self.reached_goal:
-                l_opt = math.hypot(self.goal[0] - (self._path_prev[0] if self._path_prev else 0),
-                                   self.goal[1] - (self._path_prev[1] if self._path_prev else 0))
-                # L_opt unknown without a planner; report path length only
-                spl = "n/a (needs optimal-path length)"
+            print(f"  goal ({self.goal_src})            : "
+                  f"({self.goal[0]:.2f}, {self.goal[1]:.2f})")
             print(f"  succ (reached goal, no collision)                : "
                   f"{'yes' if (self.reached_goal and self.collisions == 0) else 'no'}")
-            print(f"  SPL                                              : {spl or 'n/a'}")
+            print(f"  SPL                                              : n/a (needs optimal-path length)")
             print(f"  ct% (collision-terminated)                       : "
                   f"{100.0 if self.collisions and not self.reached_goal else 0.0:.1f}")
+        else:
+            print("  goal/succ/SPL/ct%        : n/a (no --goal or --goal-topic)")
         print(f"  intim  ticks (< 0.45 m)  : {self.zone_counts['intim']:6d}  ({pct(self.zone_counts['intim']):.1f}%)")
         print(f"  pers   ticks (< 1.20 m)  : {self.zone_counts['pers']:6d}  ({pct(self.zone_counts['pers']):.1f}%)")
         print(f"  social ticks (< 3.60 m)  : {self.zone_counts['social']:6d}  ({pct(self.zone_counts['social']):.1f}%)")
@@ -386,7 +407,10 @@ def main():
     ap.add_argument("--actors-sdf", default="",
                     help="world .sdf to read scripted <actor> walk trajectories from "
                          "(includes the gz-invisible walking people in proxemics)")
-    ap.add_argument("--goal", default=None, help="goal as 'X,Y' (world frame) for succ/ct%")
+    ap.add_argument("--goal", default=None, help="static goal 'X,Y' (world frame) for succ/ct%")
+    ap.add_argument("--goal-topic", default="",
+                    help="nav_msgs/Path of the plan's waypoints (e.g. /ppddl_nav2_goals); "
+                         "the last pose is used as the goal, aligning succ/ct with the plan")
     ap.add_argument("--goal-tol", type=float, default=0.75)
     ap.add_argument("--collision-radius", type=float, default=0.35,
                     help="robot-human distance counted as a collision")

@@ -128,6 +128,10 @@ if [ "${NO_EVO:-0}" = "1" ]; then
 else
   # 5) evo_skill plan deploy -------------------------------------------------
   EVO_CFG="$(ros2 pkg prefix evo_skill_ros)/share/evo_skill_ros/config"
+  # only pass metrics_actors_sdf when the world is a repo .sdf (has <actor>s);
+  # ros2 launch rejects an empty 'name:=' value.
+  EVO_ARGS=()
+  [ -f "${WORLD}.sdf" ] && EVO_ARGS+=("metrics_actors_sdf:=${WORLD}.sdf")
   ros2 launch evo_skill_ros evo_plan_run.launch.py \
     namespace:="$NS" robot_name:=jackal_1 target_region:="$TARGET" \
     graph_file:="$EVO_CFG/graph.json" \
@@ -137,7 +141,7 @@ else
     costmap_edit_max_radius:=1.0 require_map:=false \
     enable_metrics:="${METRICS:-false}" metrics_world:=warehouse \
     metrics_duration:="${METRICS_DURATION:-0}" \
-    metrics_actors_sdf:="$( [ -f "${WORLD}.sdf" ] && echo "${WORLD}.sdf" || true )" \
+    "${EVO_ARGS[@]}" \
     json_log_file:="$WS/evo_plan_deploy_log.json" > "$LOGDIR/evo.log" 2>&1 &
   PIDS+=($!)
   echo "[run_sim] evo_skill plan deploy launched (target_region=$TARGET, metrics=${METRICS:-false})."
