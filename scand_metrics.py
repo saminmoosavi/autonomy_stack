@@ -140,6 +140,7 @@ class ScandMetrics(Node):
         # a Path; its last pose is the mission's final destination. Subscribing
         # keeps the metric goal aligned with whatever plan evo is executing.
         self._goal_topic = args.goal_topic
+        self.stop_on_success = str(args.stop_on_success).strip().lower() in ("1", "true", "yes")
 
         # latest world poses: name -> (x, y, yaw, t_s)
         self.poses = {}
@@ -337,6 +338,10 @@ class ScandMetrics(Node):
         if self.goal is not None:
             if math.hypot(rx - self.goal[0], ry - self.goal[1]) <= self.args.goal_tol:
                 self.reached_goal = True
+                # "until success" mode: stop & report once the goal is reached
+                # cleanly (no collision so far).
+                if self.stop_on_success and self.collisions == 0:
+                    raise _Stop
         # envelope compliance
         for name, op, thr in ENVELOPE:
             val = self.cur[name]
@@ -412,6 +417,9 @@ def main():
                     help="nav_msgs/Path of the plan's waypoints (e.g. /ppddl_nav2_goals); "
                          "the last pose is used as the goal, aligning succ/ct with the plan")
     ap.add_argument("--goal-tol", type=float, default=0.75)
+    ap.add_argument("--stop-on-success", default="false",
+                    help="true/false: stop and print the summary once the goal is reached "
+                         "with no collision (paired with --duration as a backstop)")
     ap.add_argument("--collision-radius", type=float, default=0.35,
                     help="robot-human distance counted as a collision")
     ap.add_argument("--ahead-cos", type=float, default=0.5,

@@ -9,6 +9,7 @@
 #   TARGET, WS, LOGDIR, NO_EVO=1 (skip evo), NO_YOLO=1 (skip YOLO),
 #   YOLO_CLASSES (default "person"; comma-list for more), RVIZ=true,
 #   MULTICAM=1 (YOLO+tracker on 4 cameras for ~360deg detection),
+#   UNTIL_SUCCESS=1 (stop+report when goal reached; set METRICS_DURATION as backstop),
 #   SPAWN_TIMEOUT (default 180s), NAV2_TIMEOUT (default 180s), YOLO_TIMEOUT (90s)
 set -o pipefail   # NOTE: no 'set -u' — ROS setup.bash references unbound vars
 
@@ -141,9 +142,12 @@ else
     domain_file:="$EVO_CFG/factory_sim_domain.pddl" \
     plan_file:="$EVO_CFG/evoskill_plan_sim.txt" \
     tracks_topic:="$NS/tracks" \
-    costmap_edit_max_radius:=1.0 require_map:=false \
+    costmap_edit_max_radius:="${COSTMAP_EDIT_RADIUS:-1.0}" \
+    stl_replan_cooldown_s:="${STL_REPLAN_COOLDOWN:-2.0}" \
+    require_map:=false \
     enable_metrics:="${METRICS:-false}" metrics_world:=warehouse \
     metrics_duration:="${METRICS_DURATION:-0}" \
+    metrics_stop_on_success:="${UNTIL_SUCCESS:-false}" \
     "${EVO_ARGS[@]}" \
     json_log_file:="$WS/evo_plan_deploy_log.json" > "$LOGDIR/evo.log" 2>&1 &
   PIDS+=($!)
@@ -155,15 +159,22 @@ fi
 #    cameras (camera_0..3) for ~360 deg detection (heavy: 4x YOLO-world on GPU).
 #    yolo-world is open-vocabulary: it detects NOTHING until classes are set.
 YOLO_CLASSES="${YOLO_CLASSES:-person}"
-set_classes_bg() {   # <yolo_namespace>  (prompt yolo-world with the target classes)
-  local yns="$1"
+set_classes_bg() {   # <yolo_namespace> <log_file>  (prompt yolo-world with the target classes)
+  local yns="$1" log="$2"
   (
     if wait_for "${YOLO_TIMEOUT:-90}" "/${yns}/set_classes service" \
         bash -c "timeout 6 ros2 service list 2>/dev/null | grep -q /${yns}/set_classes"; then
+      # The set_classes response is frequently lost over DDS even though the node
+      # received and applied the classes, so don't trust the call's exit code --
+      # confirm via the yolo node's log ("Setting classes" / "New classes").
       timeout 15 ros2 service call "/${yns}/set_classes" yolo_msgs/srv/SetClasses \
-        "{classes: [${YOLO_CLASSES}]}" >/dev/null 2>&1 \
-        && echo "[run_sim] ${yns} classes set: [${YOLO_CLASSES}]" \
-        || echo "[run_sim] WARNING: failed to set ${yns} classes."
+        "{classes: [${YOLO_CLASSES}]}" >/dev/null 2>&1 || true
+      sleep 2
+      if grep -qaE "Setting classes|New classes" "$log" 2>/dev/null; then
+        echo "[run_sim] ${yns} classes set: [${YOLO_CLASSES}]"
+      else
+        echo "[run_sim] WARNING: ${yns} classes not confirmed; check $log"
+      fi
     else
       echo "[run_sim] WARNING: /${yns}/set_classes never appeared."
     fi
@@ -179,7 +190,7 @@ elif [ "${MULTICAM:-0}" = "1" ]; then
       input_image_topic:="${NS}/sensors/camera_${i}/color/image" namespace:="yolo_${i}" \
       > "$LOGDIR/yolo_${i}.log" 2>&1 &
     PIDS+=($!)
-    set_classes_bg "yolo_${i}"
+    set_classes_bg "yolo_${i}" "$LOGDIR/yolo_${i}.log"
   done
   # camera_0's tracker is the one in evo_plan_run (tracking_topic:=/yolo_0/tracking);
   # add trackers for camera_1..3, all publishing to ${NS}/tracks.
@@ -199,7 +210,7 @@ else
     > "$LOGDIR/yolo.log" 2>&1 &
   PIDS+=($!)
   echo "[run_sim] YOLO launched on ${NS}/sensors/camera_0/color/image -> /yolo/tracking."
-  set_classes_bg "yolo"
+  set_classes_bg "yolo" "$LOGDIR/yolo.log"
 fi
 
 echo "[run_sim] pipeline is UP. Logs: $LOGDIR/{sim,nav2,slam,relay,evo,yolo}.log"

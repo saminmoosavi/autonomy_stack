@@ -3,6 +3,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      # Build on the host network so the build can reach the host's DNS resolver
+      # (the host uses systemd-resolved at 127.0.0.53, which is unreachable from
+      # the default build network -> "Temporary failure in name resolution" on
+      # apt/pip/git steps).
+      network: host
       args:
         UNAME: user
         UID: ${UID:-1000}

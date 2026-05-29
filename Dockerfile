@@ -98,6 +98,15 @@ RUN pip install git+https://github.com/openai/CLIP.git
 RUN sed -i "s|<horizontal_fov>1.25</horizontal_fov>|<horizontal_fov>2.0</horizontal_fov>|" \
     /opt/ros/humble/share/clearpath_sensors_description/urdf/intel_realsense.urdf.xacro
 
+# Loosen the Jackal Nav2 waypoint goal tolerance so the waypoint_follower advances
+# instead of dwelling ~0.25 m short under load (xy 0.3->0.6 m; yaw 0.3->3.15 rad so
+# intermediate waypoints don't require a final heading). Fixes the robot getting
+# "stuck rotating in place" when following multi-waypoint plans.
+RUN sed -i -e "s/xy_goal_tolerance: 0.3/xy_goal_tolerance: 0.6/" \
+           -e "s/yaw_goal_tolerance: 0.3/yaw_goal_tolerance: 3.15/" \
+           -e "s/xy_goal_tolerance: 0.25/xy_goal_tolerance: 0.6/" \
+    /opt/ros/humble/share/clearpath_nav2_demos/config/j100/nav2.yaml
+
 #stl packages
 RUN pip install \
       scipy \
