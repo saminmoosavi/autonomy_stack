@@ -355,5 +355,171 @@
       </script>
     </actor>
 
+    <!-- ---- extra people in the LEFT/WEST half (x < 0) ---- -->
+
+    <!-- 6) west-central, N-S -->
+    <actor name="person_walk_6">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>-5 13 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>13</time> <pose>-5 18 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time> <pose>-5 18 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time> <pose>-5 13 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time> <pose>-5 13 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- 7) south-west, E-W -->
+    <actor name="person_walk_7">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>-3 -7 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>15</time> <pose>-9 -7 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>17</time> <pose>-9 -7 1.0 0 0 0</pose></waypoint>
+          <waypoint><time>32</time> <pose>-3 -7 1.0 0 0 0</pose></waypoint>
+          <waypoint><time>34</time> <pose>-3 -7 1.0 0 0 3.1416</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- 8) west, E-W (near the robot's far-west leg) -->
+    <actor name="person_walk_8">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>-9 3 1.0 0 0 0</pose></waypoint>
+          <waypoint><time>15</time> <pose>-3 3 1.0 0 0 0</pose></waypoint>
+          <waypoint><time>17</time> <pose>-3 3 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time> <pose>-9 3 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time> <pose>-9 3 1.0 0 0 0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- ---- people lining the robot's mission corridor R7 -> R14 ----
+         Each is offset ~2 m to an open side of its region so it walks beside
+         the path (not on the waypoint). ~0.4 m/s. -->
+
+    <!-- beside R7 (12.72,6.49) -->
+    <actor name="person_R7">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>12.7 7.5  1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>12.7 10.5 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time> <pose>12.7 10.5 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time> <pose>12.7 7.5  1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time> <pose>12.7 7.5  1.0 0 0 1.5708</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
+    <!-- beside R8 (3.52,13.01) -->
+    <actor name="person_R8">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>5.5 11.5 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>5.5 14.5 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time> <pose>5.5 14.5 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time> <pose>5.5 11.5 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time> <pose>5.5 11.5 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
+    <!-- beside R9 (11.86,17.75) -->
+    <actor name="person_R9">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>11.9 15.5 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>11.9 18.5 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time> <pose>11.9 18.5 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time> <pose>11.9 15.5 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time> <pose>11.9 15.5 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
+    <!-- beside R10 (1.89,22.13) -->
+    <actor name="person_R10">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>3.5 22.13 1.0 0 0 0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>6.5 22.13 1.0 0 0 0</pose></waypoint>
+          <waypoint><time>10</time> <pose>6.5 22.13 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>18</time> <pose>3.5 22.13 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time> <pose>3.5 22.13 1.0 0 0 0</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
+    <!-- beside R11 (-3.92,23.68) -->
+    <actor name="person_R11">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>-2 23.68 1.0 0 0 0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>1 23.68  1.0 0 0 0</pose></waypoint>
+          <waypoint><time>10</time> <pose>1 23.68  1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>18</time> <pose>-2 23.68 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time> <pose>-2 23.68 1.0 0 0 0</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
+    <!-- beside R12 (-7.07,20.01) -->
+    <actor name="person_R12">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>-9 18 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-9 21 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time> <pose>-9 21 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time> <pose>-9 18 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time> <pose>-9 18 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
+    <!-- beside R13 (-12.38,17.86) -->
+    <actor name="person_R13">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>-10.6 16 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-10.6 19 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time> <pose>-10.6 19 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time> <pose>-10.6 16 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time> <pose>-10.6 16 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
+    <!-- beside R14 (-12.94,9.89) -->
+    <actor name="person_R14">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script><loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>  <pose>-12.5 8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time> <pose>-12.5 12 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time> <pose>-12.5 12 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time> <pose>-12.5 8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time> <pose>-12.5 8 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory></script>
+    </actor>
+
   </world>
 </sdf>
