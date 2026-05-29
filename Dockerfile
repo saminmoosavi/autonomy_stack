@@ -87,6 +87,17 @@ RUN apt-get update && apt-get install -y ros-humble-realsense2-*
 # install yolo
 #RUN pip install -U ultralytics
 
+# CLIP: required by ultralytics YOLOWorld (yolo-world) for text prompts / set_classes.
+# Without it the yolo_node crashes with "ModuleNotFoundError: No module named 'clip'"
+# the moment classes are set, so camera-based person detection produces nothing.
+RUN pip install git+https://github.com/openai/CLIP.git
+
+# Widen the simulated RealSense camera horizontal FOV (default 1.25 rad ~= 72 deg)
+# to 2.0 rad (~115 deg) so the robot sees people over a wider angle for
+# camera-based obstacle avoidance.
+RUN sed -i "s|<horizontal_fov>1.25</horizontal_fov>|<horizontal_fov>2.0</horizontal_fov>|" \
+    /opt/ros/humble/share/clearpath_sensors_description/urdf/intel_realsense.urdf.xacro
+
 #stl packages
 RUN pip install \
       scipy \
