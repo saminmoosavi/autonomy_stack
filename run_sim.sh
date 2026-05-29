@@ -140,7 +140,7 @@ else
     namespace:="$NS" robot_name:=jackal_1 target_region:="$TARGET" \
     graph_file:="$EVO_CFG/graph.json" \
     domain_file:="$EVO_CFG/factory_sim_domain.pddl" \
-    plan_file:="$EVO_CFG/evoskill_plan_sim.txt" \
+    plan_file:="${PLAN:-$EVO_CFG/evoskill_plan_sim.txt}" \
     tracks_topic:="$NS/tracks" \
     costmap_edit_max_radius:="${COSTMAP_EDIT_RADIUS:-1.0}" \
     stl_replan_cooldown_s:="${STL_REPLAN_COOLDOWN:-2.0}" \
