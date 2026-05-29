@@ -93,9 +93,24 @@ ros2 launch clearpath_nav2_demos slam.launch.py \
   use_sim_time:=true setup_path:="$HOME/clearpath/" > "$LOGDIR/slam.log" 2>&1 &
 PIDS+=($!)
 
-# 3) Scan relay: feed the 3D lidar scan into the 2D topic SLAM/Nav2 expect ----
-python3 "$WS/scan_relay.py" "$LIDAR3D" "$LIDAR2D" > "$LOGDIR/relay.log" 2>&1 &
-PIDS+=($!)
+# 3) Scan source: SLAM/Nav2 subscribe to lidar2d_0/scan. How that gets fed
+#    depends on the robot.yaml sensor block:
+#      - lidar2d block (e.g. Hokuyo): publishes lidar2d_0/scan directly -> no relay
+#      - lidar3d block (Velodyne):    publishes lidar3d_0/scan          -> relay 3D->2D
+#      - neither:                     NO scan at all -> SLAM/Nav2 cannot work
+ROBOT_YAML="$HOME/clearpath/robot.yaml"
+if grep -qE '^[[:space:]]*lidar2d:' "$ROBOT_YAML" 2>/dev/null; then
+  echo "[run_sim] robot.yaml has a 2D lidar -> SLAM/Nav2 use lidar2d_0/scan directly (no relay)."
+elif grep -qE '^[[:space:]]*lidar3d:' "$ROBOT_YAML" 2>/dev/null; then
+  echo "[run_sim] robot.yaml has a 3D lidar -> relaying $LIDAR3D -> $LIDAR2D"
+  python3 "$WS/scan_relay.py" "$LIDAR3D" "$LIDAR2D" > "$LOGDIR/relay.log" 2>&1 &
+  PIDS+=($!)
+else
+  echo "[run_sim] WARNING: no lidar2d/lidar3d sensor in $ROBOT_YAML."
+  echo "[run_sim] SLAM cannot build a map and Nav2 will NOT activate. Add a lidar to"
+  echo "[run_sim] robot.yaml (see clearpath_config sample a200_dual_laser.yaml or"
+  echo "[run_sim] velodyne_lidar.yaml), regenerate setup.bash, and rerun."
+fi
 
 # 4) Wait for Nav2 to finish lifecycle activation ----------------------------
 if ! wait_for "${NAV2_TIMEOUT:-180}" "Nav2 to activate (waypoint_follower)" \
