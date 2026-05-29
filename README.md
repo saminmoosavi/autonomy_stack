@@ -63,7 +63,15 @@ xhost +local:
 # inside the container:
 ./run_sim.sh
 ```
-Useful env overrides: `NS` (robot namespace — **auto-detected from `~/clearpath/robot.yaml`** if unset), `WORLD` (default `warehouse`), `TARGET` (goal region, default `R10`), `RVIZ=true`, `NO_EVO=1` (bring up sim + Nav2 + SLAM only), `SPAWN_TIMEOUT`/`NAV2_TIMEOUT` (default 180s each). Logs are written to `/tmp/evo_sim/{sim,nav2,slam,relay,evo}.log`. Press `Ctrl-C` to tear the whole pipeline down. Verify the robot is moving with `ign model -m <ns>/robot -p` (run twice and compare the pose).
+Useful env overrides: `NS` (robot namespace — **auto-detected from `~/clearpath/robot.yaml`** if unset), `WORLD` (default `warehouse`), `TARGET` (goal region, default `R10`), `RVIZ=true`, `NO_EVO=1` (bring up sim + Nav2 + SLAM only), `NO_YOLO=1`, `YOLO_CLASSES` (default `person`), `METRICS=1`/`METRICS_DURATION`, `MULTICAM=1`, `SPAWN_TIMEOUT`/`NAV2_TIMEOUT` (default 180s each). Logs are written to `/tmp/evo_sim/{sim,nav2,slam,relay,evo,yolo}.log`. Press `Ctrl-C` to tear the whole pipeline down. Verify the robot is moving with `ign model -m <ns>/robot -p` (run twice and compare the pose).
+
+> **360° camera detection (`MULTICAM=1`).** The default `~/clearpath/robot.yaml` has one front camera. A sample 4-camera config is provided at `robot_4cam.yaml` (front/left/right/rear RealSense). To use it:
+> ```bash
+> cp robot_4cam.yaml ~/clearpath/robot.yaml
+> ros2 run clearpath_generator_common generate_bash -s /home/user/clearpath
+> MULTICAM=1 ./run_sim.sh
+> ```
+> `MULTICAM=1` runs a YOLO instance + a `tracker_with_yolo` per camera (`camera_0..3`), all publishing to `<ns>/tracks`, so the evo STL shield sees people in every direction. This is **heavy** — 4× YOLO-world on the GPU; expect to want a fresh container (`docker restart`).
 
 > **"Waiting for robot to spawn" forever?** The robot's gazebo model name is `<namespace>/robot`, where `<namespace>` comes from `~/clearpath/robot.yaml`. If your robot uses a different serial/namespace than the default, the script now auto-detects it — but if detection misses, run `ign model --list` to see the real name and rerun with `NS=/your_namespace ./run_sim.sh`. The spawn check also has a ROS fallback in case `ign model --list` can't reach the gz server.
 
