@@ -33,13 +33,54 @@ Press Ctrl-C to stop and print the summary (or it auto-stops after --duration).
 import argparse
 import math
 import os
+import re
 import signal
 import subprocess
 import sys
 
 import rclpy
 from rclpy.node import Node
+from rosgraph_msgs.msg import Clock
 from tf2_msgs.msg import TFMessage
+
+
+def parse_actor_trajectories(sdf_path):
+    """Parse looping <actor> walk trajectories from a world SDF.
+
+    gz <actor> people publish no poses on any gz topic, but they follow these
+    deterministic scripts -> we reconstruct their world position from sim time.
+    Returns {actor_name: [(time, x, y), ...]} sorted by time.
+    """
+    try:
+        txt = open(sdf_path).read()
+    except OSError:
+        return {}
+    trajs = {}
+    for m in re.finditer(r'<actor\s+name="([^"]+)"(.*?)</actor>', txt, re.S):
+        name, body = m.group(1), m.group(2)
+        wps = []
+        for w in re.finditer(r"<time>\s*([\d.]+)\s*</time>\s*<pose>\s*([-\d.]+)\s+([-\d.]+)",
+                             body):
+            wps.append((float(w.group(1)), float(w.group(2)), float(w.group(3))))
+        if len(wps) >= 2:
+            wps.sort()
+            trajs[name] = wps
+    return trajs
+
+
+def interp_traj(wps, t):
+    """Linear-interpolate a looping waypoint trajectory at time t."""
+    period = wps[-1][0]
+    if period <= 0:
+        return wps[0][1], wps[0][2]
+    tt = t % period
+    for i in range(len(wps) - 1):
+        t0, x0, y0 = wps[i]
+        t1, x1, y1 = wps[i + 1]
+        if t0 <= tt <= t1:
+            f = (tt - t0) / (t1 - t0) if t1 > t0 else 0.0
+            return x0 + f * (x1 - x0), y0 + f * (y1 - y0)
+    return wps[-1][1], wps[-1][2]
 
 HUMAN_KEYS = (
     "person", "human", "visitor", "female", "male", "randy", "walk",
@@ -119,6 +160,12 @@ class ScandMetrics(Node):
         self.env_n = {k: 0 for k, _, _ in ENVELOPE}      # ticks the signal was defined
         self.env_ext = {}                                 # extreme observed value
 
+        # Scripted walking actors (no gz pose) reconstructed from sim time.
+        self.actor_traj = parse_actor_trajectories(args.actors_sdf) if args.actors_sdf else {}
+        self.sim_time = 0.0
+        if self.actor_traj:
+            self.create_subscription(Clock, "/clock", self.clock_cb, 10)
+
         for topic in (f"/world/{args.world}/pose/info",
                       f"/world/{args.world}/dynamic_pose/info"):
             self.create_subscription(TFMessage, topic, self.tf_cb, 50)
@@ -133,6 +180,21 @@ class ScandMetrics(Node):
 
     def _now(self):
         return self.get_clock().now().nanoseconds / 1e9
+
+    def clock_cb(self, msg):
+        self.sim_time = msg.clock.sec + msg.clock.nanosec / 1e9
+
+    def human_positions(self):
+        """Combined human (name, x, y) list: gz-published people + scripted actors."""
+        humans = [
+            (name, ox, oy)
+            for name, (ox, oy, _yaw, _t) in list(self.poses.items())
+            if name != self.robot_name and is_human(name)
+        ]
+        for name, wps in self.actor_traj.items():
+            x, y = interp_traj(wps, self.sim_time)
+            humans.append((name, x, y))
+        return humans
 
     def tf_cb(self, msg):
         t = self._now()
@@ -180,9 +242,7 @@ class ScandMetrics(Node):
         ttc = float("inf")
         approach = 0.0
         best_ahead_d = float("inf")
-        for name, (ox, oy, _oyaw, _ot) in list(self.poses.items()):
-            if name == self.robot_name or not is_human(name):
-                continue
+        for name, ox, oy in self.human_positions():
             d = math.hypot(ox - rx, oy - ry)
             if d < min_clr:
                 min_clr = d
@@ -205,7 +265,8 @@ class ScandMetrics(Node):
                 closing = (vrx - ovx) * ux + (vry - ovy) * uy
                 approach = max(closing, 0.0)
                 ttc = d / closing if closing > 1e-3 else float("inf")
-        for n in [k for k in self._h_prev if k not in self.poses]:
+        valid = set(self.poses) | set(self.actor_traj)
+        for n in [k for k in self._h_prev if k not in valid]:
             self._h_prev.pop(n, None)
         return min_clr, ttc, approach
 
@@ -217,10 +278,11 @@ class ScandMetrics(Node):
             return
         if not self._announced and len(self.entities_seen) > 1:
             self._announced = True
-            humans = sorted(n for n in self.entities_seen if is_human(n))
+            gz_humans = sorted(n for n in self.entities_seen if is_human(n))
+            actors = sorted(self.actor_traj)
             self.get_logger().info(
-                f"Tracking {len(humans)} human entity(ies): "
-                f"{', '.join(humans) if humans else '(none found by name)'}"
+                f"Tracking {len(gz_humans) + len(actors)} human(s): "
+                f"gz-pose={gz_humans or '[]'}; scripted-actors={actors or '[]'}"
             )
         rx, ry, ryaw, rt = r
         self.update_robot_motion(rx, ry, ryaw, rt)
@@ -321,6 +383,9 @@ def main():
     ap.add_argument("--robot", default=None, help="gz model name (default <ns>/robot)")
     ap.add_argument("--rate", type=float, default=10.0, help="metrics eval rate (Hz)")
     ap.add_argument("--duration", type=float, default=0.0, help="auto-stop after N s (0 = until Ctrl-C)")
+    ap.add_argument("--actors-sdf", default="",
+                    help="world .sdf to read scripted <actor> walk trajectories from "
+                         "(includes the gz-invisible walking people in proxemics)")
     ap.add_argument("--goal", default=None, help="goal as 'X,Y' (world frame) for succ/ct%")
     ap.add_argument("--goal-tol", type=float, default=0.75)
     ap.add_argument("--collision-radius", type=float, default=0.35,
