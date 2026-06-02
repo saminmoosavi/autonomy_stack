@@ -26,9 +26,21 @@ ekf_comparison_plotter:
 
 trajectory_recorder:
   ros__parameters:
-    pose_source_type: odom
-    odom_topic: /warthog/localization/odom
-    vectornav_topic: /vectornav/pose
+    redis_host: localhost
+    redis_port: 6379
+    redis_db: 0
+    redis_password: ""
+    redis_pose_key: warthog:odom
+    redis_timeout_s: 0.1
+    redis_frame_id: odom
+    redis_yaw_units: rad
+    redis_x_field: x
+    redis_y_field: y
+    redis_z_field: z
+    redis_yaw_field: yaw
+    redis_time_field: time_sec
+    redis_frame_field: frame_id
+    redis_poll_rate_hz: 20.0
     output_csv: trajectories/warthog_trajectory.csv
     frame_id: odom
     min_distance_m: 0.75
@@ -47,10 +59,20 @@ trajectory_record_plotter:
 
 pure_pursuit_follower:
   ros__parameters:
-    pose_source_type: odom
-    odom_topic: /warthog/localization/odom
-    use_vectornav_heading: false
-    vectornav_heading_topic: /vectornav/pose
+    redis_host: localhost
+    redis_port: 6379
+    redis_db: 0
+    redis_password: ""
+    redis_pose_key: warthog:odom
+    redis_timeout_s: 0.1
+    redis_frame_id: odom
+    redis_yaw_units: rad
+    redis_x_field: x
+    redis_y_field: y
+    redis_z_field: z
+    redis_yaw_field: yaw
+    redis_time_field: time_sec
+    redis_frame_field: frame_id
     cmd_vel_topic: /w200_0105/cmd_vel
     trajectory_csv: trajectories/warthog_trajectory.csv
     controller_path_csv: trajectories/controller_path.csv

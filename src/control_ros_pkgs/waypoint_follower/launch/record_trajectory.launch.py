@@ -11,8 +11,10 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     params_file = LaunchConfiguration("params_file")
     trajectory_csv = LaunchConfiguration("trajectory_csv")
-    odom_topic = LaunchConfiguration("odom_topic")
-    pose_source_type = LaunchConfiguration("pose_source_type")
+    redis_host = LaunchConfiguration("redis_host")
+    redis_port = LaunchConfiguration("redis_port")
+    redis_db = LaunchConfiguration("redis_db")
+    redis_pose_key = LaunchConfiguration("redis_pose_key")
     enable_plot = LaunchConfiguration("enable_plot")
 
     recorder = Node(
@@ -24,8 +26,10 @@ def generate_launch_description():
             params_file,
             {
                 "output_csv": trajectory_csv,
-                "odom_topic": odom_topic,
-                "pose_source_type": pose_source_type,
+                "redis_host": redis_host,
+                "redis_port": redis_port,
+                "redis_db": redis_db,
+                "redis_pose_key": redis_pose_key,
             },
         ],
     )
@@ -38,10 +42,6 @@ def generate_launch_description():
         condition=IfCondition(enable_plot),
         parameters=[
             params_file,
-            {
-                "odom_topic": odom_topic,
-                "pose_source_type": pose_source_type,
-            },
         ],
     )
 
@@ -65,14 +65,24 @@ def generate_launch_description():
             description="CSV file where sampled odometry waypoints are saved.",
         ),
         DeclareLaunchArgument(
-            "odom_topic",
-            default_value="/warthog/localization/odom",
-            description="Odometry topic used by waypoint_follower nodes.",
+            "redis_host",
+            default_value="localhost",
+            description="Redis host containing the latest robot pose.",
         ),
         DeclareLaunchArgument(
-            "pose_source_type",
-            default_value="odom",
-            description="Pose source mode for waypoint_follower nodes.",
+            "redis_port",
+            default_value="6379",
+            description="Redis port containing the latest robot pose.",
+        ),
+        DeclareLaunchArgument(
+            "redis_db",
+            default_value="0",
+            description="Redis database index containing the latest robot pose.",
+        ),
+        DeclareLaunchArgument(
+            "redis_pose_key",
+            default_value="warthog:odom",
+            description="Redis key containing the latest robot pose.",
         ),
         DeclareLaunchArgument(
             "enable_plot",

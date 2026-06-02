@@ -154,6 +154,8 @@ RUN apt-get update && apt-get install -y \
     libgtsam-unstable-dev
 RUN apt install libomp-dev libpcl-dev libeigen3-dev
 
+
+RUN apt-get update && apt-get upgrade -y && apt-get install -y  python3-redis
 RUN groupadd -g $GID $UNAME
 RUN useradd -m -u $UID -g $GID -s /bin/bash $UNAME
 # Allow the user to run sudo without a password

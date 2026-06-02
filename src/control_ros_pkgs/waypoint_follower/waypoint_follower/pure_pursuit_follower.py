@@ -6,25 +6,16 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 import rclpy
-from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
-from nav_msgs.msg import Odometry
+from geometry_msgs.msg import Twist
 from rclpy.node import Node
 
-from waypoint_follower.pose_utils import (
-    OdomVectornavHeadingLocalizer,
-    VectornavEcefLocalizer,
-    quaternion_to_yaw,
-)
+from waypoint_follower.redis_pose_reader import RedisPoseReader
 
 
 class PurePursuitFollower(Node):
     def __init__(self):
         super().__init__("pure_pursuit_follower")
 
-        self.pose_source_type = self.declare_parameter("pose_source_type", "odom").value
-        self.odom_topic = self.declare_parameter("odom_topic", "/warthog/localization/odom").value
-        self.use_vectornav_heading = bool(self.declare_parameter("use_vectornav_heading", False).value)
-        self.vectornav_heading_topic = self.declare_parameter("vectornav_heading_topic", "/vectornav/pose").value
         self.cmd_vel_topic = self.declare_parameter("cmd_vel_topic", "/w200_0105/cmd_vel").value
         self.trajectory_csv = self.declare_parameter("trajectory_csv", "trajectories/warthog_trajectory.csv").value
         self.controller_path_csv = self.declare_parameter(
@@ -77,13 +68,11 @@ class PurePursuitFollower(Node):
         )
         self.reverse_allowed = bool(self.declare_parameter("reverse_allowed", False).value)
         self.stop_on_completion = bool(self.declare_parameter("stop_on_completion", True).value)
+        self.redis_pose_reader = RedisPoseReader(self)
 
         self.raw_waypoint_count = 0
         self.waypoints = self.load_waypoints(self.trajectory_csv)
         self.current_pose = None
-        self.vectornav_yaw = None
-        self.vectornav_localizer = VectornavEcefLocalizer()
-        self.hybrid_localizer = OdomVectornavHeadingLocalizer()
         self.trajectory_aligned = not self.align_trajectory_to_start
         self.progress_index = 0
         self.done = False
@@ -99,23 +88,13 @@ class PurePursuitFollower(Node):
         self.open_controller_log()
 
         self.cmd_pub = self.create_publisher(Twist, self.cmd_vel_topic, 10)
-        msg_type = PoseWithCovarianceStamped if self.pose_source_type == "vectornav_ecef" else Odometry
-        self.odom_sub = self.create_subscription(msg_type, self.odom_topic, self.odom_callback, 20)
-        self.vectornav_heading_sub = None
-        if self.use_vectornav_heading or self.pose_source_type == "odom_vectornav_heading":
-            self.vectornav_heading_sub = self.create_subscription(
-                PoseWithCovarianceStamped,
-                self.vectornav_heading_topic,
-                self.vectornav_heading_callback,
-                20,
-            )
         self.timer = self.create_timer(1.0 / self.control_rate_hz, self.control_loop)
         self.status_timer = self.create_timer(max(self.status_log_period_s, 0.1), self.log_status)
 
         self.get_logger().info(
             f"Loaded {len(self.waypoints)} waypoints from {self.trajectory_csv} "
             f"(raw={self.raw_waypoint_count}, spacing={self.min_waypoint_spacing_m:.2f} m); "
-            f"subscribing to {self.odom_topic}, publishing to {self.cmd_vel_topic}"
+            f"reading Redis key {self.redis_pose_reader.pose_key}, publishing to {self.cmd_vel_topic}"
         )
 
     @staticmethod
@@ -230,25 +209,13 @@ class PurePursuitFollower(Node):
         ])
         self.get_logger().info(f"Logging controller path to {path}")
 
-    def odom_callback(self, msg):
-        if self.pose_source_type == "vectornav_ecef":
-            x, y, _, yaw = self.vectornav_localizer.local_pose(msg)
-        elif self.pose_source_type == "odom_vectornav_heading":
-            x, y, _, yaw = self.hybrid_localizer.local_pose(msg, self.vectornav_yaw)
-        else:
-            pose = msg.pose.pose
-            yaw = self.vectornav_yaw if self.vectornav_yaw is not None else quaternion_to_yaw(pose.orientation)
-            x = pose.position.x
-            y = pose.position.y
-        self.current_pose = (x, y, yaw)
+    def update_current_pose_from_redis(self):
+        pose = self.redis_pose_reader.get_pose()
+        if pose is None:
+            return False
 
-    def vectornav_heading_callback(self, msg):
-        _, _, _, yaw = self.vectornav_localizer.local_pose(msg)
-        if yaw is not None:
-            self.vectornav_yaw = yaw
-        if self.current_pose is not None:
-            x, y, _ = self.current_pose
-            self.current_pose = (x, y, self.vectornav_yaw)
+        self.current_pose = (pose.x, pose.y, pose.yaw)
+        return True
 
     def align_waypoints_to_current_pose(self):
         if self.current_pose is None or self.trajectory_aligned:
@@ -376,7 +343,10 @@ class PurePursuitFollower(Node):
         return self.clamp(regulated, self.min_linear_speed_mps, self.max_linear_speed_mps)
 
     def control_loop(self):
-        if self.current_pose is None or self.done:
+        if self.done:
+            return
+        self.update_current_pose_from_redis()
+        if self.current_pose is None:
             return
 
         self.align_waypoints_to_current_pose()
@@ -468,7 +438,7 @@ class PurePursuitFollower(Node):
 
         if self.current_pose is None:
             self.get_logger().warn(
-                f"Waiting for odometry on {self.odom_topic}; no /cmd_vel will be published yet"
+                f"Waiting for Redis pose key {self.redis_pose_reader.pose_key}; no /cmd_vel will be published yet"
             )
             return
 

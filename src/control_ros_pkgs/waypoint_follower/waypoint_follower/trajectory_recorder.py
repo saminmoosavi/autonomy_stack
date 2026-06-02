@@ -5,31 +5,23 @@ import math
 from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
-from geometry_msgs.msg import PoseWithCovarianceStamped
 import rclpy
-from nav_msgs.msg import Odometry
 from rclpy.node import Node
 
-from waypoint_follower.pose_utils import (
-    OdomVectornavHeadingLocalizer,
-    VectornavEcefLocalizer,
-    quaternion_to_yaw,
-    stamp_to_sec,
-)
+from waypoint_follower.redis_pose_reader import RedisPoseReader
 
 
 class TrajectoryRecorder(Node):
     def __init__(self):
         super().__init__("trajectory_recorder")
 
-        self.pose_source_type = self.declare_parameter("pose_source_type", "odom").value
-        self.odom_topic = self.declare_parameter("odom_topic", "/warthog/localization/odom").value
-        self.vectornav_topic = self.declare_parameter("vectornav_topic", "/vectornav/pose").value
         self.output_csv = self.declare_parameter("output_csv", "trajectories/warthog_trajectory.csv").value
         self.frame_id = self.declare_parameter("frame_id", "odom").value
         self.min_distance_m = float(self.declare_parameter("min_distance_m", 0.25).value)
         self.min_interval_s = float(self.declare_parameter("min_interval_s", 0.1).value)
         self.flush_every_n = int(self.declare_parameter("flush_every_n", 3).value)
+        self.redis_poll_rate_hz = float(self.declare_parameter("redis_poll_rate_hz", 20.0).value)
+        self.redis_pose_reader = RedisPoseReader(self)
 
         self.output_path = self.resolve_package_path(self.output_csv)
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -42,23 +34,14 @@ class TrajectoryRecorder(Node):
         self.last_saved_time = None
         self.samples_written = 0
         self.closed = False
-        self.vectornav_localizer = VectornavEcefLocalizer()
-        self.hybrid_localizer = OdomVectornavHeadingLocalizer()
-        self.vectornav_yaw = None
 
-        msg_type = PoseWithCovarianceStamped if self.pose_source_type == "vectornav_ecef" else Odometry
-        self.sub = self.create_subscription(msg_type, self.odom_topic, self.odom_callback, 20)
-        self.vectornav_sub = None
-        if self.pose_source_type == "odom_vectornav_heading":
-            self.vectornav_sub = self.create_subscription(
-                PoseWithCovarianceStamped,
-                self.vectornav_topic,
-                self.vectornav_callback,
-                20,
-            )
+        self.timer = self.create_timer(
+            1.0 / max(self.redis_poll_rate_hz, 0.1),
+            self.poll_redis_pose,
+        )
 
         self.get_logger().info(
-            f"Recording odometry from {self.odom_topic} to {self.output_path}"
+            f"Recording Redis pose key {self.redis_pose_reader.pose_key} to {self.output_path}"
         )
 
     @staticmethod
@@ -79,23 +62,17 @@ class TrajectoryRecorder(Node):
         elapsed = t - self.last_saved_time if self.last_saved_time is not None else math.inf
         return distance >= self.min_distance_m and elapsed >= self.min_interval_s
 
-    def odom_callback(self, msg):
-        stamp = msg.header.stamp
-        t = stamp_to_sec(stamp)
-        if t == 0.0:
-            t = self.get_clock().now().nanoseconds * 1e-9
+    def poll_redis_pose(self):
+        pose = self.redis_pose_reader.get_pose()
+        if pose is None:
+            return
 
-        if self.pose_source_type == "vectornav_ecef":
-            x, y, z, yaw = self.vectornav_localizer.local_pose(msg)
-        elif self.pose_source_type == "odom_vectornav_heading":
-            x, y, z, yaw = self.hybrid_localizer.local_pose(msg, self.vectornav_yaw)
-        else:
-            pose = msg.pose.pose
-            x = pose.position.x
-            y = pose.position.y
-            z = pose.position.z
-            yaw = quaternion_to_yaw(pose.orientation)
-        frame_id = msg.header.frame_id or self.frame_id
+        t = pose.time_sec
+        x = pose.x
+        y = pose.y
+        z = pose.z
+        yaw = pose.yaw
+        frame_id = pose.frame_id or self.frame_id
 
         if not self.should_save(t, x, y):
             return
@@ -109,11 +86,6 @@ class TrajectoryRecorder(Node):
 
         if self.samples_written % self.flush_every_n == 0:
             self.csv_file.flush()
-
-    def vectornav_callback(self, msg):
-        _, _, _, yaw = self.vectornav_localizer.local_pose(msg)
-        if yaw is not None:
-            self.vectornav_yaw = yaw
 
     def close(self):
         if self.closed:
