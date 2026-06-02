@@ -1,0 +1,99 @@
+gps_imu_ekf_localizer:
+  ros__parameters:
+    gps_topic: /vectornav/gnss
+    imu_topic: /vectornav/imu
+    odom_topic: /warthog/localization/odom
+    frame_id: odom
+    child_frame_id: base_link
+    publish_tf: false
+    origin_lat: 30.640777427723595
+    origin_lon: -96.48746861444594
+    origin_alt: 58.83007190050557
+    ekf_plot_rate_hz: 5.0
+    ekf_plot_trail_max_points: 5000
+    ekf_plot_title: GPS / IMU / EKF Comparison
+
+ekf_comparison_plotter:
+  ros__parameters:
+    gps_topic: /vectornav/gnss
+    imu_topic: /vectornav/imu
+    odom_topic: /warthog/localization/odom
+    origin_lat: 30.640777427723595
+    origin_lon: -96.48746861444594
+    ekf_plot_rate_hz: 5.0
+    ekf_plot_trail_max_points: 5000
+    ekf_plot_title: GPS / IMU / EKF Comparison
+
+trajectory_recorder:
+  ros__parameters:
+    pose_source_type: odom
+    odom_topic: /warthog/localization/odom
+    vectornav_topic: /vectornav/pose
+    output_csv: trajectories/warthog_trajectory.csv
+    frame_id: odom
+    min_distance_m: 0.75
+    min_interval_s: 0.10
+    flush_every_n: 10
+
+trajectory_record_plotter:
+  ros__parameters:
+    pose_source_type: odom
+    odom_topic: /warthog/localization/odom
+    vectornav_topic: /vectornav/pose
+    min_distance_m: 0.75
+    record_plot_rate_hz: 5.0
+    record_trail_max_points: 5000
+    record_figure_title: Warthog Trajectory Recording
+
+pure_pursuit_follower:
+  ros__parameters:
+    pose_source_type: odom
+    odom_topic: /warthog/localization/odom
+    use_vectornav_heading: false
+    vectornav_heading_topic: /vectornav/pose
+    cmd_vel_topic: /w200_0105/cmd_vel
+    trajectory_csv: trajectories/warthog_trajectory.csv
+    controller_path_csv: trajectories/controller_path.csv
+    controller_log_every_n: 1
+    min_waypoint_spacing_m: 0.0
+    recompute_path_yaw: true
+    control_rate_hz: 20.0
+    lookahead_distance_m: 1.3
+    curvature_lookahead_floor_m: 0.9
+    waypoint_tolerance_m: 0.25
+    goal_tolerance_m: 0.3
+    linear_speed_mps: 0.3
+    max_linear_speed_mps: 0.5
+    min_linear_speed_mps: 0.15
+    max_angular_speed_rps: 0.8
+    angular_direction_sign: 1.0
+    regulated_linear_scaling_enabled: true
+    regulated_min_radius_m: 1.0
+    heading_slowdown_angle_rad: 0.8
+    approach_slowdown_distance_m: 1.0
+    align_trajectory_to_start: false
+    status_log_period_s: 1.0
+    orientation_tracking_enabled: false
+    yaw_error_gain: 0.8
+    max_heading_error_for_full_speed_rad: 0.0
+    require_goal_orientation: false
+    goal_yaw_tolerance_rad: 0.25
+    closed_loop: false
+    loop_count: 1
+    duplicate_endpoint_tolerance_m: 0.25
+    reverse_allowed: false
+    stop_on_completion: true
+
+trajectory_plotter:
+  ros__parameters:
+    pose_source_type: odom
+    odom_topic: /warthog/localization/odom
+    vectornav_topic: /vectornav/pose
+    trajectory_csv: trajectories/warthog_trajectory.csv
+    lookahead_distance_m: 1.5
+    closed_loop: false
+    duplicate_endpoint_tolerance_m: 0.25
+    search_window_points: 80
+    plot_rate_hz: 5.0
+    trail_max_points: 2000
+    figure_title: Warthog Pure Pursuit

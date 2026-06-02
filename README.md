@@ -84,12 +84,19 @@ For a physical clearpath Jackal, copy the robot.yaml into ~/jackal_setup.Then in
 mkdir ~/jackal_setup/
 ros2 run clearpath_generator_common generate_bash -s /home/user/jackal_setup
 source /opt/ros/humble/setup.bash
-ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
-ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
-ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy_stack_ros_humble/lens_lab_map.yaml use_sim_time:=false setup_path:=/home/user/jackal_setup/
+ros2 launch clearpath_nav2_demos nav2.launch.py setup_path:=/home/user/jackal_setup/ use_sim_time:=false 
+ros2 launch clearpath_nav2_demos slam.launch.py setup_path:=/home/user/jackal_setup/ use_sim_time:=false
+ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy_stack_ros_humble/lens_lab_map.yaml setup_path:=/home/user/jackal_setup/ use_sim_time:=false 
 ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0611 use_sim_time:=false
 ```
-
+check tf
+```bash
+ros2 run warthog_nav2_bringup scan_relay 
+ros2 run tf2_ros tf2_echo base_link lidar2d_0_laser --ros-args -r /tf:=/w200_0105/tf -r /tf_static:=/w200_0105/tf_static
+ros2 launch clearpath_nav2_demos nav2.launch.py setup_path:=/home/user/warthog_setup/
+ros2 launch clearpath_nav2_demos slam.launch.py setup_path:=/home/user/warthog_setup/
+ros2 launch clearpath_viz view_navigation.launch.py namespace:=/w200_0105
+```
 with ouster sensor:
 ```bash
 ros2 launch clearpath_nav2_demos nav2.launch.py scan_topic:=/j100_0611/sensors/lidar3d_0/scan setup_path:=/home/user/jackal_setup/ use_sim_time:=false

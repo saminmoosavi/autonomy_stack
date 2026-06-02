@@ -11,3 +11,23 @@
 [submodule "src/planning_ros_pkgs/evo_skill"]
 	path = src/planning_ros_pkgs/evo_skill
 	url = https://github.com/saminmoosavi/evo_skill_ros.git
+[submodule "src/sensor_pkgs/ouster-ros"]
+	path = src/sensor_pkgs/ouster-ros
+	url = https://github.com/ouster-lidar/ouster-ros.git
+	branch = ros2
+[submodule "src/planning_ros_pkgs/vectornav"]
+	path = src/planning_ros_pkgs/vectornav
+	url = https://github.com/dawonn/vectornav.git
+	branch = ros2
+[submodule "src/mapping_ros_pkgs/liorf_localization"]
+	path = src/mapping_ros_pkgs/liorf_localization
+	url = https://github.com/YJZLuckyBoy/liorf_localization.git
+	branch = liorf_localization-ros2
+[submodule "src/mapping_ros_pkgs/lio_sam"]
+	path = src/mapping_ros_pkgs/lio_sam
+	url = https://github.com/TixiaoShan/LIO-SAM.git
+	branch = ros2
+[submodule "src/mapping_ros_pkgs/dlo"]
+	path = src/mapping_ros_pkgs/dlo
+	url = https://github.com/vectr-ucla/direct_lidar_inertial_odometry
+	branch = feature/ros2

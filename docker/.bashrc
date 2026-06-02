@@ -117,7 +117,7 @@ if ! shopt -oq posix; then
 fi
 source /opt/ros/humble/setup.bash
 alias sc='. ~/autonomy_stack_ros_humble/install/setup.bash'
-alias build='cd ~/autonomy_stack_ros_humble && colcon build --symlink-install && sc'
+alias build='cd ~/autonomy_stack_ros_humble && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release && sc'
 alias sim='ros2 launch clearpath_gz simulation.launch.py'
 alias nav2='ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
 alias slam='ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
@@ -128,6 +128,7 @@ alias goal='ros2 service call /a200_0000/region_goal spine_interface_ros2/srv/Ta
 # Source workspace, then gazebo
 #sc
 #. /usr/share/gazebo-11/setup.bash
-export ROS_DOMAIN_ID=0  # 0 for jackal, 5 for warthog
+export ROS_DOMAIN_ID=5  # 0 for jackal, 5 for warthog
 export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+

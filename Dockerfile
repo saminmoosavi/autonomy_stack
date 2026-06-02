@@ -24,6 +24,12 @@ RUN apt update && \
     apt update && \
     apt install -y  -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" keyboard-configuration && \
     apt install -y ros-humble-desktop && \
+    apt install build-essential         &&\
+    apt install libeigen3-dev           &&\
+    apt install libjsoncpp-dev        && \
+    apt install libspdlog-dev          && \
+    apt install libcurl4-openssl-dev   && \
+    apt install cmake   && \
     apt install -y python3-colcon-common-extensions && \
     apt install -y ros-humble-v4l2-camera && \
     apt install -y git && \
@@ -62,9 +68,16 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         python3-rosdep \
         ros-humble-ament-cmake-clang-format \
         ros-humble-message-filters \
+        ros-humble-pcl-ros \
+        ros-humble-tf2-eigen\
      && apt purge -y --auto-remove \
      && rm -rf /var/lib/apt/lists/*
-     
+
+RUN pip install --no-cache-dir \
+    torch==2.0.1+cu117 \
+    torchvision==0.15.2+cu117 \
+    torchaudio==2.0.2+cu117 \
+    --extra-index-url https://download.pytorch.org/whl/cu117
 # Python3 Packages required by task allocation
 RUN pip install \
     "numpy < 2"\
@@ -74,13 +87,12 @@ RUN pip install \
     networkx \
     openai \
     ros2_numpy \
-    ultralytics
-    
-RUN pip install \
+    ultralytics  \
     opencv-python>=4.8.1.78 \
     typing-extensions>=4.4.0 \
     ultralytics==8.3.168 \
-    lap>=0.5.12
+    lap>=0.5.12&& \
+    rm -rf ~/.cache/pip
 
 RUN apt-get update && apt-get install -y ros-humble-realsense2-*
 
@@ -88,43 +100,43 @@ RUN apt-get update && apt-get install -y ros-humble-realsense2-*
 #RUN pip install -U ultralytics
 
 #stl packages
-RUN pip install \
-      scipy \
-      pandas \
-      tensorflow \
-      tensorflow-datasets \
-      torch \
-      torchvision \
-      transformers \
-      datasets \
-      accelerate \
-      trl \
-      drake==1.51.1 \
-      git+https://github.com/vincekurtz/stlpy.git 
+# RUN pip install \
+#       scipy \
+#       pandas \
+#       tensorflow \
+#       tensorflow-datasets \
+#       torch \
+#       torchvision \
+#       transformers \
+#       datasets \
+#       accelerate \
+#       trl \
+#       drake==1.51.1 \
+#       git+https://github.com/vincekurtz/stlpy.git 
 
-RUN python3 -m pip install --force-reinstall \
-    "numpy>=1.23,<2" \
-    matplotlib
+# RUN python3 -m pip install --force-reinstall \
+#     "numpy>=1.23,<2" \
+#     matplotlib
 ## fix version mismatch
-RUN python3 - <<'PY'
-from pathlib import Path
-import site
+# RUN python3 - <<'PY'
+# from pathlib import Path
+# import site
 
-for base in site.getsitepackages():
-    p = Path(base) / "stlpy/solvers/drake/drake_micp.py"
-    if p.exists():
-        p.write_text(p.read_text().replace(
-            "from pydrake.solvers.branch_and_bound import MixedIntegerBranchAndBound",
-            "from pydrake.solvers import MixedIntegerBranchAndBound",
-        ))
+# for base in site.getsitepackages():
+#     p = Path(base) / "stlpy/solvers/drake/drake_micp.py"
+#     if p.exists():
+#         p.write_text(p.read_text().replace(
+#             "from pydrake.solvers.branch_and_bound import MixedIntegerBranchAndBound",
+#             "from pydrake.solvers import MixedIntegerBranchAndBound",
+#         ))
 
-    p = Path(base) / "stlpy/solvers/drake/drake_smooth.py"
-    if p.exists():
-        p.write_text(p.read_text().replace(
-            "from pydrake.solvers.all import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
-            "from pydrake.solvers import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
-        ))
-PY
+#     p = Path(base) / "stlpy/solvers/drake/drake_smooth.py"
+#     if p.exists():
+#         p.write_text(p.read_text().replace(
+#             "from pydrake.solvers.all import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
+#             "from pydrake.solvers import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
+#         ))
+# PY
 # Create user
 
 RUN apt update && apt install -y cmake g++ make python3 git
@@ -134,6 +146,13 @@ RUN apt update && apt install -y cmake g++ make python3 git
 #   cd fast_downward && \
 #   ./build.py
 
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:borglab/gtsam-release-4.2
+RUN apt-get update && apt-get install -y \
+    libgtsam-dev \
+    libgtsam-unstable-dev
+RUN apt install libomp-dev libpcl-dev libeigen3-dev
 
 RUN groupadd -g $GID $UNAME
 RUN useradd -m -u $UID -g $GID -s /bin/bash $UNAME
