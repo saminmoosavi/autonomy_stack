@@ -14,7 +14,8 @@ def generate_launch_description():
     redis_host = LaunchConfiguration("redis_host")
     redis_port = LaunchConfiguration("redis_port")
     redis_db = LaunchConfiguration("redis_db")
-    redis_pose_key = LaunchConfiguration("redis_pose_key")
+    redis_stream_name = LaunchConfiguration("redis_stream_name")
+    redis_target_node = LaunchConfiguration("redis_target_node")
     enable_plot = LaunchConfiguration("enable_plot")
 
     recorder = Node(
@@ -29,7 +30,8 @@ def generate_launch_description():
                 "redis_host": redis_host,
                 "redis_port": redis_port,
                 "redis_db": redis_db,
-                "redis_pose_key": redis_pose_key,
+                "redis_stream_name": redis_stream_name,
+                "redis_target_node": redis_target_node,
             },
         ],
     )
@@ -42,6 +44,13 @@ def generate_launch_description():
         condition=IfCondition(enable_plot),
         parameters=[
             params_file,
+            {
+                "redis_host": redis_host,
+                "redis_port": redis_port,
+                "redis_db": redis_db,
+                "redis_stream_name": redis_stream_name,
+                "redis_target_node": redis_target_node,
+            },
         ],
     )
 
@@ -80,9 +89,14 @@ def generate_launch_description():
             description="Redis database index containing the latest robot pose.",
         ),
         DeclareLaunchArgument(
-            "redis_pose_key",
+            "redis_stream_name",
             default_value="warthog:odom",
-            description="Redis key containing the latest robot pose.",
+            description="Redis stream containing the latest XML graph entry.",
+        ),
+        DeclareLaunchArgument(
+            "redis_target_node",
+            default_value="warthog",
+            description="Node name whose pose should be read from the Redis XML graph.",
         ),
         DeclareLaunchArgument(
             "enable_plot",

@@ -41,7 +41,8 @@ class TrajectoryRecorder(Node):
         )
 
         self.get_logger().info(
-            f"Recording Redis pose key {self.redis_pose_reader.pose_key} to {self.output_path}"
+            f"Recording Redis stream {self.redis_pose_reader.stream_name} "
+            f"node {self.redis_pose_reader.target_node} to {self.output_path}"
         )
 
     @staticmethod

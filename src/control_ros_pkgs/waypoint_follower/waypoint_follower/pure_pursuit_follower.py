@@ -94,7 +94,8 @@ class PurePursuitFollower(Node):
         self.get_logger().info(
             f"Loaded {len(self.waypoints)} waypoints from {self.trajectory_csv} "
             f"(raw={self.raw_waypoint_count}, spacing={self.min_waypoint_spacing_m:.2f} m); "
-            f"reading Redis key {self.redis_pose_reader.pose_key}, publishing to {self.cmd_vel_topic}"
+            f"reading Redis stream {self.redis_pose_reader.stream_name} "
+            f"node {self.redis_pose_reader.target_node}, publishing to {self.cmd_vel_topic}"
         )
 
     @staticmethod
@@ -438,7 +439,8 @@ class PurePursuitFollower(Node):
 
         if self.current_pose is None:
             self.get_logger().warn(
-                f"Waiting for Redis pose key {self.redis_pose_reader.pose_key}; no /cmd_vel will be published yet"
+                f"Waiting for Redis stream {self.redis_pose_reader.stream_name} "
+                f"node {self.redis_pose_reader.target_node}; no /cmd_vel will be published yet"
             )
             return
 

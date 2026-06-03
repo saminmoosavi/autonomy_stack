@@ -2,53 +2,35 @@
 
 import math
 
-from geometry_msgs.msg import PoseWithCovarianceStamped
 import matplotlib.pyplot as plt
 import rclpy
-from nav_msgs.msg import Odometry
 from rclpy.node import Node
 
-from waypoint_follower.pose_utils import (
-    OdomVectornavHeadingLocalizer,
-    VectornavEcefLocalizer,
-    quaternion_to_yaw,
-)
+from waypoint_follower.redis_pose_reader import RedisPoseReader
 
 
 class TrajectoryRecordPlotter(Node):
     def __init__(self):
         super().__init__("trajectory_record_plotter")
 
-        self.pose_source_type = self.declare_parameter("pose_source_type", "odom").value
-        self.odom_topic = self.declare_parameter("odom_topic", "/warthog/localization/odom").value
-        self.vectornav_topic = self.declare_parameter("vectornav_topic", "/vectornav/pose").value
         self.min_distance_m = float(self.declare_parameter("min_distance_m", 0.25).value)
         self.plot_rate_hz = float(self.declare_parameter("record_plot_rate_hz", 5.0).value)
         self.trail_max_points = int(self.declare_parameter("record_trail_max_points", 5000).value)
         self.figure_title = self.declare_parameter("record_figure_title", "Warthog Trajectory Recording").value
+        self.redis_pose_reader = RedisPoseReader(self)
 
         self.current_pose = None
         self.raw_path = []
         self.saved_path = []
         self.last_saved_pose = None
-        self.vectornav_localizer = VectornavEcefLocalizer()
-        self.hybrid_localizer = OdomVectornavHeadingLocalizer()
-        self.vectornav_yaw = None
 
-        msg_type = PoseWithCovarianceStamped if self.pose_source_type == "vectornav_ecef" else Odometry
-        self.sub = self.create_subscription(msg_type, self.odom_topic, self.odom_callback, 20)
-        self.vectornav_sub = None
-        if self.pose_source_type == "odom_vectornav_heading":
-            self.vectornav_sub = self.create_subscription(
-                PoseWithCovarianceStamped,
-                self.vectornav_topic,
-                self.vectornav_callback,
-                20,
-            )
         self.timer = self.create_timer(1.0 / max(self.plot_rate_hz, 0.1), self.update_plot)
 
         self.setup_plot()
-        self.get_logger().info(f"Live plotting recorded trajectory from {self.odom_topic}")
+        self.get_logger().info(
+            f"Live plotting Redis stream {self.redis_pose_reader.stream_name} "
+            f"node {self.redis_pose_reader.target_node}"
+        )
 
     def setup_plot(self):
         plt.ion()
@@ -59,7 +41,7 @@ class TrajectoryRecordPlotter(Node):
         self.ax.grid(True)
         self.ax.axis("equal")
 
-        (self.raw_line,) = self.ax.plot([], [], color="0.75", linewidth=1.0, label="odom trail")
+        (self.raw_line,) = self.ax.plot([], [], color="0.75", linewidth=1.0, label="redis pose trail")
         (self.saved_line,) = self.ax.plot([], [], "b-", linewidth=2.0, label="sampled trajectory")
         (self.saved_points,) = self.ax.plot([], [], "bo", markersize=3, label="saved points")
         (self.robot_marker,) = self.ax.plot([], [], "go", markersize=8, label="robot")
@@ -77,18 +59,14 @@ class TrajectoryRecordPlotter(Node):
         last_x, last_y = self.last_saved_pose
         return math.hypot(x - last_x, y - last_y) >= self.min_distance_m
 
-    def odom_callback(self, msg):
-        if self.pose_source_type == "vectornav_ecef":
-            x, y, _, yaw = self.vectornav_localizer.local_pose(msg)
-        elif self.pose_source_type == "odom_vectornav_heading":
-            x, y, _, yaw = self.hybrid_localizer.local_pose(msg, self.vectornav_yaw)
-        else:
-            pose = msg.pose.pose
-            x = pose.position.x
-            y = pose.position.y
-            yaw = quaternion_to_yaw(pose.orientation)
-        if yaw is None:
-            yaw = 0.0
+    def update_pose_from_redis(self):
+        pose = self.redis_pose_reader.get_pose()
+        if pose is None:
+            return False
+
+        x = pose.x
+        y = pose.y
+        yaw = pose.yaw
         self.current_pose = (x, y, yaw)
 
         self.raw_path.append((x, y))
@@ -98,13 +76,10 @@ class TrajectoryRecordPlotter(Node):
         if self.should_save(x, y):
             self.saved_path.append((x, y))
             self.last_saved_pose = (x, y)
-
-    def vectornav_callback(self, msg):
-        _, _, _, yaw = self.vectornav_localizer.local_pose(msg)
-        if yaw is not None:
-            self.vectornav_yaw = yaw
+        return True
 
     def update_plot(self):
+        self.update_pose_from_redis()
         if self.current_pose is None or not plt.fignum_exists(self.fig.number):
             return
 

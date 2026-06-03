@@ -1,11 +1,5 @@
-import json
 import math
-
-
-def yaw_from_quaternion_values(x, y, z, w):
-    siny_cosp = 2.0 * (w * z + x * y)
-    cosy_cosp = 1.0 - 2.0 * (y * y + z * z)
-    return math.atan2(siny_cosp, cosy_cosp)
+import xml.etree.ElementTree as ET
 
 
 class RedisPose:
@@ -25,16 +19,17 @@ class RedisPoseReader:
         self.port = int(node.declare_parameter("redis_port", 6379).value)
         self.db = int(node.declare_parameter("redis_db", 0).value)
         self.password = node.declare_parameter("redis_password", "").value
-        self.pose_key = node.declare_parameter("redis_pose_key", "warthog:odom").value
+        self.stream_name = node.declare_parameter("redis_stream_name", "warthog:odom").value
+        self.target_node = str(node.declare_parameter("redis_target_node", "warthog").value)
+        self.xml_field = node.declare_parameter("redis_xml_field", "xml").value
         self.timeout_s = float(node.declare_parameter("redis_timeout_s", 0.1).value)
         self.frame_id = node.declare_parameter("redis_frame_id", "odom").value
-        self.yaw_units = node.declare_parameter("redis_yaw_units", "rad").value
-        self.x_field = node.declare_parameter("redis_x_field", "x").value
-        self.y_field = node.declare_parameter("redis_y_field", "y").value
-        self.z_field = node.declare_parameter("redis_z_field", "z").value
-        self.yaw_field = node.declare_parameter("redis_yaw_field", "yaw").value
-        self.time_field = node.declare_parameter("redis_time_field", "time_sec").value
-        self.frame_field = node.declare_parameter("redis_frame_field", "frame_id").value
+        self.yaw_from_motion_min_distance_m = float(
+            node.declare_parameter("redis_yaw_from_motion_min_distance_m", 0.05).value
+        )
+
+        self.last_xy = None
+        self.last_yaw = 0.0
 
         try:
             import redis
@@ -51,88 +46,68 @@ class RedisPoseReader:
             password=password,
             socket_timeout=self.timeout_s,
             socket_connect_timeout=self.timeout_s,
-            decode_responses=True,
         )
 
     def get_pose(self):
-        data = self.read_key()
-        if not data:
+        latest = self.client.xrevrange(self.stream_name, "+", count=1)
+        if not latest:
             return None
 
-        try:
-            x = float(self.lookup(data, self.x_field, ["pose.x", "position.x"]))
-            y = float(self.lookup(data, self.y_field, ["pose.y", "position.y"]))
-            z = float(self.lookup_optional(data, self.z_field, ["pose.z", "position.z"], 0.0))
-            yaw = self.parse_yaw(data)
-        except (TypeError, ValueError, KeyError):
+        entry_id, fields = latest[0]
+        bytes = self.lookup_field(fields, self.xml_field)
+        if bytes is None:
             return None
 
-        if self.yaw_units.lower() in ("deg", "degree", "degrees"):
-            yaw = math.radians(yaw)
-
-        time_value = self.lookup_optional(data, self.time_field, ["stamp", "timestamp"], None)
-        time_sec = self.node.get_clock().now().nanoseconds * 1e-9
-        if time_value not in (None, ""):
-            try:
-                time_sec = float(time_value)
-            except ValueError:
-                pass
-
-        frame_id = self.lookup_optional(data, self.frame_field, ["header.frame_id"], self.frame_id)
-        return RedisPose(time_sec, frame_id or self.frame_id, x, y, z, yaw)
-
-    def read_key(self):
-        key_type = self.client.type(self.pose_key)
-        if key_type == "hash":
-            return self.client.hgetall(self.pose_key)
-
-        value = self.client.get(self.pose_key)
-        if value is None:
+        pose_values = self.get_pose_from_redis(bytes)
+        if pose_values is None or len(pose_values) < 3:
             return None
-        try:
-            parsed = json.loads(value)
-        except json.JSONDecodeError:
-            return None
-        return parsed if isinstance(parsed, dict) else None
 
-    def parse_yaw(self, data):
-        yaw = self.lookup_optional(data, self.yaw_field, ["pose.yaw", "orientation.yaw"], None)
-        if yaw not in (None, ""):
-            return float(yaw)
+        x = float(pose_values[0])
+        y = float(pose_values[1])
+        z = float(pose_values[2])
+        yaw = float(pose_values[3]) if len(pose_values) >= 4 else self.yaw_from_motion(x, y)
+        time_sec = self.time_from_entry_id(entry_id)
+        return RedisPose(time_sec, self.frame_id, x, y, z, yaw)
 
-        qx = self.lookup_optional(data, "qx", ["orientation.x", "pose.orientation.x"], None)
-        qy = self.lookup_optional(data, "qy", ["orientation.y", "pose.orientation.y"], None)
-        qz = self.lookup_optional(data, "qz", ["orientation.z", "pose.orientation.z"], None)
-        qw = self.lookup_optional(data, "qw", ["orientation.w", "pose.orientation.w"], None)
-        if None in (qx, qy, qz, qw):
-            raise KeyError("yaw")
-        return yaw_from_quaternion_values(float(qx), float(qy), float(qz), float(qw))
 
-    def lookup(self, data, field_name, fallback_paths=None):
-        value = self.lookup_optional(data, field_name, fallback_paths, None)
-        if value is None:
-            raise KeyError(field_name)
-        return value
-
-    def lookup_optional(self, data, field_name, fallback_paths=None, default=None):
-        paths = [field_name]
-        if fallback_paths:
-            paths.extend(fallback_paths)
-
-        for path in paths:
-            value = self.lookup_path(data, path)
-            if value is not None:
-                return value
-        return default
 
     @staticmethod
-    def lookup_path(data, path):
-        if not path:
+    def parse_pose(pose_text):
+        if pose_text is None:
             return None
 
-        current = data
-        for part in str(path).split("."):
-            if not isinstance(current, dict) or part not in current:
-                return None
-            current = current[part]
-        return current
+        try:
+            return tuple(float(value.strip()) for value in pose_text.strip("()").split(","))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def lookup_field(fields, field_name):
+        if field_name in fields:
+            return fields[field_name]
+
+        field_bytes = field_name.encode()
+        if field_bytes in fields:
+            return fields[field_bytes]
+
+        return None
+
+    def yaw_from_motion(self, x, y):
+        if self.last_xy is not None:
+            last_x, last_y = self.last_xy
+            distance = math.hypot(x - last_x, y - last_y)
+            if distance >= self.yaw_from_motion_min_distance_m:
+                self.last_yaw = math.atan2(y - last_y, x - last_x)
+
+        self.last_xy = (x, y)
+        return self.last_yaw
+
+    def time_from_entry_id(self, entry_id):
+        if isinstance(entry_id, bytes):
+            entry_id = entry_id.decode()
+
+        try:
+            milliseconds = float(str(entry_id).split("-", 1)[0])
+            return milliseconds * 1e-3
+        except (TypeError, ValueError):
+            return self.node.get_clock().now().nanoseconds * 1e-9
