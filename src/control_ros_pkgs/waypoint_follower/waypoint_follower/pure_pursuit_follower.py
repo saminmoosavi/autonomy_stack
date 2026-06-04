@@ -257,23 +257,45 @@ class PurePursuitFollower(Node):
             return self.progress_index
         return min(self.progress_index, len(self.waypoints) - 1)
 
+
+    def lookahead_target_index(self, x, y):
+        last_index = len(self.waypoints) - 1
+
+        for idx in range(self.progress_index, last_index + 1):
+            wx, wy, _ = self.waypoint_at(idx)
+            dist = math.hypot(wx - x, wy - y)
+
+            if dist >= self.lookahead_distance_m:
+                return idx
+
+        return last_index
     def advance_sequential_waypoint(self, x, y):
-        target_x, target_y, _ = self.waypoint_at(self.target_index())
-        distance = math.hypot(target_x - x, target_y - y)
-        tolerance = self.goal_tolerance_m if self.is_final_waypoint() else self.waypoint_tolerance_m
-
-        if distance > tolerance:
+        if self.is_final_waypoint():
             return
 
-        if self.closed_loop:
-            if self.loop_count > 0 and self.progress_index >= self.loop_count * len(self.waypoints):
-                return
+        idx = self.progress_index
+        target_x, target_y, _ = self.waypoint_at(idx)
+
+        dist_to_target = math.hypot(target_x - x, target_y - y)
+
+        # Case 1: robot reached waypoint neighborhood
+        if dist_to_target <= self.waypoint_tolerance_m:
             self.progress_index += 1
             return
 
-        if self.progress_index < len(self.waypoints) - 1:
-            self.progress_index += 1
+        # Case 2: robot passed the waypoint but did not get close enough
+        next_x, next_y, _ = self.waypoint_at(idx + 1)
 
+        path_dx = next_x - target_x
+        path_dy = next_y - target_y
+
+        robot_dx = x - target_x
+        robot_dy = y - target_y
+
+        dot = robot_dx * path_dx + robot_dy * path_dy
+
+        if dot > 0.0:
+            self.progress_index += 1
     def is_final_waypoint(self):
         if self.closed_loop:
             return self.loop_count > 0 and self.progress_index >= self.loop_count * len(self.waypoints)
@@ -362,7 +384,10 @@ class PurePursuitFollower(Node):
             self.get_logger().info("Reached trajectory goal")
             return
 
-        target_index = self.target_index()
+        # target_index = self.target_index()
+        # target_x, target_y, target_yaw = self.waypoint_at(target_index)
+
+        target_index = self.lookahead_target_index(x, y)
         target_x, target_y, target_yaw = self.waypoint_at(target_index)
 
         dx = target_x - x
@@ -373,6 +398,7 @@ class PurePursuitFollower(Node):
         alpha = self.normalize_angle(target_heading - yaw)
         yaw_error = self.normalize_angle(target_yaw - yaw)
 
+        # lookahead = max(math.hypot(dx, dy), self.curvature_lookahead_floor_m, 0.01)
         lookahead = max(math.hypot(dx, dy), self.curvature_lookahead_floor_m, 0.01)
         curvature = 2.0 * math.sin(alpha) / lookahead
         speed = self.regulated_speed(math.hypot(dx, dy), alpha, curvature)
