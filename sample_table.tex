@@ -1,0 +1,57 @@
+\subsection{Constrained execution loop end-to-end}
+\label{sec:exp_endtoend}
+
+We illustrate the constrained execution loop in a Gazebo factory scene where a Jackal completes pick-and-drop missions (Fig.~\ref{fig:gazebo_pipeline}). Plans from the evolutionary PDDL planner (Sec.~\ref{sec:planning}) are produced action-by-action: each PDDL \texttt{move} is grounded into a route by Nav2 and checked against $\Phi_{\mathrm{mob}}$ before execution; a clearance-floor violation rejects the action, commits the verified prefix, and triggers a replan.
+
+\begin{figure}[!ht]
+\centering
+\begin{subfigure}{0.24\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=2.8cm]{figures/sim_gazebo_topdown.png}
+  \caption{Factory scene}
+  \label{fig:gazebo_topdown}
+\end{subfigure}\hfill
+\begin{subfigure}{0.24\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=2.8cm]{figures/sim_rviz_topdown.png}
+  \caption{Planner's view}
+  \label{fig:rviz_topdown}
+\end{subfigure}\hfill
+\begin{subfigure}{0.24\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=2.8cm]{figures/sim_pedestrian.png}
+  \caption{Shield in action}
+  \label{fig:sim_pedestrian}
+\end{subfigure}\hfill
+\begin{subfigure}{0.24\linewidth}
+  \centering
+  \includegraphics[width=\linewidth, height=2.8cm]{figures/sim_gazebo_aisle.png}
+  \caption{Completed mission}
+  \label{fig:sim_gazebo_aisle}
+\end{subfigure}
+\caption{Constrained execution loop in Gazebo. (a) Top-down view of the factory floor used as the deployment scene. (b) The trajectory planner's costmap: PDDL \texttt{move} actions are grounded into routes through the shelf aisles. (c) During execution the global STL check vetoes a forward step when a pedestrian is within the learned clearance floor; the robot stops and replans. (d) A completed delivery: the Jackal has navigated an aisle and dropped a box at the target shelf.}
+\label{fig:gazebo_pipeline}
+\end{figure}
+
+\paragraph{Quantitative shield results.}
+We run $5$ pick-and-drop missions ($1$ run each) at $9$--$15$ pedestrians per scene with the SCAND-mined $\Phi_{\mathrm{mob}}$ active. The shield completes every planned route and keeps four of five runs collision-free; the lone failure (M4) records a collision when the densest cluster leaves no admissible replan within the budget, and clearance falls to $0.05$\,m. Personal-zone (${<}1.2$\,m) exposure stays under $13\%$ of ticks across all five runs while social-zone exposure climbs to $40$--$68\%$, showing that the loop spends most of each run within $3.6$\,m of a pedestrian yet rarely within personal distance. M3 maintains both low exposure ($0\%$ personal, $P_{\mathrm{int}}{=}12.7$) and the second-highest minimum clearance ($0.90$\,m) by routing around the densest cluster, while M2 takes the longest path ($90.3$\,m) through a sustained dense aisle and accumulates $P_{\mathrm{int}}{=}115.2$ at clearance $0.40$\,m. The loop therefore degrades gracefully under crowded operation: it trades clearance margin for an isolated failure rather than collapsing wholesale (Table~\ref{tab:factory_missions}).
+
+\begin{table}[!ht]
+\centering
+\caption{Per-mission metrics ($9$--$15$ pedestrians per scene, $1$ run per mission). Intim/Pers/Social are the fraction of ticks with the nearest pedestrian inside Hall's intimate ($<$0.45\,m), personal ($<$1.2\,m), and social ($<$3.6\,m) zones; $P_{\mathrm{int}}=\sum\max(0,\,1.2-\mathrm{clr})$.}
+\label{tab:factory_missions}
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccccccccc}
+\toprule
+Mission & Succ. & Route \% & Coll. & Path [m] & Time [s] & Intim \% & Pers \% & Social \% & $P_{\mathrm{int}}$ & Min clr [m] \\
+\midrule
+M1 & 1/1 & 100 & 0.0 & 64.1 & 204 & 0.0 &  8.2 & 63.6 &  34.6 & 0.55 \\
+M2 & 1/1 & 100 & 0.0 & 90.3 & 241 & 0.5 &  9.8 & 40.1 & 115.2 & 0.40 \\
+M3 & 1/1 & 100 & 0.0 & 69.2 & 196 & 0.0 &  4.8 & 67.7 &  12.7 & 0.90 \\
+M4 & 0/1 & 100 & 1.0 & 59.1 & 480 & 0.8 &  4.3 & 51.8 &  70.1 & 0.05 \\
+M5 & 1/1 & 100 & 0.0 & 37.8 & 112 & 1.0 & 12.7 & 61.8 &  29.4 & 0.37 \\
+\bottomrule
+\end{tabular}
+\end{table}
+

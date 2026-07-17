@@ -1,0 +1,8 @@
+(move jackal_1 R5 R1)
+(pickup-box jackal_1 box_1 R1)
+(move jackal_1 R1 R5)
+(move jackal_1 R5 R3)
+(inspect-shelf jackal_1 R3)
+(move jackal_1 R3 R5)
+(move jackal_1 R5 R7)
+(dropoff-box jackal_1 box_1 R7)

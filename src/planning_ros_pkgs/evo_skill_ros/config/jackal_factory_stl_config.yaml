@@ -1,0 +1,287 @@
+# jackal_factory_stl_config.yaml
+#
+# Signal Temporal Logic-style runtime requirements for a Clearpath Jackal
+# operating in a factory with people, boxes, shelves, and dynamic obstacles.
+#
+# These rules are written in a simple monitor-friendly format.
+#
+# rule types:
+#   always:             condition must always be true
+#   implication:        if condition is true, requirement must be true
+#   response:           if trigger becomes true, response must become true within window_s seconds
+#   eventually:         condition must become true within window_s seconds
+#
+# This config is intended to be loaded by stl_monitor.py.
+
+metadata:
+  robot: clearpath_jackal
+  environment: factory
+  time_unit: seconds
+  description: STL-inspired safety and mission monitoring requirements
+
+signals:
+  required:
+    - time
+    - v_r
+    - w_r
+    - d_human
+    - d_obs
+    - battery
+    - localization_error
+    - risk
+    - blocked_path
+    - in_keepout
+    - in_narrow_aisle
+    - at_charger
+    - at_dropoff_zone
+    - carrying_box
+    - mission_done
+    - emergency_stop
+    - safe_mode
+    - replan_requested
+    - new_plan_available
+    - inspection_active
+    - d_shelf
+    - inspected_shelf_A
+    - d_goal
+
+rules:
+
+  - id: STL-001
+    name: Maintain minimum human distance
+    type: always
+    condition: "d_human >= 1.5"
+    severity: critical
+
+  - id: STL-002
+    name: Slow down near humans
+    type: implication
+    if: "d_human < 3.0"
+    then: "v_r <= 0.5"
+    severity: critical
+
+  - id: STL-003
+    name: Stop when human is too close
+    type: implication
+    if: "d_human < 1.0"
+    then: "v_r <= 0.05"
+    severity: critical
+
+  - id: STL-004
+    name: Emergency stop response
+    type: response
+    trigger: "emergency_stop == true"
+    response: "v_r <= 0.02"
+    window_s: 1.0
+    severity: critical
+
+  - id: STL-006
+    name: Maintain obstacle clearance
+    type: always
+    condition: "d_obs >= 0.4"
+    severity: critical
+
+  - id: STL-007
+    name: Stop near obstacle
+    type: implication
+    if: "d_obs < 0.3"
+    then: "v_r <= 0.05"
+    severity: critical
+
+  - id: STL-008
+    name: Avoid keepout zones
+    type: always
+    condition: "in_keepout == false"
+    severity: critical
+
+  - id: STL-009
+    name: Replan when path is blocked
+    type: response
+    trigger: "blocked_path == true"
+    response: "replan_requested == true"
+    window_s: 5.0
+    severity: high
+
+  - id: STL-010
+    name: Do not move into blocked path
+    type: implication
+    if: "blocked_path == true"
+    then: "v_r <= 0.1"
+    severity: high
+
+  - id: STL-011
+    name: Global speed limit
+    type: always
+    condition: "v_r <= 1.0"
+    severity: critical
+
+  - id: STL-012
+    name: Narrow aisle speed limit
+    type: implication
+    if: "in_narrow_aisle == true"
+    then: "v_r <= 0.35"
+    severity: high
+
+  - id: STL-013
+    name: Smooth angular motion
+    type: always
+    condition: "abs(w_r) <= 1.2"
+    severity: medium
+
+  - id: STL-014
+    name: No high speed while carrying box
+    type: implication
+    if: "carrying_box == true"
+    then: "v_r <= 0.5"
+    severity: high
+
+  - id: STL-015
+    name: Stop at dropoff zone
+    type: implication
+    if: "at_dropoff_zone == true"
+    then: "v_r <= 0.05"
+    severity: medium
+
+  - id: STL-016
+    name: Eventually reach assigned goal
+    type: eventually
+    condition: "d_goal <= 0.3"
+    window_s: 120.0
+    severity: medium
+
+  - id: STL-019
+    name: Goal reached implies stop
+    type: response
+    trigger: "d_goal <= 0.3"
+    response: "v_r <= 0.05"
+    window_s: 2.0
+    severity: medium
+
+  - id: STL-021
+    name: Eventually inspect target shelf
+    type: eventually
+    condition: "inspected_shelf_A == true"
+    window_s: 180.0
+    severity: medium
+
+  - id: STL-022
+    name: Inspect only when close enough
+    type: implication
+    if: "inspection_active == true"
+    then: "d_shelf <= 1.0"
+    severity: high
+
+  - id: STL-023
+    name: Stop during inspection
+    type: implication
+    if: "inspection_active == true"
+    then: "v_r <= 0.05"
+    severity: high
+
+  - id: STL-024
+    name: Maintain human clearance during inspection
+    type: implication
+    if: "inspection_active == true"
+    then: "d_human >= 1.5"
+    severity: critical
+
+  - id: STL-026
+    name: Delivery eventually happens after pickup
+    type: response
+    trigger: "carrying_box == true"
+    response: "at_dropoff_zone == true"
+    window_s: 180.0
+    severity: medium
+
+  - id: STL-029
+    name: Extra human clearance while carrying box
+    type: implication
+    if: "carrying_box == true"
+    then: "d_human >= 2.0"
+    severity: critical
+
+  - id: STL-030
+    name: Battery never critically low away from charger
+    type: implication
+    if: "at_charger == false"
+    then: "battery >= 15.0"
+    severity: high
+
+  - id: STL-031
+    name: Go to charger when battery is low
+    type: response
+    trigger: "battery < 25.0"
+    response: "at_charger == true"
+    window_s: 120.0
+    severity: high
+
+  - id: STL-034
+    name: Localization uncertainty bound
+    type: always
+    condition: "localization_error <= 0.5"
+    severity: high
+
+  - id: STL-035
+    name: Slow down under poor localization
+    type: implication
+    if: "localization_error > 0.3"
+    then: "v_r <= 0.3"
+    severity: high
+
+  - id: STL-036
+    name: Stop under severe localization loss
+    type: response
+    trigger: "localization_error > 0.7"
+    response: "v_r <= 0.05"
+    window_s: 2.0
+    severity: critical
+
+  - id: STL-039
+    name: Avoid high-risk areas
+    type: always
+    condition: "risk <= 0.7"
+    severity: high
+
+  - id: STL-040
+    name: Slow down in medium-risk areas
+    type: implication
+    if: "risk > 0.4"
+    then: "v_r <= 0.4"
+    severity: medium
+
+  - id: STL-041
+    name: Stop in high-risk areas
+    type: response
+    trigger: "risk > 0.8"
+    response: "v_r <= 0.05"
+    window_s: 1.0
+    severity: critical
+
+  - id: STL-042
+    name: Mission eventually completes
+    type: eventually
+    condition: "mission_done == true"
+    window_s: 600.0
+    severity: medium
+
+  - id: STL-043
+    name: Mission completion requires safe state
+    type: implication
+    if: "mission_done == true"
+    then: "v_r <= 0.05 and d_human >= 1.5"
+    severity: high
+
+  - id: STL-044
+    name: Safety override condition
+    type: implication
+    if: "d_human < 1.0 or d_obs < 0.3 or localization_error > 0.7"
+    then: "safe_mode == true"
+    severity: critical
+
+  - id: STL-045
+    name: Replanning must lead to new plan or safe stop
+    type: response
+    trigger: "replan_requested == true"
+    response: "new_plan_available == true or safe_mode == true"
+    window_s: 10.0
+    severity: high

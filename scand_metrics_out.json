@@ -1,0 +1,68 @@
+{
+  "node": "scand_metrics",
+  "robot": "j100_0000/robot",
+  "world": "warehouse",
+  "duration_s": 183.315,
+  "ticks": 1561,
+  "path_length_m": 113.281,
+  "collisions": 2,
+  "success": false,
+  "path_progress_pct": 100.0,
+  "path_arc_m": 73.79,
+  "path_total_m": 73.979,
+  "intim_pct": 0.897,
+  "pers_pct": 9.609,
+  "social_pct": 84.561,
+  "p_int": 48.654,
+  "min_human_clearance_m": 0.0596,
+  "envelope": {
+    "speed": {
+      "extreme": 1.0644,
+      "bound": "<=",
+      "threshold": 2.603,
+      "compliant_pct": 100.0
+    },
+    "yaw_rate": {
+      "extreme": 1.0327,
+      "bound": "<=",
+      "threshold": 3.293,
+      "compliant_pct": 100.0
+    },
+    "accel": {
+      "extreme": 4.3732,
+      "bound": "<=",
+      "threshold": 3.213,
+      "compliant_pct": 99.49
+    },
+    "jerk": {
+      "extreme": 55.3783,
+      "bound": "<=",
+      "threshold": 5.862,
+      "compliant_pct": 84.37
+    },
+    "lat_accel": {
+      "extreme": 0.9378,
+      "bound": "<=",
+      "threshold": 2.228,
+      "compliant_pct": 100.0
+    },
+    "ttc": {
+      "extreme": 0.1578,
+      "bound": ">=",
+      "threshold": 0.452,
+      "compliant_pct": 99.62
+    },
+    "ped_ttc": {
+      "extreme": 0.1578,
+      "bound": ">=",
+      "threshold": 0.422,
+      "compliant_pct": 99.62
+    },
+    "ped_approach_rate": {
+      "extreme": 1.5784,
+      "bound": "<=",
+      "threshold": 5.0,
+      "compliant_pct": 100.0
+    }
+  }
+}

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Parse results/factory_missions/plan*_rep*.summary (scand_metrics summaries)
+"""Parse results/factory_missions/plan*_rep*_metrics.json (scand_metrics JSON summaries)
 and emit a SCAND-shield-style LaTeX results table (mean over repeats per plan).
 
 Usage: python3 gen_results_table.py [results_dir]
 Writes <results_dir>/results_table.tex and prints a plaintext preview.
 """
 import glob
+import json
 import os
 import re
 import sys
@@ -25,35 +26,25 @@ for _f in sorted(glob.glob(os.path.join(PLANS_DIR, "factory_mission_*.txt"))):
         GOAL_REGION[_m.group(1)] = _moves[-1]
 
 
-def _strip(line):
-    # drop a leading launch label like "[python3-4] "
-    return re.sub(r"^\[[^\]]*\]\s*", "", line)
-
-
-def parse_summary(path):
-    txt = "\n".join(_strip(l) for l in open(path, errors="replace").read().splitlines())
-    if "SCAND-shield runtime metrics" not in txt:
+def parse_metrics_json(path):
+    try:
+        d = json.loads(open(path, errors="replace").read())
+    except (json.JSONDecodeError, OSError):
         return None
-    d = {}
-
-    def g(pat, cast=float, default=None, grp=1):
-        m = re.search(pat, txt)
-        return cast(m.group(grp)) if m else default
-
-    d["duration"] = g(r"duration=([\d.]+)s")
-    d["path_length"] = g(r"path_length=([\d.]+)")
-    d["coll"] = g(r"coll[^:]*:\s*(\d+)", int)
-    d["succ"] = bool(re.search(r"succ[^:]*:\s*yes", txt))
-    d["progress"] = g(r"path progress[^:]*:\s*([\d.]+)%")
-    d["intim_pct"] = g(r"intim\s+ticks[^(]*\(([\d.]+)%\)")
-    d["pers_pct"] = g(r"pers\s+ticks[^(]*\(([\d.]+)%\)")
-    d["social_pct"] = g(r"social\s+ticks[^(]*\(([\d.]+)%\)")
-    d["p_int"] = g(r"P_int[^:]*:\s*([\d.]+)")
-    d["min_clr"] = g(r"min human clearance\s*:\s*([\d.]+)")
-    # dynamics/TTC envelope compliance %, keyed by metric name
-    for name, pct in re.findall(r"(\w+)\s+(?:max|min)=\s*[-\d.]+\s+bound[^c]*compliant\s+([\d.]+)%", txt):
-        d.setdefault("env", {})[name] = float(pct)
-    return d
+    if d.get("node") != "scand_metrics":
+        return None
+    return {
+        "duration":    d.get("duration_s"),
+        "path_length": d.get("path_length_m"),
+        "coll":        d.get("collisions"),
+        "succ":        bool(d.get("success")),
+        "progress":    d.get("path_progress_pct"),
+        "intim_pct":   d.get("intim_pct"),
+        "pers_pct":    d.get("pers_pct"),
+        "social_pct":  d.get("social_pct"),
+        "p_int":       d.get("p_int"),
+        "min_clr":     d.get("min_human_clearance_m"),
+    }
 
 
 def fmt(vals, prec=1):
@@ -76,13 +67,12 @@ def fmt_crowd(vals):
 
 def main():
     runs = defaultdict(list)  # plan -> [dict,...]
-    for f in sorted(glob.glob(os.path.join(RESULTS_DIR, "plan*_rep*.summary"))):
+    for f in sorted(glob.glob(os.path.join(RESULTS_DIR, "plan*_rep*_metrics.json"))):
         m = re.search(r"plan(\d+)_rep(\d+)", os.path.basename(f))
         if not m:
             continue
-        d = parse_summary(f)
+        d = parse_metrics_json(f)
         if d:
-            # crowd density (walker count) recorded by the harness, if present
             dens = os.path.join(RESULTS_DIR, f"plan{m.group(1)}_rep{m.group(2)}.density")
             try:
                 d["walkers"] = int(open(dens).read().strip())
@@ -91,7 +81,7 @@ def main():
             runs[m.group(1)].append(d)
 
     if not runs:
-        print(f"No parseable summaries in {RESULTS_DIR}", file=sys.stderr)
+        print(f"No parseable _metrics.json files in {RESULTS_DIR}", file=sys.stderr)
         sys.exit(1)
 
     plans = sorted(runs)

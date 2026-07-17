@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "description": "Learned PDDL--STL skill contracts used by the evolutionary planner.",
+    "version": "0.1"
+  },
+  "skills": {
+    "move": {
+      "solver": "drake_stl_unicycle",
+      "stl_contracts": [
+        "G[0,T] obstacle_clearance >= safe_distance",
+        "F[0,T] distance_to_goal <= goal_tolerance"
+      ],
+      "effect_certificates": [
+        "distance_to_goal <= goal_tolerance",
+        "minimum_obstacle_clearance >= safe_distance"
+      ]
+    },
+    "move-through-narrow-aisle": {
+      "solver": "drake_stl_unicycle",
+      "stl_contracts": [
+        "G[0,T] obstacle_clearance >= safe_distance",
+        "G[0,T] v <= narrow_aisle_speed",
+        "F[0,T] distance_to_goal <= goal_tolerance"
+      ],
+      "effect_certificates": [
+        "distance_to_goal <= goal_tolerance",
+        "minimum_obstacle_clearance >= safe_distance"
+      ]
+    },
+    "inspect-shelf": {
+      "symbolic_only": true,
+      "stl_contracts": [
+        "G[0,T] v <= inspection_speed",
+        "G[0,T] human_clearance >= human_safe_distance"
+      ],
+      "effect_certificates": [
+        "inspection_complete == true",
+        "human_clearance >= human_safe_distance"
+      ]
+    },
+    "pickup-box": {
+      "symbolic_only": true,
+      "stl_contracts": [
+        "G[0,T] v <= manipulation_speed",
+        "G[0,T] human_clearance >= human_safe_distance"
+      ],
+      "effect_certificates": [
+        "gripper_closed == true",
+        "box_pose_attached == true"
+      ]
+    },
+    "dropoff-box": {
+      "symbolic_only": true,
+      "stl_contracts": [
+        "G[0,T] v <= manipulation_speed",
+        "G[0,T] human_clearance >= human_safe_distance"
+      ],
+      "effect_certificates": [
+        "gripper_open == true",
+        "box_pose_in_dropoff_zone == true"
+      ]
+    },
+    "wait-for-human": {
+      "symbolic_only": true,
+      "stl_contracts": [
+        "G[0,T] v <= stopped_speed"
+      ],
+      "effect_certificates": [
+        "path_clear == true or timeout_elapsed == true"
+      ]
+    }
+  }
+}

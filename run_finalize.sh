@@ -2,7 +2,7 @@
 # Block until the parallel batch finishes, run a sequential cleanup pass for any
 # runs that failed under contention, then build + print the LaTeX results table.
 set -uo pipefail
-cd /home/mvarun/Research/temp/autonomy_stack
+cd /planning/autonomy_stack
 OUT=results/factory_missions
 REPS=${REPS:-3}
 TOTAL=$((5 * REPS))
@@ -10,8 +10,8 @@ TOTAL=$((5 * REPS))
 count_missing() {
   local n=0 p r sm
   for p in 01 02 03 04 05; do for r in $(seq 1 "$REPS"); do
-    sm=$OUT/plan${p}_rep${r}.summary
-    { [ -s "$sm" ] && grep -q "SCAND-shield runtime metrics" "$sm"; } || n=$((n+1))
+    sm=$OUT/plan${p}_rep${r}_metrics.json
+    { [ -s "$sm" ] && python3 -c "import json,sys; json.load(open('$sm'))" 2>/dev/null; } || n=$((n+1))
   done; done
   echo "$n"
 }

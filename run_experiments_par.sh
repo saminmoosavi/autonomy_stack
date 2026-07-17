@@ -56,12 +56,12 @@ ensure_worker() {   # $1=worker idx ; create (idempotent) + loosen nav2 toleranc
     [ -d "$CLEARPATH_DIR" ] && mounts+=( -v "$CLEARPATH_DIR":/home/user/clearpath )
     [ -d /tmp/.X11-unix ]   && mounts+=( -v /tmp/.X11-unix:/tmp/.X11-unix )
     [ -d "$HF_CACHE" ]      && mounts+=( -v "$HF_CACHE":/home/.cache/huggingface )
-    docker run -d --name "$name" \
+    docker compose -f /planning/autonomy_stack/docker-compose.yml run --rm  ros_humble \
       --gpus all --network host --ipc host \
       -e DISPLAY="${DISPLAY:-:1}" \
       -e NVIDIA_VISIBLE_DEVICES=all -e NVIDIA_DRIVER_CAPABILITIES=compute,utility \
       -e HOME=/home/user \
-      -e ROS_DOMAIN_ID="$k" -e ROS_LOCALHOST_ONLY=1 \
+      -e ROS_DOMAIN_ID="$k" \
       -e IGN_IP=127.0.0.1 -e IGN_PARTITION="w$k" -e GZ_PARTITION="w$k" \
       -e ROS_LOG_DIR="$LOGROOT_CONT/w$k/roslog" \
       "${mounts[@]}" \
@@ -99,10 +99,10 @@ teardown() {   # $1=container name (own pid ns -> scoped, safe)
 
 run_one() {    # $1=worker $2=plan $3=rep $4=target
   local k=$1 p=$2 r=$3 tgt=$4 name=evo_w$1
-  local sm="$OUT/plan${p}_rep${r}.summary"
+  local sm="$OUT/plan${p}_rep${r}_metrics.json"
   local ld_host="$LOGROOT_HOST/w$k/p${p}_r${r}"
   local ld_cont="$LOGROOT_CONT/w$k/p${p}_r${r}"
-  if [ -s "$sm" ] && grep -q "SCAND-shield runtime metrics" "$sm"; then
+  if [ -s "$sm" ] && python3 -c "import json,sys; json.load(open('$sm'))" 2>/dev/null; then
     echo "[w$k] plan$p rep$r already done -> skip"; return
   fi
   # randomized crowd density for this run: rep -> band (sparse/medium/dense),
@@ -147,13 +147,15 @@ run_one() {    # $1=worker $2=plan $3=rep $4=target
         MULTICAM=1 METRICS=1 UNTIL_SUCCESS=1 \
         METRICS_DURATION=$BACKSTOP NAV2_TIMEOUT=300 YOLO_TIMEOUT=120 \
         COSTMAP_EDIT_RADIUS=0.3 STL_REPLAN_COOLDOWN=5.0 \
+        METRICS_JSON_OUT=$CREPO/results/factory_missions/plan${p}_rep${r}_metrics.json \
+        JSON_LOG_FILE=$ld_cont/evo_plan_deploy_log.json \
         LOGDIR=$ld_cont \
         ./run_sim.sh > $ld_cont/runsim.log 2>&1
       "
       local bdl=$((SECONDS + 420))
       while [ $SECONDS -lt $bdl ]; do
         if grep -aq "pipeline is UP" "$ld_host/runsim.log" 2>/dev/null; then up=1; break; fi
-        if grep -aq "SCAND-shield runtime metrics" "$ld_host/evo.log" 2>/dev/null; then up=1; break; fi
+        if [ -s "$sm" ] 2>/dev/null; then up=1; break; fi
         if grep -aq "ERROR: Nav2 did not activate\|ERROR: no robot under namespace\|ERROR: robot did not spawn" "$ld_host"/*.log 2>/dev/null; then break; fi
         sleep 5
       done
@@ -169,19 +171,17 @@ run_one() {    # $1=worker $2=plan $3=rep $4=target
     # ---- NAVIGATE (lock released; overlaps other workers freely) ----
     local deadline=$((SECONDS + RUN_TIMEOUT)) got=0
     while [ $SECONDS -lt $deadline ]; do
-      if grep -aq "SCAND-shield runtime metrics" "$ld_host/evo.log" 2>/dev/null; then got=1; break; fi
+      if [ -s "$sm" ]; then got=1; break; fi
       sleep 10
     done
-    sleep 6
-    grep -aB2 -A32 "SCAND-shield runtime metrics" "$ld_host/evo.log" 2>/dev/null > "$sm"
-    if [ "$got" = 1 ] && grep -q "SCAND-shield runtime metrics" "$sm"; then
-      echo "[w$k] plan$p rep$r: captured ($(grep -ao 'succ.*: [a-z]*' "$sm" | head -1))"
+    if [ "$got" = 1 ] && python3 -c "import json,sys; d=json.load(open('$sm')); print('succ:', d.get('success'))" 2>/dev/null; then
+      echo "[w$k] plan$p rep$r: captured"
       teardown "$name"; return
     fi
     echo "[w$k] plan$p rep$r: attempt $attempt no summary (timeout)"
     teardown "$name"
   done
-  : > "$sm"   # leave empty so the cleanup pass / resume retries it
+  rm -f "$sm"   # remove so the cleanup pass / resume retries it
   echo "[w$k] plan$p rep$r: NO SUMMARY after retries"
 }
 

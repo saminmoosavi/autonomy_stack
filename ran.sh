@@ -10,7 +10,6 @@
 #   YOLO_CLASSES (default "person"; comma-list for more), RVIZ=true,
 #   MULTICAM=1 (YOLO+tracker on 4 cameras for ~360deg detection),
 #   UNTIL_SUCCESS=1 (stop+report when goal reached; set METRICS_DURATION as backstop),
-#   SPAWN_X / SPAWN_Y (robot Gazebo spawn, default -0.2 / 1.0 — 1 m from nearest shelf),
 #   SPAWN_TIMEOUT (default 180s), NAV2_TIMEOUT (default 180s), YOLO_TIMEOUT (90s)
 set -o pipefail   # NOTE: no 'set -u' — ROS setup.bash references unbound vars
 
@@ -20,20 +19,16 @@ if [ -z "${NS:-}" ]; then
   NS_DET=$(grep -m1 -E '^[[:space:]]*namespace:' "$HOME/clearpath/robot.yaml" 2>/dev/null | awk '{print $2}')
   NS=${NS_DET:+/$NS_DET}; NS=${NS:-/j100_0000}
 fi
-WORLD="${WORLD:-/home/user/autonomy_stack_ros_humble/worlds/warehouse_people}"
+WORLD="/home/user/autonomy_stack_ros_humble/worlds/warehouse_people"
 TARGET=${TARGET:-R10}
 RVIZ=${RVIZ:-false}
-# Default spawn is 1 m away from shelf_7 (nearest shelf, centred at 0.4,-2.0).
-SPAWN_X=${SPAWN_X:--0.2}
-SPAWN_Y=${SPAWN_Y:-1.0}
-MULTICAM=${MULTICAM:-1}
 LIDAR3D=${LIDAR3D:-${NS}/sensors/lidar3d_0/scan}   # sim VLP16 flattened scan (has a publisher)
 LIDAR2D=${LIDAR2D:-${NS}/sensors/lidar2d_0/scan}   # topic Clearpath SLAM/Nav2 subscribe to
 LOGDIR=${LOGDIR:-/tmp/evo_sim}
 mkdir -p "$LOGDIR"
 
 # --- Fixes for this multi-NIC host (see README "Troubleshooting") ---
-export ROS_LOCALHOST_ONLY=1     # pin all ROS2 DDS to loopback; else Nav2 lifecycle hangs
+#export ROS_LOCALHOST_ONLY=1     # pin all ROS2 DDS to loopback; else Nav2 lifecycle hangs
 export IGN_IP=127.0.0.1         # pin gz-transport to loopback; else the robot never spawns
 export DISPLAY=${DISPLAY:-:1}
 unset XAUTHORITY 2>/dev/null || true
@@ -82,7 +77,6 @@ echo "[run_sim] NS=$NS WORLD=$WORLD TARGET=$TARGET  (logs -> $LOGDIR)"
 
 # 1) Gazebo + robot ----------------------------------------------------------
 ros2 launch clearpath_gz simulation.launch.py world:="$WORLD" rviz:="$RVIZ" \
-  x:="$SPAWN_X" y:="$SPAWN_Y" \
   > "$LOGDIR/sim.log" 2>&1 &
 PIDS+=($!)
 if ! wait_for "${SPAWN_TIMEOUT:-180}" "robot ($NS) to spawn in Gazebo" robot_spawned; then
@@ -136,10 +130,11 @@ if [ "${NO_EVO:-0}" = "1" ]; then
 else
   # 5) evo_skill plan deploy -------------------------------------------------
   EVO_CFG="$(ros2 pkg prefix evo_skill_ros)/share/evo_skill_ros/config"
+  # only pass metrics_actors_sdf when the world is a repo .sdf (has <actor>s);
+  # ros2 launch rejects an empty 'name:=' value.
   EVO_ARGS=()
-  # MULTICAM: evo's built-in tracker covers camera_0 via yolo_0 (cams 1-3 below)
-  [ "${MULTICAM:-0}" = "1" ] && EVO_ARGS+=("tracking_topic:=/yolo_0/tracking")
-  ros2 launch evo_skill_ros evo_plan_run.launch.py \
+  [ -f "${WORLD}.sdf" ] && EVO_ARGS+=("metrics_actors_sdf:=${WORLD}.sdf")
+ros2 launch evo_skill_ros evo_plan_run.launch.py \
     namespace:="$NS" robot_name:=jackal_1 target_region:="$TARGET" \
     graph_file:="$EVO_CFG/graph.json" \
     domain_file:="$EVO_CFG/factory_sim_domain.pddl" \
@@ -148,14 +143,11 @@ else
     costmap_edit_max_radius:="${COSTMAP_EDIT_RADIUS:-1.0}" \
     stl_replan_cooldown_s:="${STL_REPLAN_COOLDOWN:-2.0}" \
     require_map:=false \
-    enable_metrics:="${METRICS:-false}" \
-    metrics_world:="${METRICS_WORLD:-warehouse}" \
+    enable_metrics:="${METRICS:-false}" metrics_world:=warehouse \
     metrics_duration:="${METRICS_DURATION:-0}" \
     metrics_stop_on_success:="${UNTIL_SUCCESS:-false}" \
-    metrics_actors_sdf:="${WORLD}.sdf" \
-    metrics_json_out:="${METRICS_JSON_OUT:-$WS/scand_metrics_out.json}" \
     "${EVO_ARGS[@]}" \
-    json_log_file:="${JSON_LOG_FILE:-$WS/evo_plan_deploy_log.json}" > "$LOGDIR/evo.log" 2>&1 &
+    json_log_file:="$WS/evo_plan_deploy_log.json" > "$LOGDIR/evo.log" 2>&1 &
   PIDS+=($!)
   echo "[run_sim] evo_skill plan deploy launched (target_region=$TARGET, metrics=${METRICS:-false})."
 fi
@@ -164,60 +156,30 @@ fi
 #    Single front camera by default; MULTICAM=1 runs YOLO + a tracker on all 4
 #    cameras (camera_0..3) for ~360 deg detection (heavy: 4x YOLO-world on GPU).
 #    yolo-world is open-vocabulary: it detects NOTHING until classes are set.
-YOLO_CLASSES="${YOLO_CLASSES:-person}"
-YOLO_DEVICE="${YOLO_DEVICE:-cuda:0}"
-set_classes_bg() {   # <yolo_namespace> <log_file>  (prompt yolo-world with the target classes)
-  local yns="$1" log="$2"
-  (
-    if wait_for "${YOLO_TIMEOUT:-90}" "/${yns}/set_classes service" \
-        bash -c "timeout 6 ros2 service list 2>/dev/null | grep -q /${yns}/set_classes"; then
-      # The set_classes response is frequently lost over DDS even though the node
-      # received and applied the classes, so don't trust the call's exit code --
-      # confirm via the yolo node's log ("Setting classes" / "New classes").
-      timeout 15 ros2 service call "/${yns}/set_classes" yolo_msgs/srv/SetClasses \
-        "{classes: [${YOLO_CLASSES}]}" >/dev/null 2>&1 || true
-      sleep 2
-      if grep -qaE "Setting classes|New classes" "$log" 2>/dev/null; then
-        echo "[run_sim] ${yns} classes set: [${YOLO_CLASSES}]"
-      else
-        echo "[run_sim] WARNING: ${yns} classes not confirmed; check $log"
-      fi
-    else
-      echo "[run_sim] WARNING: /${yns}/set_classes never appeared."
-    fi
-  ) &
-  PIDS+=($!)
-}
 if [ "${NO_YOLO:-0}" = "1" ]; then
   echo "[run_sim] NO_YOLO=1 -> skipping YOLO (people won't register as STL obstacles)."
-elif [ "${MULTICAM:-0}" = "1" ]; then
-  echo "[run_sim] MULTICAM=1 -> YOLO + tracker on camera_0..3 (~360 deg). Heavy GPU load."
-  for i in 0 1 2 3; do
-    ros2 launch yolo_bringup yolo-world.launch.py \
-      input_image_topic:="${NS}/sensors/camera_${i}/color/image" namespace:="yolo_${i}" \
-      > "$LOGDIR/yolo_${i}.log" 2>&1 &
-    PIDS+=($!)
-    set_classes_bg "yolo_${i}" "$LOGDIR/yolo_${i}.log"
-  done
-  # camera_0's tracker is the one in evo_plan_run (tracking_topic:=/yolo_0/tracking);
-  # add trackers for camera_1..3, all publishing to ${NS}/tracks.
-  for i in 1 2 3; do
-    ros2 run evo_skill_ros tracker_with_yolo --ros-args \
-      -r __node:="tracker_with_yolo_cam${i}" -r __ns:="$NS" \
-      -p namespace:="$NS" -p tracking_topic:="/yolo_${i}/tracking" \
-      -p points_topic:="/sensors/camera_${i}/points" -p out_topic:="/tracks" \
-      -p target_frame:=map -r /tf:=tf -r /tf_static:=tf_static \
-      > "$LOGDIR/tracker_${i}.log" 2>&1 &
-    PIDS+=($!)
-  done
-  echo "[run_sim] MULTICAM: 4 YOLO + 4 trackers (cam0 via evo) -> ${NS}/tracks."
 else
   ros2 launch yolo_bringup yolo-world.launch.py \
     input_image_topic:="${NS}/sensors/camera_0/color/image" \
     > "$LOGDIR/yolo.log" 2>&1 &
   PIDS+=($!)
   echo "[run_sim] YOLO launched on ${NS}/sensors/camera_0/color/image -> /yolo/tracking."
-  set_classes_bg "yolo" "$LOGDIR/yolo.log"
+# yolo-world is open-vocabulary: it detects NOTHING until classes are set.
+  # Wait for the set_classes service, then prompt it (default: person). Run in
+  # the background so it doesn't block bringup.
+  YOLO_CLASSES="${YOLO_CLASSES:-person}"
+  (
+    if wait_for "${YOLO_TIMEOUT:-90}" "YOLO set_classes service" \
+        bash -c "timeout 6 ros2 service list 2>/dev/null | grep -q /yolo/set_classes"; then
+      timeout 15 ros2 service call /yolo/set_classes yolo_msgs/srv/SetClasses \
+        "{classes: [${YOLO_CLASSES}]}" >/dev/null 2>&1 \
+        && echo "[run_sim] YOLO classes set: [${YOLO_CLASSES}]" \
+        || echo "[run_sim] WARNING: failed to set YOLO classes; people won't be detected."
+    else
+      echo "[run_sim] WARNING: /yolo/set_classes never appeared; people won't be detected."
+    fi
+  ) &
+  PIDS+=($!)
 fi
 
 echo "[run_sim] pipeline is UP. Logs: $LOGDIR/{sim,nav2,slam,relay,evo,yolo}.log"

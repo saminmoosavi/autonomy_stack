@@ -1,0 +1,57 @@
+{
+  "objects": [
+    { "name": "TV",  "coords": [-7.41,-1.12] },
+    { "name": "trash_can",  "coords": [-6.63,-3.71] },
+    { "name": "server_rack",  "coords": [-6.25,-5.24] },
+    { "name": "3D-printer",  "coords": [-5.20,-5.54] },
+    { "name": "lambda_1",  "coords": [-3.38,-4.94] },
+    { "name": "lambda_2",  "coords": [-4.34,-5.29] },
+    { "name": "lambda_3",  "coords": [-4.53,-5.43] },
+    { "name": "table",  "coords": [-2.54,-4.63] },
+    { "name": "chair_1",  "coords": [-5.33,-1.33] },
+    { "name": "chair_2",  "coords": [-4.41, -1.12] },
+    { "name": "chair_3",  "coords": [-3.77,-0.78] },
+    { "name": "chair_4",  "coords": [-3.18,0.21] },
+    { "name": "chair_5",  "coords": [-2.48,0.47] },
+    { "name": "cart_1",  "coords": [2.21,1.80] },
+    { "name": "cart_2",  "coords": [2.40,1.27] },
+    { "name": "cart_3",  "coords": [2.74,0.62] },
+    { "name": "bean_bag",  "coords": [3.75,-0.21] },
+    { "name": "chair_6",  "coords": [2.59,-0.55] },
+    { "name": "robot_arm_table",  "coords": [3.08,-1.45] },
+    { "name": "whiteboard", "coords": [-0.22,-2.64] },
+    { "name": "desk_1", "coords": [-2.81,2.28] },
+    { "name": "desk_2", "coords": [-1.80,2.60] },
+    { "name": "desk_3", "coords": [-0.37,2.99] },
+    { "name": "desk_4", "coords": [1.46,3.56] },
+    { "name": "desk_5", "coords": [-0.36,-3.71] },
+    { "name": "desk_6", "coords": [0.64,-3.76] },
+    { "name": "desk_7", "coords": [2.29,-3.35] },
+    { "name": "filing_cabinet", "coords": [-4.71,-3.51] }
+  ],
+
+  "regions": [
+    { "name": "top",  "coords": [1.19,0.06] },
+    { "name": "bottom",  "coords": [-2.34,-1.73] },
+    { "name": "entrance",  "coords": [-6.54,-2.11] },
+    { "name": "lambdas",  "coords": [-4.54,-4.51] },
+    { "name": "fire",  "coords": [-6.40,-1.56] },
+    { "name": "R10", "coords": [1.89,22.13] },
+    { "name": "R11", "coords": [-3.92,23.68] },
+    { "name": "R12", "coords": [-7.07,20.01] },
+    { "name": "R13", "coords": [-12.38,17.86] },
+    { "name": "R14", "coords": [-12.94,9.89] }
+  ],
+
+  "object_connections": [
+    
+  ],
+
+  "region_connections": [
+    ["top","bottom"],
+    ["bottom", "entrance"],
+    ["entrance", "lambdas"],
+    ["bottom", "lambdas"],
+    ["entrance","fire"]
+  ]
+}
