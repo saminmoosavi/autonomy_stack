@@ -1,0 +1,95 @@
+#!/bin/bash
+
+# Exit instantly if any background command returns a non-zero exit status
+set -e
+
+echo "===================================================="
+echo "Starting Sensor Nodes: Hokuyo LiDAR & Intel RealSense"
+echo "===================================================="
+
+# 1. Source the ROS 2 Humble installation
+if [ -f "/opt/ros/humble/setup.bash" ]; then
+    source /opt/ros/humble/setup.bash
+fi
+
+# 2. Source your local autonomy workspace
+if [ -f "$HOME/autonomy_stack_ros_humble/install/setup.bash" ]; then
+    source "$HOME/autonomy_stack_ros_humble/install/setup.bash"
+fi
+
+# # 3. HEAL THE TF TREE: Bridge the floating base_link to your active chassis_link
+# echo "Publishing static link bridging base_link to chassis_link..."
+# ros2 run tf2_ros static_transform_publisher \
+#   --x 0 --y 0 --z 0 \
+#   --roll 0 --pitch 0 --yaw 0 \
+#   --frame-id base_link \
+#   --child-frame-id chassis_link \
+#   --ros-args --remap tf:=/j100_0612/tf --remap tf_static:=/j100_0612/tf_static &
+# BRIDGE_TF_PID=$!
+# 3. Publish static transforms to mirror your URDF properties
+# Format: x y z qx qy qz qw parent_frame child_frame (or x y z yaw pitch roll)
+# echo "Publishing URDF Static Transforms to j100_0612 namespace..."
+# ros2 run tf2_ros static_transform_publisher \
+#   --x 0 --y 0 --z 0.2 \
+#   --roll 0 --pitch 0 --yaw 0 \
+#   --frame-id base_link \
+#   --child-frame-id lidar2d_0_laser \
+#   --ros-args --remap tf:=/j100_0612/tf --remap tf_static:=/j100_0612/tf_static &
+# LIDAR_TF_PID=$!
+
+# ros2 run tf2_ros static_transform_publisher \
+#   --x 0 --y 0 --z 0 \
+#   --roll 0 --pitch 0 --yaw 0 \
+#   --frame-id base_link \
+#   --child-frame-id camera_0_link \
+#   --ros-args --remap tf:=/j100_0612/tf --remap tf_static:=/j100_0612/tf_static &
+# CAM_TF_PID=$!
+
+# 4. Launch Hokuyo UST Node with your target IP and Frame layouts
+# echo "Launching Hokuyo UST LiDAR (192.168.0.10)..."
+ros2 run urg_node urg_node_driver --ros-args \
+  -p ip_address:="192.168.0.10" \
+  -p ip_port:=10940 \
+  -p laser_frame_id:="lidar2d_0_laser" \
+  -p angle_min:=-2.356 \
+  -p angle_max:=2.356 \
+  -p qos_reliability:="best_effort" \
+  -p qos_durability:="volatile" \
+  -p qos_history:="keep_last" \
+  -p qos_depth:=10 \
+  -r scan:=/j100_0612/sensors/lidar2d_0/scan \
+  -r tf:=/j100_0612/tf \
+  -r tf_static:=/j100_0612/tf_static &
+LIDAR_PID=$!
+
+ # 5. Launch Intel RealSense D435 Driver Node
+ echo "Launching Intel RealSense D435 Camera (S/N: 135122079298)..."
+ ros2 launch realsense2_camera rs_launch.py  \
+    camera_name:="camera_0" \
+    device_type:="d435" \
+    serial_no:="'135122079298'" \
+    enable_color:=true \
+    rgb_camera.color_profile:="640x480x15" \
+    depth_module.depth_profile:="640x480x15" \
+    enable_depth:=true \
+    enable_infra1:=false \
+    enable_infra2:=false \
+    pointcloud.enable:=true  \
+    pointcloud.ordered_pc:=true &
+CAM_PID=$!
+
+ echo "enabling pointcloud for realsense"
+ ros2 param set /camera/camera_0 pointcloud__neon_.enable true &
+ PARAM_PID=$!
+
+# Handle continuous runtime termination sequence gracefully
+cleanup() {
+    echo -e "\nShutting down sensor streaming components safely..."
+    kill $LIDAR_TF_PID $CAM_TF_PID $LIDAR_PID $CAM_PID
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+# Keep the shell runtime active
+wait

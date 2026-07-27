@@ -19,14 +19,18 @@ services:
       # - PULSE_SERVER
 
       # ROS pieces
-      # - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      # - ROS_LOCALHOST_ONLY=1
       #- RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
-      #- CYCLONEDDS_URI=file:///home/user/IEA_Target_Tracking/docker/rtk_cyclonedds.xml
+      #- ROS_LOCALHOST_ONLY=0
+      #- export ROS_DOMAIN_ID=0  # 0 for jackal, 5 for warthog
+      #- export ROS_LOCALHOST_ONLY=0
+      #- RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+      # - CYCLONEDDS_URI=file:///home/user/autonomy_stack_ros_humble/cyclonedds.xml
     volumes:
       # The repository files and the bashrc file
       - ./:/home/user/autonomy_stack_ros_humble/
       - ./docker/.bashrc:/home/user/.bashrc
+      - /dev:/dev ## permission for videos
+      - /dev/bus/usb:/dev/bus/usb # Pass raw USB bus devices ( usb overflow for realsense camera)
 
       # Windows Display forwarding
       #- /mnt/wslg:/mnt/wslg
@@ -34,12 +38,12 @@ services:
 
       # Other folders you may want to volume in
       # - /home/$USER/.ros/:/home/user/.ros/
-      - /home/$USER/bags/:/home/user/bags/
-      - /home/$USER/clearpath/:/home/user/clearpath/
-      - /home/$USER/clearpath_2/:/home/user/clearpath_2/
+      #- /home/$USER/bags/:/home/user/bags/
+      #- /home/$USER/clearpath/:/home/user/clearpath/
+      #- /home/$USER/clearpath_2/:/home/user/clearpath_2/
       - /home/$USER/jackal_setup/:/home/user/jackal_setup/
-      - /home/$USER/warthog_setup/:/home/user/warthog_setup/     
-      - /home/$USER/.cache/huggingface:/home/.cache/huggingface
+      #- /home/$USER/warthog_setup/:/home/user/warthog_setup/     
+      #- /home/$USER/.cache/huggingface:/home/.cache/huggingface
 
     working_dir: /home/user/autonomy_stack_ros_humble/
     privileged: true

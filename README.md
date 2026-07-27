@@ -82,12 +82,13 @@ ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy
 For a physical clearpath Jackal, copy the robot.yaml into ~/jackal_setup.Then inside the docker container generate the setup file. 
 ```bash
 mkdir ~/jackal_setup/
+sudo chown -R $USER:$USER /home/$USER/jackal_setup/ 
 ros2 run clearpath_generator_common generate_bash -s /home/user/jackal_setup
 source /opt/ros/humble/setup.bash
 ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
 ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=false setup_path:=/home/user/jackal_setup/
 ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy_stack_ros_humble/lens_lab_map.yaml use_sim_time:=false setup_path:=/home/user/jackal_setup/
-ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0611 use_sim_time:=false
+ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0612 use_sim_time:=false
 ```
 
 with ouster sensor:
@@ -102,7 +103,7 @@ If running in simulation, skip directly to launching YOLO.
 
 For a physical RealSense camera, start the RealSense drivers
 ```bash
-ros2 launch realsense2_camera rs_launch.py serial_no:="'135122079298'"
+ros2 launch realsense2_camera rs_launch.py serial_no:="'135122079298'" depth_width:=1280 depth_height:=720 depth_fps:=15.0 color_width:=1280 color_height:=720 color_fps:=15.0
 ```
 If you encounter permission issues, try:
 ```bash
@@ -118,6 +119,7 @@ To run YOLO, make sure the input camera topic is set correctly:
 
 ```bash
 ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/a200_0000/sensors/camera_0/color/image
+ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/camera/camera/color/image_raw
 ```
 # Run SPINE
 When working with YOLO, detections must be projected into 3D coordinates. This is done by associating detected bounding boxes with the depth camera. The coordinates are then transformed into the map frame.

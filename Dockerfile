@@ -49,10 +49,6 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         ros-humble-rqt* \
         ros-humble-rmw-cyclonedds-cpp \
         ros-humble-tf-transformations \
-        ros-humble-ros-gz\
-        ros-humble-clearpath-desktop\
-        ros-humble-clearpath-nav2-demos\
-        ros-humble-clearpath-simulator\
         ros-humble-navigation2 \
 	    ros-humble-nav2-bringup \
 	    ros-humble-turtlebot3* \
@@ -64,7 +60,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
         ros-humble-message-filters \
      && apt purge -y --auto-remove \
      && rm -rf /var/lib/apt/lists/*
-     
+
 # Python3 Packages required by task allocation
 RUN pip install \
     "numpy < 2"\
@@ -82,51 +78,44 @@ RUN pip install \
     ultralytics==8.3.168 \
     lap>=0.5.12
 
-RUN apt-get update && apt-get install -y ros-humble-realsense2-*
+# ==============================================================================
+# FIX PYTHON BUILD INCOMPATIBILITY LAYER (ADDED HERE)
+# ==============================================================================
+RUN pip3 install --upgrade packaging && \
+    pip3 install "setuptools<71.0.0"
+# ==============================================================================
 
-# install yolo
-#RUN pip install -U ultralytics
+#RUN apt-get update && apt-get install -y ros-humble-realsense2-*
+#####################################
+#             Realsense SDK         #
+#####################################
+#Install realsense sdk
+# Ensure the directory exists
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    lsb-release
 
-#stl packages
-RUN pip install \
-      scipy \
-      pandas \
-      tensorflow \
-      tensorflow-datasets \
-      torch \
-      torchvision \
-      transformers \
-      datasets \
-      accelerate \
-      trl \
-      drake==1.51.1 \
-      git+https://github.com/vincekurtz/stlpy.git 
+# Add Intel RealSense repository key and source
+RUN mkdir -p /etc/apt/keyrings && \
+    curl -sSf https://librealsense.realsenseai.com/Debian/librealsenseai.asc | gpg --dearmor > /etc/apt/keyrings/librealsenseai.gpg && \
+    echo "deb [signed-by=/etc/apt/keyrings/librealsenseai.gpg] https://librealsense.realsenseai.com/Debian/apt-repo $(lsb_release -cs) main" > /etc/apt/sources.list.d/librealsense.list
 
-RUN python3 -m pip install --force-reinstall \
-    "numpy>=1.23,<2" \
-    matplotlib
-## fix version mismatch
-RUN python3 - <<'PY'
-from pathlib import Path
-import site
+# Update cache and install utils/dev packages (Omit librealsense2-dkms)
+RUN apt-get update && apt-get install -y \
+    librealsense2-utils \
+    librealsense2-dev
+#RUN apt-get install ros-humble-vision-msgs
+ #######################################################
+ 
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
+    ros-humble-clearpath-desktop \
+    ros-humble-clearpath-nav2-demos \
+    ros-humble-urg-node 
 
-for base in site.getsitepackages():
-    p = Path(base) / "stlpy/solvers/drake/drake_micp.py"
-    if p.exists():
-        p.write_text(p.read_text().replace(
-            "from pydrake.solvers.branch_and_bound import MixedIntegerBranchAndBound",
-            "from pydrake.solvers import MixedIntegerBranchAndBound",
-        ))
+RUN apt-get install ros-humble-vision-msgs
 
-    p = Path(base) / "stlpy/solvers/drake/drake_smooth.py"
-    if p.exists():
-        p.write_text(p.read_text().replace(
-            "from pydrake.solvers.all import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
-            "from pydrake.solvers import IpoptSolver, SnoptSolver, SolverOptions, CommonSolverOption",
-        ))
-PY
+
 # Create user
-
 RUN apt update && apt install -y cmake g++ make python3 git
 ### Instruction for fast downward
 #RUN cd ~/autonomy_stack_ros_humble/src && \
@@ -147,6 +136,7 @@ RUN LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs/:$LD_LIBRARY_PATH
 # Create workspace
 RUN mkdir -p ~/autonomy_stack_ros_humble/src
 COPY src /home/user/autonomy_stack_ros_humble/src
+
 RUN cd ~/autonomy_stack_ros_humble && \
     sudo apt update && \
     sudo rosdep init && \

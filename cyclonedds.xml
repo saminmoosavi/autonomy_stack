@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General>
+      <Interfaces>
+        <NetworkInterface
+          name="enx6c1ff76c5ae6"
+          address="192.168.131.2"
+          priority="default"
+          multicast="true"/>
+      </Interfaces>
+      <AllowMulticast>true</AllowMulticast>
+    </General>
+  </Domain>
+</CycloneDDS>

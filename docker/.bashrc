@@ -119,15 +119,18 @@ source /opt/ros/humble/setup.bash
 alias sc='. ~/autonomy_stack_ros_humble/install/setup.bash'
 alias build='cd ~/autonomy_stack_ros_humble && colcon build --symlink-install && sc'
 alias sim='ros2 launch clearpath_gz simulation.launch.py'
-alias nav2='ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
-alias slam='ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
-alias rviz='ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true'
-alias yolo='ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/a200_0000/sensors/camera_0/color/image'
+alias nav2='ros2 launch clearpath_nav2_demos nav2.launch.py setup_path:=/home/user/jackal_setup/'
+alias slam='ros2 launch clearpath_nav2_demos slam.launch.py  setup_path:=/home/user/jackal_setup/'
+alias rviz='ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0612'
+alias yolo='ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/camera/camera_0/color/image_raw'
 alias spine='ros2 launch spine_ros2 spine.launch.py ns:=a200_0000'
 alias goal='ros2 service call /a200_0000/region_goal spine_interface_ros2/srv/Task task:" R2"'
+alias evo='ros2 launch evo_skill_ros evo_plan_run.launch.py namespace:=/j100_0612 robot_name:=jackal_1 target_region:=fire graph_file:="$EVO_CFG/graph_lab.json" domain_file:="$EVO_CFG/lens_lab_domain.pddl" plan_file:="$EVO_CFG/evoskill_plan_lab.txt" costmap_edit_max_radius:=1.0 require_map:=true tracking_topic:=/yolo/tracking points_topic:=/sensors/camera_0/points odom_topic:=/platform/odom/filtered tracker_out_topic:=/tracks'
+
 # Source workspace, then gazebo
 #sc
 #. /usr/share/gazebo-11/setup.bash
 export ROS_DOMAIN_ID=0  # 0 for jackal, 5 for warthog
 export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+#export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp

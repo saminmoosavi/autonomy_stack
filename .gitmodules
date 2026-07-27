@@ -11,3 +11,16 @@
 [submodule "src/planning_ros_pkgs/evo_skill"]
 	path = src/planning_ros_pkgs/evo_skill
 	url = https://github.com/saminmoosavi/evo_skill_ros.git
+[submodule "src/clearpath_nav2_demos"]
+	path = src/clearpath_nav2_demos
+	url = https://github.com/clearpathrobotics/clearpath_nav2_demos.git
+[submodule "src/clearpath_desktop"]
+	path = src/clearpath_desktop
+	url = https://github.com/clearpathrobotics/clearpath_desktop.git
+[submodule "src/sensor_drivers/librealsense"]
+	path = src/sensor_drivers/librealsense
+	url = https://github.com/realsenseai/librealsense.git
+[submodule "src/sensor_drivers/realsense-ros"]
+	path = src/sensor_drivers/realsense-ros
+	url = https://github.com/realsenseai/realsense-ros.git
+	branch = ros2-master
