@@ -27,6 +27,19 @@ IMAGE=${IMAGE:-ubuntu-22-humble:latest}
 CLEARPATH_DIR=${CLEARPATH_DIR:-$HOME/clearpath}   # host clearpath config (robot.yaml etc.)
 HF_CACHE=${HF_CACHE:-$HOME/.cache/huggingface}
 BRINGUP_LOCK=${BRINGUP_LOCK:-/tmp/evo_bringup.lock}  # serialize Nav2 bringup across workers
+
+# Observation-logger env forwarded into each worker container (docker exec does
+# NOT inherit the host environment). Only NON-EMPTY vars are forwarded: run_sim.sh
+# omits an empty OBS_LOG_CLASSES precisely because ros2 launch rejects a bare
+# `name:=` as malformed. Set OBS_LOG=true to enable.
+OBS_ENV=""
+# OBS_LOG_FILE / OBS_BELIEF_FILE are NOT forwarded here -- they default per-run
+# to $ld_cont below, because every worker bind-mounts the same repo and would
+# otherwise interleave its lines into one shared observations.jsonl.
+for _v in OBS_LOG OBS_LOG_PERIOD OBS_LOG_CAMERAS OBS_LOG_CLASSES OBS_EXCLUDE_FILE; do
+  [ -n "${!_v:-}" ] && OBS_ENV="$OBS_ENV $_v=${!_v}"
+done
+[ -n "$OBS_ENV" ] && echo "[par] forwarding observation-logger env:$OBS_ENV"
 OUT=$HOSTREPO/results/factory_missions
 LOGROOT_HOST=$OUT/_log                       # host view of per-run logs (on /home)
 LOGROOT_CONT=$CREPO/results/factory_missions/_log
@@ -147,6 +160,9 @@ run_one() {    # $1=worker $2=plan $3=rep $4=target
         MULTICAM=1 METRICS=1 UNTIL_SUCCESS=1 \
         METRICS_DURATION=$BACKSTOP NAV2_TIMEOUT=300 YOLO_TIMEOUT=120 \
         COSTMAP_EDIT_RADIUS=0.3 STL_REPLAN_COOLDOWN=5.0 \
+        OBS_LOG_FILE=${OBS_LOG_FILE:-$ld_cont/observations.jsonl} \
+        OBS_BELIEF_FILE=${OBS_BELIEF_FILE:-$ld_cont/belief.json} \
+       $OBS_ENV \
         METRICS_JSON_OUT=$CREPO/results/factory_missions/plan${p}_rep${r}_metrics.json \
         JSON_LOG_FILE=$ld_cont/evo_plan_deploy_log.json \
         LOGDIR=$ld_cont \

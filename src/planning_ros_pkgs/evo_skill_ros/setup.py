@@ -40,6 +40,7 @@ setup(
             'evo_plan_deploy = evo_skill_ros.nodes.eveo_plan_deploy:main',
             'factory_world_visualizer = evo_skill_ros.nodes.factory_world_visualizer:main',
             'tracker_with_yolo = evo_skill_ros.nodes.tracker_with_yolo:main',
+            'observation_logger = evo_skill_ros.nodes.observation_logger:main',
             'wait_for_tf = evo_skill_ros.nodes.wait_for_tf:main',
             'scand_metrics = evo_skill_ros.nodes.scand_metrics:main',
         ],

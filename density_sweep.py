@@ -21,6 +21,13 @@ Env overrides:
   SPAWN_X         default: -0.2  (robot Gazebo spawn X — 1 m from nearest shelf)
   SPAWN_Y         default: 1.0   (robot Gazebo spawn Y)
   NS              default: /j100_0000
+  OBS_LOG         default: 0     (1 = write world{N}_observations.jsonl +
+                                  world{N}_belief.json for plan/perception desync)
+  OBS_LOG_PERIOD  default: 1.0   (snapshot interval, SIM seconds)
+  OBS_LOG_CAMERAS default: 0,1,2,3
+  OBS_LOG_CLASSES default: ""    (empty = log all YOLO classes)
+  OBS_EXCLUDE_FILE default: ""   (empty = evo_skill_ros/config/exclude.json;
+                                  JSON class denylist, logging only)
 """
 
 import json
@@ -67,6 +74,15 @@ LOC_RETRIES   = int(os.environ.get("LOC_RETRIES",   "3"))  # localization-only r
 # phantom-person costmap discs corridor-wide and cancel/replan cycles rapid)
 COSTMAP_EDIT_RADIUS = os.environ.get("COSTMAP_EDIT_RADIUS", "0.3")
 STL_REPLAN_COOLDOWN = os.environ.get("STL_REPLAN_COOLDOWN", "5.0")
+
+# Observation logger (plan-vs-perception desync). Default off: each logged
+# camera adds a PointCloud2 subscription to a sim already RTF-capped at 0.5, so
+# enabling it must be a deliberate choice measured against a baseline run.
+OBS_LOG         = os.environ.get("OBS_LOG", "0")            # "1" to enable
+OBS_LOG_PERIOD  = os.environ.get("OBS_LOG_PERIOD", "1.0")   # SIM seconds
+OBS_LOG_CAMERAS = os.environ.get("OBS_LOG_CAMERAS", "0,1,2,3")
+OBS_LOG_CLASSES = os.environ.get("OBS_LOG_CLASSES", "")     # empty = all
+OBS_EXCLUDE_FILE = os.environ.get("OBS_EXCLUDE_FILE", "")   # empty = package default
 
 # metrics_duration counts SIM seconds; with the world RTF capped at 0.5 a
 # trial can need ~2x that in wall-clock, so scale the poll deadline.
@@ -181,7 +197,7 @@ def kill_stale_ros() -> None:
     patterns = [
         "ign gazebo", "simulation.launch", "clearpath_nav2_demos",
         "nav2_custom.launch", "evo_plan_run.launch", "yolo-world.launch",
-        "yolo_bringup", "tracker_with_yolo", "scan_relay.py",
+        "yolo_bringup", "tracker_with_yolo", "observation_logger", "scan_relay.py",
         "scand_metrics.py", "ruby",
     ]
     for pat in patterns:
@@ -364,10 +380,14 @@ def run_trial(density: int, ros_env: dict, trial_num: int, total: int, attempt: 
     world_sdf  = world_path + ".sdf"
     out_json   = RESULTS_DIR / f"world{density}_metrics.json"
     evo_log    = RESULTS_DIR / f"world{density}_evo_log.json"
+    obs_log    = RESULTS_DIR / f"world{density}_observations.jsonl"
+    obs_belief = RESULTS_DIR / f"world{density}_belief.json"
     log_dir    = RESULTS_DIR / f"_logs/world{density}/attempt{attempt}"
     log_dir.mkdir(parents=True, exist_ok=True)
 
-    for stale in [out_json, evo_log]:
+    # obs_log is APPENDED and obs_belief ACCUMULATES, so a stale file from a
+    # previous attempt would silently merge two trials into one.
+    for stale in [out_json, evo_log, obs_log, obs_belief]:
         if stale.exists():
             stale.unlink()
             log(f"  Removed stale {stale.name}")
@@ -568,7 +588,16 @@ def run_trial(density: int, ros_env: dict, trial_num: int, total: int, attempt: 
             f"metrics_stop_on_success:=true "
             f"metrics_actors_sdf:={world_sdf} "
             f"metrics_json_out:={out_json} "
-            f"json_log_file:={evo_log}"
+            f"json_log_file:={evo_log} "
+            f"enable_observation_log:={'true' if OBS_LOG == '1' else 'false'} "
+            f"obs_log_file:={obs_log} "
+            f"obs_belief_file:={obs_belief} "
+            f"obs_log_period_s:={OBS_LOG_PERIOD} "
+            f"obs_log_cameras:={OBS_LOG_CAMERAS}"
+            # ros2 launch rejects a bare 'name:=' as malformed, so an empty
+            # allowlist is omitted and the launch default ("" = all) applies.
+            + (f" obs_log_classes:={OBS_LOG_CLASSES}" if OBS_LOG_CLASSES else "")
+            + (f" obs_exclude_file:={OBS_EXCLUDE_FILE}" if OBS_EXCLUDE_FILE else "")
         )
         procs.append(launch(evo_cmd, ros_env, log_dir / "evo.log"))
         log(f"  evo_plan_run PID {procs[-1].pid} → evo.log")

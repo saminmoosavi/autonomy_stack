@@ -1,0 +1,20 @@
+{
+  "_comment": [
+    "YOLO class names excluded from observations.jsonl and belief.json.",
+    "LOGGING ONLY: this does not change what YOLO detects, what reaches /tracks,",
+    "or what eveo_plan_deploy treats as an STL obstacle (non-human tracks are",
+    "already dropped there at eveo_plan_deploy.py:891).",
+    "",
+    "These are ENVIRONMENT CONSTANTS -- fixed structural scenery. The logger is",
+    "meant to record SEARCHABLE objects, so re-detecting the racking is noise.",
+    "chair/table are deliberately NOT excluded: although graph.json lists some as",
+    "fixed furniture, they are used as searchable/placeable objects in tests.",
+    "",
+    "Matching is case-insensitive and takes precedence over the log_classes",
+    "allowlist. Excluded classes are also removed from each region's 'expected'",
+    "set, so excluding a class you expect in graph.json cannot fabricate an",
+    "expected_not_observed mismatch.",
+    "A bare JSON array (e.g. [\"box\", \"pallet\"]) is also accepted."
+  ],
+  "classes": ["shelf", "pallet", "column"]
+}

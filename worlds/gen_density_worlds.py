@@ -51,7 +51,10 @@ Deceleration near turn-around points:
   endpoint (adds 2 intermediate waypoints per cycle, 7 waypoints total).
 """
 
+import json
+import math
 import os
+import random
 
 SKIN = ('https://fuel.gazebosim.org/1.0/Mingfei/models/actor/'
         'tip/files/meshes/walk.dae')
@@ -398,3 +401,134 @@ for count in range(0, 51, 10):
                 f.write(actor)
         f.write(FOOTER)
     print(f'Wrote {path}  ({count} actors)')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 100-person sampling POOL — warehouse_people100.sdf
+#
+# Unlike the cumulative warehouse_people{0..50}.sdf files (fixed first-N subsets),
+# this is a large pool of 100 region-clearing walkers meant to be *subsampled* at
+# run time (see make_density_world.py --keep N): each experiment run spawns a
+# random N-actor subset. The pool is generated procedurally with rejection
+# sampling so every actor's whole patrol stays ≥ REGION_CLEAR m from all region
+# nodes R1–R14 and outside every shelf/barrier footprint — a person parked on a
+# mission waypoint or the goal region would make 100 % route completion
+# impossible and burn the harness's retry budget.
+#
+# Deterministic: fixed seed → identical pool every regeneration.
+# ─────────────────────────────────────────────────────────────────────────────
+POOL_SIZE   = 100
+POOL_SEED   = 100
+REGION_CLEAR = 1.5   # min distance from any region node (m) — matches hand-tuned set
+SHELF_MARGIN = 0.3   # extra keep-out around each shelf/barrier box (m)
+
+# Footprint (kept just inside the warehouse walls; matches gen comments x∈[-15,15], y∈[-22,25])
+FOOT_X = (-14.5, 14.5)
+FOOT_Y = (-21.5, 24.5)
+
+# Region-node coordinates: authoritative source is the planner graph.
+_GRAPH = os.path.normpath(os.path.join(
+    out_dir, '..', 'src', 'planning_ros_pkgs', 'evo_skill_ros', 'config', 'graph.json'))
+try:
+    with open(_GRAPH) as _gf:
+        REGIONS = [tuple(r['coords']) for r in json.load(_gf)['regions']]
+except (OSError, KeyError, ValueError):
+    # fallback to the values baked into graph.json at authoring time
+    REGIONS = [
+        (-12.29, -12.29), (-4.63, -12.29), (2.75, -13.17), (10.78, -12.54),
+        (1.44, 2.74), (-7.41, 11.72), (12.72, 6.49), (3.52, 13.01),
+        (11.86, 17.75), (1.89, 22.13), (-3.92, 23.68), (-7.07, 20.01),
+        (-12.38, 17.86), (-12.94, 9.89),
+    ]
+
+# Shelf / barrier keep-out boxes (xmin, xmax, ymin, ymax) — from the header comment
+# above; the barrier wall at x≈-10.4 is modelled as a thin box.
+SHELF_BOXES = [
+    (1.0, 6.0, 8.3, 10.8),      # shelf_big_3
+    (-3.8, 2.2, 17.3, 19.8),    # shelf_big_4
+    (-11.3, -8.8, 20.3, 22.8),  # shelf_0
+    (-8.3, -5.8, 22.4, 24.9),   # shelf_1
+    (-5.3, -2.8, 20.3, 22.8),   # shelf_2
+    (11.5, 15.5, 2.5, 6.5),     # shelf_3
+    (8.0, 12.0, 2.5, 6.5),      # shelf_4
+    (-0.5, 1.5, -3.0, -1.0),    # shelf_7
+    (-11.5, -5.5, -15.5, -10.5),# shelf_big_0
+    (3.5, 9.5, -15.5, -10.5),   # shelf_big_1
+    (-4.5, 1.5, -15.5, -10.5),  # shelf_big_2
+    (11.5, 15.5, -22.5, -19.5), # shelf_5
+    (11.5, 15.5, -16.5, -13.5), # shelf_6
+    (-10.6, -10.2, 6.5, 14.75), # west barriers (thin wall)
+]
+
+
+def _in_box(x, y, box, margin=SHELF_MARGIN):
+    xmin, xmax, ymin, ymax = box
+    return (xmin - margin) <= x <= (xmax + margin) and \
+           (ymin - margin) <= y <= (ymax + margin)
+
+
+def _seg_clears(x0, y0, x1, y1, step=0.25):
+    """True if the whole straight leg keeps ≥REGION_CLEAR from every region node
+    and never enters a shelf/barrier box. Endpoints must be inside the footprint."""
+    for (x, y) in ((x0, y0), (x1, y1)):
+        if not (FOOT_X[0] <= x <= FOOT_X[1] and FOOT_Y[0] <= y <= FOOT_Y[1]):
+            return False
+    length = math.hypot(x1 - x0, y1 - y0)
+    n = max(2, int(length / step) + 1)
+    for i in range(n + 1):
+        t = i / n
+        x = x0 + t * (x1 - x0)
+        y = y0 + t * (y1 - y0)
+        for (rx, ry) in REGIONS:
+            if math.hypot(x - rx, y - ry) < REGION_CLEAR:
+                return False
+        for box in SHELF_BOXES:
+            if _in_box(x, y, box):
+                return False
+    return True
+
+
+def _build_pool(n, seed):
+    """Procedurally sample n region-clearing E-W / N-S walkers (reproducible)."""
+    rng = random.Random(seed)
+    pool = []
+    tries = 0
+    max_tries = n * 4000
+    while len(pool) < n and tries < max_tries:
+        tries += 1
+        idx = len(pool) + 1
+        name = f'person_p{idx:03d}'
+        delay = rng.randint(0, 9)          # stagger starts to avoid a t=0 jam
+        seg = rng.uniform(3.0, 10.0)       # leg length (m); >SLOW_DIST for decel math
+        if rng.random() < 0.5:             # E-W patrol (constant y)
+            y = rng.uniform(FOOT_Y[0], FOOT_Y[1])
+            x0 = rng.uniform(FOOT_X[0], FOOT_X[1] - seg)
+            x1 = x0 + seg
+            if not _seg_clears(x0, y, x1, y):
+                continue
+            pool.append(ew_actor(name, y=round(y, 2),
+                                 x0=round(x0, 2), x1=round(x1, 2), delay=delay))
+        else:                              # N-S patrol (constant x)
+            x = rng.uniform(FOOT_X[0], FOOT_X[1])
+            y0 = rng.uniform(FOOT_Y[0], FOOT_Y[1] - seg)
+            y1 = y0 + seg
+            if not _seg_clears(x, y0, x, y1):
+                continue
+            pool.append(ns_actor(name, x=round(x, 2),
+                                 y0=round(y0, 2), y1=round(y1, 2), delay=delay))
+    if len(pool) < n:
+        raise RuntimeError(
+            f'pool: only placed {len(pool)}/{n} clearing actors in {tries} tries')
+    return pool
+
+
+POOL = _build_pool(POOL_SIZE, POOL_SEED)
+pool_path = os.path.join(out_dir, f'warehouse_people{POOL_SIZE}.sdf')
+with open(pool_path, 'w') as f:
+    f.write(STATIC_BODY)
+    f.write(f'\n    <!-- ===== {POOL_SIZE}-person sampling pool '
+            f'(seed {POOL_SEED}, subsample via make_density_world.py) ===== -->\n')
+    for actor in POOL:
+        f.write(actor)
+    f.write(FOOTER)
+print(f'Wrote {pool_path}  ({POOL_SIZE} actors, sampling pool)')

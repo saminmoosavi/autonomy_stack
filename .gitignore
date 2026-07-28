@@ -17,5 +17,7 @@ results/
 worlds/_variants/
 .claude/
 evo_plan_deploy_log.json
+observations.jsonl
+belief.json
 *.summary
 *.density

@@ -6,27 +6,72 @@
 # On the HOST first allow the GUI:  xhost +local:
 #
 # Env overrides: NS (default: auto-detected from ~/clearpath/robot.yaml), WORLD,
-#   TARGET, WS, LOGDIR, NO_EVO=1 (skip evo), NO_YOLO=1 (skip YOLO),
+#   PLAN (mission plan file; default the packaged config/plan.txt),
+#   TARGET (default: derived from PLAN's last (move ...) action),
+#   COSTMAP_EDIT_RADIUS (0.3) / STL_REPLAN_COOLDOWN (5.0) — the tuned
+#     batch-harness values; the launch defaults 1.0/2.0 make phantom-person
+#     costmap discs corridor-wide and cancel/replan cycles rapid,
+#   WS, LOGDIR, NO_EVO=1 (skip evo), NO_YOLO=1 (skip YOLO),
 #   YOLO_CLASSES (default "person"; comma-list for more), RVIZ=true,
 #   MULTICAM=1 (YOLO+tracker on 4 cameras for ~360deg detection),
 #   UNTIL_SUCCESS=1 (stop+report when goal reached; set METRICS_DURATION as backstop),
 #   SPAWN_X / SPAWN_Y (robot Gazebo spawn, default -0.2 / 1.0 — 1 m from nearest shelf),
-#   SPAWN_TIMEOUT (default 180s), NAV2_TIMEOUT (default 180s), YOLO_TIMEOUT (90s)
+#   SPAWN_TIMEOUT (default 180s), NAV2_TIMEOUT (default 180s), YOLO_TIMEOUT (90s),
+#   OBS_LOG=true (JSONL snapshots of robot pose + detected objects, plus a
+#     cumulative per-region expected-vs-observed belief map, for plan/perception
+#     desync), OBS_LOG_FILE, OBS_BELIEF_FILE, OBS_LOG_PERIOD (SIM s, default 1.0),
+#     OBS_LOG_CAMERAS (default 0,1,2,3 when MULTICAM=1), OBS_LOG_CLASSES (default: all)
 set -o pipefail   # NOTE: no 'set -u' — ROS setup.bash references unbound vars
 
-WS=${WS:-$HOME/autonomy_stack_ros_humble}
+# Workspace = directory containing this script, like run_ablation.sh:37 and
+# run_experiments_par.sh:24. This used to be $HOME/autonomy_stack_ros_humble,
+# which only happens to be right inside the container (HOME=/home/user); on the
+# host it pointed at a nonexistent path and every $WS-relative lookup failed.
+WS=${WS:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}
+
+# This script drives a bringup that only exists inside the container. Fail here
+# with one clear message instead of letting `source` of a missing setup.bash
+# fall through into a pile of "ros2: command not found".
+if [ ! -f /opt/ros/humble/setup.bash ]; then
+  echo "[run_sim] ERROR: /opt/ros/humble/setup.bash not found."
+  echo "[run_sim] run_sim.sh must run INSIDE the ROS 2 Humble container, not on the host:"
+  echo "[run_sim]   docker compose run --rm ros_humble"
+  echo "[run_sim]   cd /home/user/autonomy_stack_ros_humble && OBS_LOG=true ./run_sim.sh"
+  echo "[run_sim] (To drive trials from the host instead, use ./run_ablation.sh.)"
+  exit 1
+fi
+
 # robot namespace: use $NS if set, else auto-detect from ~/clearpath/robot.yaml
 if [ -z "${NS:-}" ]; then
   NS_DET=$(grep -m1 -E '^[[:space:]]*namespace:' "$HOME/clearpath/robot.yaml" 2>/dev/null | awk '{print $2}')
   NS=${NS_DET:+/$NS_DET}; NS=${NS:-/j100_0000}
 fi
-WORLD="${WORLD:-/home/user/autonomy_stack_ros_humble/worlds/warehouse_people}"
-TARGET=${TARGET:-R10}
+WORLD="${WORLD:-$WS/worlds/warehouse_people}"
+# Mission plan. run_experiments_par.sh passes PLAN=<factory_mission_N.txt>, which
+# this script used to IGNORE: plan_file was hardcoded to /home/user/plan.txt,
+# which does not exist, so evo_plan_deploy's resolve_path() silently fell back to
+# the packaged config/plan.txt by basename and every mission ran the same plan.
+PLAN=${PLAN:-$WS/src/planning_ros_pkgs/evo_skill_ros/config/plan.txt}
+[ -s "$PLAN" ] || { echo "[run_sim] ERROR: plan file missing: $PLAN"; exit 1; }
+# Goal region = destination of the plan's last (move ...), derived the same way
+# as run_ablation.sh:62-64. A hardcoded default drifts from the plan: this was
+# R10 while the packaged plan.txt ends at R11.
+if [ -z "${TARGET:-}" ]; then
+  TARGET=$(grep -oE '\(move +[[:alnum:]_]+ +R[0-9]+ +R[0-9]+\)' "$PLAN" 2>/dev/null \
+           | tail -1 | grep -oE 'R[0-9]+' | tail -1)
+  [ -n "$TARGET" ] || { echo "[run_sim] ERROR: no (move ...) action in $PLAN"; exit 1; }
+  echo "[run_sim] target region derived from $(basename "$PLAN"): $TARGET"
+fi
 RVIZ=${RVIZ:-false}
 # Default spawn is 1 m away from shelf_7 (nearest shelf, centred at 0.4,-2.0).
 SPAWN_X=${SPAWN_X:--0.2}
 SPAWN_Y=${SPAWN_Y:-1.0}
 MULTICAM=${MULTICAM:-1}
+# Observation logger (plan-vs-perception desync). Off by default so existing
+# runs are untouched; each logged camera adds a PointCloud2 subscription.
+OBS_LOG=${OBS_LOG:-false}
+if [ "${MULTICAM:-0}" = "1" ]; then OBS_LOG_CAMERAS=${OBS_LOG_CAMERAS:-0,1,2,3}
+else                                OBS_LOG_CAMERAS=${OBS_LOG_CAMERAS:-0}; fi
 LIDAR3D=${LIDAR3D:-${NS}/sensors/lidar3d_0/scan}   # sim VLP16 flattened scan (has a publisher)
 LIDAR2D=${LIDAR2D:-${NS}/sensors/lidar2d_0/scan}   # topic Clearpath SLAM/Nav2 subscribe to
 LOGDIR=${LOGDIR:-/tmp/evo_sim}
@@ -35,8 +80,31 @@ mkdir -p "$LOGDIR"
 # --- Fixes for this multi-NIC host (see README "Troubleshooting") ---
 export ROS_LOCALHOST_ONLY=1     # pin all ROS2 DDS to loopback; else Nav2 lifecycle hangs
 export IGN_IP=127.0.0.1         # pin gz-transport to loopback; else the robot never spawns
-export DISPLAY=${DISPLAY:-:1}
+# Gazebo must render on the machine-local X server (same reasoning as
+# run_ablation.sh:75-80). Over `ssh -Y` the shell's DISPLAY is a FORWARDED
+# display like "localhost:10.0", which docker-compose.yml:21 passes straight into
+# the container; the container has no X cookie for it -> "X11 connection rejected
+# because of wrong authentication", and it would tunnel GPU camera rendering over
+# the network. `${DISPLAY:-:1}` could not catch this because DISPLAY is set, just
+# set to the wrong thing. A local display starts with ':'; anything else has a
+# host part and is remote.
+SIM_DISPLAY=${SIM_DISPLAY:-:1}
+case "${DISPLAY:-}" in
+  :*) ;;
+  "") DISPLAY=$SIM_DISPLAY ;;
+  *)  echo "[run_sim] DISPLAY=$DISPLAY is a forwarded display (ssh -X/-Y);"
+      echo "[run_sim] using $SIM_DISPLAY so Gazebo renders on the local GPU."
+      DISPLAY=$SIM_DISPLAY ;;
+esac
+export DISPLAY
+# An ssh session points XAUTHORITY at a host path that shadows local access.
 unset XAUTHORITY 2>/dev/null || true
+
+_xsock=${DISPLAY#:}; _xsock=/tmp/.X11-unix/X${_xsock%%.*}
+if [ ! -S "$_xsock" ]; then
+  echo "[run_sim] WARNING: $_xsock missing -- no X server on $DISPLAY."
+  echo "[run_sim] Gazebo will fail to render. On the HOST run: sudo bash start_x1.sh"
+fi
 
 source /opt/ros/humble/setup.bash
 source "$WS/install/setup.bash"
@@ -139,14 +207,18 @@ else
   EVO_ARGS=()
   # MULTICAM: evo's built-in tracker covers camera_0 via yolo_0 (cams 1-3 below)
   [ "${MULTICAM:-0}" = "1" ] && EVO_ARGS+=("tracking_topic:=/yolo_0/tracking")
+  # ros2 launch rejects a bare 'name:=' (malformed argument), so an empty class
+  # allowlist must be omitted entirely and left to the launch default ("" = all).
+  [ -n "${OBS_LOG_CLASSES:-}" ] && EVO_ARGS+=("obs_log_classes:=${OBS_LOG_CLASSES}")
+  [ -n "${OBS_EXCLUDE_FILE:-}" ] && EVO_ARGS+=("obs_exclude_file:=${OBS_EXCLUDE_FILE}")
   ros2 launch evo_skill_ros evo_plan_run.launch.py \
     namespace:="$NS" robot_name:=jackal_1 target_region:="$TARGET" \
     graph_file:="$EVO_CFG/graph.json" \
     domain_file:="$EVO_CFG/factory_sim_domain.pddl" \
-    plan_file:="/home/user/plan.txt" \
+    plan_file:="$PLAN" \
     tracks_topic:="$NS/tracks" \
-    costmap_edit_max_radius:="${COSTMAP_EDIT_RADIUS:-1.0}" \
-    stl_replan_cooldown_s:="${STL_REPLAN_COOLDOWN:-2.0}" \
+    costmap_edit_max_radius:="${COSTMAP_EDIT_RADIUS:-0.3}" \
+    stl_replan_cooldown_s:="${STL_REPLAN_COOLDOWN:-5.0}" \
     require_map:=false \
     enable_metrics:="${METRICS:-false}" \
     metrics_world:="${METRICS_WORLD:-warehouse}" \
@@ -155,6 +227,11 @@ else
     metrics_actors_sdf:="${WORLD}.sdf" \
     metrics_json_out:="${METRICS_JSON_OUT:-$WS/scand_metrics_out.json}" \
     "${EVO_ARGS[@]}" \
+    enable_observation_log:="${OBS_LOG}" \
+    obs_log_file:="${OBS_LOG_FILE:-$WS/observations.jsonl}" \
+    obs_belief_file:="${OBS_BELIEF_FILE:-$WS/belief.json}" \
+    obs_log_period_s:="${OBS_LOG_PERIOD:-1.0}" \
+    obs_log_cameras:="${OBS_LOG_CAMERAS}" \
     json_log_file:="${JSON_LOG_FILE:-$WS/evo_plan_deploy_log.json}" > "$LOGDIR/evo.log" 2>&1 &
   PIDS+=($!)
   echo "[run_sim] evo_skill plan deploy launched (target_region=$TARGET, metrics=${METRICS:-false})."
@@ -164,7 +241,20 @@ fi
 #    Single front camera by default; MULTICAM=1 runs YOLO + a tracker on all 4
 #    cameras (camera_0..3) for ~360 deg detection (heavy: 4x YOLO-world on GPU).
 #    yolo-world is open-vocabulary: it detects NOTHING until classes are set.
-YOLO_CLASSES="${YOLO_CLASSES:-person}"
+# Default vocabulary matches the graph.json object types (see
+# factory_graph.object_type_from_name), so observation_logger can compare what
+# the plan EXPECTS in a region against what was actually seen there.
+#
+# These do NOT become STL obstacles: tracker_with_yolo forwards everything to
+# <NS>/tracks, but evo_plan_deploy discards non-human tracks
+# (build_tracked_obstacles, eveo_plan_deploy.py:891) and only inflates the
+# costmap for human obstacles (:1114). So extra classes add no new obstacles and
+# no new replan triggers. What they DO add is cost: track_callback (:575) re-runs
+# the STL monitor and logs an INFO line for every incoming detection, so more
+# classes mean more monitor invocations and a noisier evo.log.
+# Set YOLO_CLASSES=person for person-only runs; to drop classes from the
+# observation log without changing detection, use config/exclude.json instead.
+YOLO_CLASSES="${YOLO_CLASSES:-person,chair,table,shelf,column,box,pallet}"
 YOLO_DEVICE="${YOLO_DEVICE:-cuda:0}"
 set_classes_bg() {   # <yolo_namespace> <log_file>  (prompt yolo-world with the target classes)
   local yns="$1" log="$2"

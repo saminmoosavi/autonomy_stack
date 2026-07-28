@@ -40,6 +40,7 @@ from launch.actions import DeclareLaunchArgument
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
 
@@ -48,6 +49,7 @@ def generate_launch_description():
     default_graph_file = PathJoinSubstitution([package_share, "config", "graph.json"])
     default_domain_file = PathJoinSubstitution([package_share, "config", "factory_sim_domain.pddl"])
     default_plan_file = PathJoinSubstitution([package_share, "config", "plan.txt"])
+    default_exclude_file = PathJoinSubstitution([package_share, "config", "exclude.json"])
 
     namespace = LaunchConfiguration("namespace")
     graph_file = LaunchConfiguration("graph_file")
@@ -72,6 +74,46 @@ def generate_launch_description():
             "odom_topic": LaunchConfiguration("odom_topic"),
             "out_topic": LaunchConfiguration("tracker_out_topic"),
             "target_frame": tracker_target_frame,
+        }],
+        remappings=[
+            ("/tf", "tf"),
+            ("/tf_static", "tf_static"),
+        ],
+    )
+
+    # Records robot pose + detected objects (2D bbox and map-frame position) so
+    # "plan expected A at R3, perception saw B" is recoverable after the run.
+    # namespace= is only so the /tf remap resolves to <ns>/tf, same as tracker.
+    # ParameterValue(value_type=str) pins the type at the launch layer, since
+    # launch_ros YAML-infers a resolved LaunchConfiguration: obs_log_cameras:=0
+    # would otherwise arrive as an int while 0,1,2,3 arrives as a str. The node
+    # also declares these dynamically typed, so both layers are safe.
+    observation_log_node = Node(
+        package="evo_skill_ros",
+        executable="observation_logger",
+        name="observation_logger",
+        namespace=namespace,
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("enable_observation_log")),
+        parameters=[{
+            "use_sim_time": True,
+            "namespace": namespace,
+            "graph_file": graph_file,
+            "exclude_file": ParameterValue(
+                LaunchConfiguration("obs_exclude_file"), value_type=str),
+            "cameras": ParameterValue(
+                LaunchConfiguration("obs_log_cameras"), value_type=str),
+            "log_classes": ParameterValue(
+                LaunchConfiguration("obs_log_classes"), value_type=str),
+            "observations_file": ParameterValue(
+                LaunchConfiguration("obs_log_file"), value_type=str),
+            "belief_file": ParameterValue(
+                LaunchConfiguration("obs_belief_file"), value_type=str),
+            "log_period_s": LaunchConfiguration("obs_log_period_s"),
+            "region_snap_max_m": LaunchConfiguration("obs_region_snap_max_m"),
+            "target_frame": tracker_target_frame,
+            "base_frame": ParameterValue(
+                LaunchConfiguration("obs_log_base_frame"), value_type=str),
         }],
         remappings=[
             ("/tf", "tf"),
@@ -274,8 +316,58 @@ def generate_launch_description():
             default_value="/home/user/autonomy_stack_ros_humble/scand_metrics_out.json",
             description="Path where scand_metrics writes the JSON summary at exit.",
         ),
+        DeclareLaunchArgument(
+            "enable_observation_log",
+            default_value="false",
+            description="Log robot pose + detected object bboxes/map positions for plan-vs-perception desync.",
+        ),
+        DeclareLaunchArgument(
+            "obs_log_file",
+            default_value="/home/user/autonomy_stack_ros_humble/observations.jsonl",
+            description="JSONL stream, one appended snapshot per interval.",
+        ),
+        DeclareLaunchArgument(
+            "obs_belief_file",
+            default_value="/home/user/autonomy_stack_ros_humble/belief.json",
+            description="Cumulative per-region expected-vs-observed belief map.",
+        ),
+        DeclareLaunchArgument(
+            "obs_log_period_s",
+            default_value="1.0",
+            description="Snapshot interval in SIM seconds (the node runs with use_sim_time).",
+        ),
+        DeclareLaunchArgument(
+            "obs_log_cameras",
+            default_value="0",
+            description=("Comma-separated cameras to log, e.g. '0,1,2,3' with MULTICAM=1. "
+                         "Each adds a PointCloud2 subscription; with '0' only, objects "
+                         "beside/behind the robot are absent even though /tracks saw them."),
+        ),
+        DeclareLaunchArgument(
+            "obs_log_classes",
+            default_value="",
+            description="Comma-separated YOLO class allowlist (case-insensitive). Empty = log all.",
+        ),
+        DeclareLaunchArgument(
+            "obs_exclude_file",
+            default_value=default_exclude_file,
+            description=("JSON class denylist for logging only; takes precedence over "
+                         "obs_log_classes. Optional -- a missing file excludes nothing."),
+        ),
+        DeclareLaunchArgument(
+            "obs_log_base_frame",
+            default_value="base_link",
+            description="Robot body frame for the map->base TF pose lookup.",
+        ),
+        DeclareLaunchArgument(
+            "obs_region_snap_max_m",
+            default_value="6.0",
+            description=("Max distance to a graph region centroid for attribution. Regions are "
+                         "points, not polygons, so without this everything snaps to something."),
+        ),
         tracker_node,
         evo_plan_deploy_node,
         visualizer_node,
         scand_metrics_node,
+        observation_log_node,
     ])

@@ -1,0 +1,1880 @@
+<?xml version='1.0' encoding='ASCII'?>
+<sdf version='1.7'>
+  <world name='warehouse'>
+    <physics type="ode">
+      <max_step_size>0.003</max_step_size>
+      <real_time_factor>0.5</real_time_factor>
+    </physics>
+    <plugin name='ignition::gazebo::systems::Physics' filename='libignition-gazebo-physics-system.so'/>
+    <plugin name='ignition::gazebo::systems::UserCommands' filename='libignition-gazebo-user-commands-system.so'/>
+    <plugin name='ignition::gazebo::systems::SceneBroadcaster' filename='libignition-gazebo-scene-broadcaster-system.so'/>
+    <plugin name="ignition::gazebo::systems::Sensors" filename="libignition-gazebo-sensors-system.so">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin name="ignition::gazebo::systems::Imu" filename="libignition-gazebo-imu-system.so"/>
+    <plugin name="ignition::gazebo::systems::NavSat" filename="libignition-gazebo-navsat-system.so"/>
+
+    <scene>
+      <ambient>1 1 1 1</ambient>
+      <background>0.3 0.7 0.9 1</background>
+      <shadows>0</shadows>
+      <grid>false</grid>
+    </scene>
+
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>-22.986687</latitude_deg>
+      <longitude_deg>-43.202501</longitude_deg>
+      <elevation>0</elevation>
+      <heading_deg>0</heading_deg>
+    </spherical_coordinates>
+
+    <model name='ground_plane'>
+      <static>true</static>
+      <link name='link'>
+        <collision name='collision'>
+          <geometry><plane><normal>0.0 0.0 1</normal><size>1 1</size></plane></geometry>
+        </collision>
+      </link>
+      <pose>0 0 0 0 0 0</pose>
+    </model>
+
+    <include>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Warehouse</uri>
+      <name>warehouse</name>
+      <pose>0 0 -0.1 0 0 0</pose>
+    </include>
+
+    <!-- South shelves -->
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf_big</uri><name>shelf_big_0</name><pose>-8.5 -13 0 0 0 0</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf_big</uri><name>shelf_big_1</name><pose>6.5 -13 0 0 0 0</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf_big</uri><name>shelf_big_2</name><pose>-1.5 -13 0 0 0 0</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_3</name><pose>13.5 4.5 0 0 0 0</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_4</name><pose>10 4.5 0 0 0 0</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_5</name><pose>13.5 -21 0 0 0 0</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_6</name><pose>13.5 -15 0 0 0 0</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_7</name><pose>0.4 -2 0 0 0 0</pose></include>
+    <!-- North shelves (rotated, flank the mission corridor) -->
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf_big</uri><name>shelf_big_3</name><pose>3.5 9.5 0 0 0 1.57</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf_big</uri><name>shelf_big_4</name><pose>-1.3 18.5 0 0 0 1.57</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_0</name><pose>-10 21.5 0 0 0 1.57</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_1</name><pose>-7 23.6 0 0 0 1.57</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/MovAi/models/shelf</uri><name>shelf_2</name><pose>-4 21.5 0 0 0 1.57</pose></include>
+
+    <!-- West-side barriers -->
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Jersey Barrier</uri><name>barrier_0</name><pose>-10.4 14.75 0 0 0 1.57</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Jersey Barrier</uri><name>barrier_1</name><pose>-10.4 10.5 0 0 0 1.57</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Jersey Barrier</uri><name>barrier_2</name><pose>-10.4 6.5 0 0 0 1.57</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Jersey Barrier</uri><name>barrier_3</name><pose>-12.85 4.85 0 0 0 0</pose></include>
+
+    <!-- Furniture -->
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Chair</uri><name>chair_0</name><pose>14.3 -5.5 0 0 0 3</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Chair</uri><name>chair_1</name><pose>14.3 -4 0 0 0 -3</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/foldable_chair</uri><name>fchair_0</name><pose>-11.5 6.4 0 0 0 -1.8</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/foldable_chair</uri><name>fchair1</name><pose>-14 6.5 0 0 0 1.9</pose></include>
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Table</uri><name>table0</name><pose>-12.7 6.5 0 0 0 0</pose></include>
+
+    <!-- ===== 100-person sampling pool (seed 100, subsample via make_density_world.py) ===== -->
+
+    <!-- person_p001: N-S patrol x=-9.43, y=-5.86→0.35 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p001">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.43 -5.86 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time>  <pose>-9.43 -0.65 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-9.43 0.35 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-9.43 0.35 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-9.43 -4.86 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-9.43 -5.86 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-9.43 -5.86 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p002: E-W patrol y=-2.65, x=1.99→11.24 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p002">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>1.99 -2.65 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>10.24 -2.65 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>11.24 -2.65 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>24</time>  <pose>11.24 -2.65 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>2.99 -2.65 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>1.99 -2.65 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>1.99 -2.65 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p003: N-S patrol x=-9.26, y=0.8→9.8 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p003">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.26 0.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-9.26 8.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-9.26 9.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-9.26 9.8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-9.26 1.8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-9.26 0.8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>48</time>  <pose>-9.26 0.8 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p004: N-S patrol x=-8.91, y=10.12→18.53 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p004">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-8.91 10.12 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-8.91 17.53 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>19</time>  <pose>-8.91 18.53 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>23</time>  <pose>-8.91 18.53 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-8.91 11.12 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-8.91 10.12 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>46</time>  <pose>-8.91 10.12 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p005: N-S patrol x=-4.68, y=4.41→12.41 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p005">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-4.68 4.41 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-4.68 11.41 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-4.68 12.41 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-4.68 12.41 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-4.68 5.41 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-4.68 4.41 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-4.68 4.41 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p006: E-W patrol y=0.74, x=0.75→9.73 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p006">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>0.75 0.74 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>8.73 0.74 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>9.73 0.74 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>24</time>  <pose>9.73 0.74 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>1.75 0.74 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>0.75 0.74 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>0.75 0.74 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p007: N-S patrol x=-0.19, y=0.43→8.8 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p007">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-0.19 0.43 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-0.19 7.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>19</time>  <pose>-0.19 8.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>23</time>  <pose>-0.19 8.8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-0.19 1.43 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-0.19 0.43 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>46</time>  <pose>-0.19 0.43 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p008: N-S patrol x=-5.02, y=-19.18→-15.77 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p008">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-5.02 -19.18 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>5</time>  <pose>-5.02 -16.77 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>9</time>  <pose>-5.02 -15.77 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-5.02 -15.77 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-5.02 -18.18 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-5.02 -19.18 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-5.02 -19.18 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p009: E-W patrol y=-19.17, x=-1.96→5.98 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p009">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-1.96 -19.17 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>4.98 -19.17 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>18</time>  <pose>5.98 -19.17 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>22</time>  <pose>5.98 -19.17 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-0.96 -19.17 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-1.96 -19.17 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-1.96 -19.17 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p010: E-W patrol y=-1.02, x=-13.54→-4.0 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p010">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>7.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-13.54 -1.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-5.0 -1.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>-4.0 -1.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>25</time>  <pose>-4.0 -1.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-12.54 -1.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>46</time>  <pose>-13.54 -1.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>50</time>  <pose>-13.54 -1.02 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p011: E-W patrol y=-17.35, x=-8.03→-4.75 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p011">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-8.03 -17.35 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>5</time>  <pose>-5.75 -17.35 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>-4.75 -17.35 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-4.75 -17.35 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-7.03 -17.35 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-8.03 -17.35 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-8.03 -17.35 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p012: E-W patrol y=-0.78, x=3.4→6.66 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p012">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>3.4 -0.78 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>5</time>  <pose>5.66 -0.78 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>6.66 -0.78 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>6.66 -0.78 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>18</time>  <pose>4.4 -0.78 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>3.4 -0.78 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>3.4 -0.78 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p013: E-W patrol y=-9.02, x=-7.42→-1.68 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p013">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-7.42 -9.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>-2.68 -9.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-1.68 -9.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-1.68 -9.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-6.42 -9.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-7.42 -9.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-7.42 -9.02 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p014: N-S patrol x=6.54, y=-20.54→-16.01 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p014">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.54 -20.54 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>7</time>  <pose>6.54 -17.01 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>11</time>  <pose>6.54 -16.01 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>6.54 -16.01 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>6.54 -19.54 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>6.54 -20.54 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>6.54 -20.54 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p015: E-W patrol y=-3.92, x=-4.47→2.08 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p015">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-4.47 -3.92 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>1.08 -3.92 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>2.08 -3.92 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>19</time>  <pose>2.08 -3.92 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-3.47 -3.92 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-4.47 -3.92 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-4.47 -3.92 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p016: E-W patrol y=-0.41, x=2.81→7.37 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p016">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>2.81 -0.41 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>7</time>  <pose>6.37 -0.41 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>7.37 -0.41 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>7.37 -0.41 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>3.81 -0.41 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>2.81 -0.41 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>2.81 -0.41 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p017: N-S patrol x=-2.43, y=2.56→6.05 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p017">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-2.43 2.56 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>5</time>  <pose>-2.43 5.05 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>9</time>  <pose>-2.43 6.05 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-2.43 6.05 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-2.43 3.56 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-2.43 2.56 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-2.43 2.56 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p018: N-S patrol x=6.86, y=-5.64→-1.45 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p018">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.86 -5.64 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>6</time>  <pose>6.86 -2.45 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time>  <pose>6.86 -1.45 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>6.86 -1.45 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>6.86 -4.64 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>6.86 -5.64 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>6.86 -5.64 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p019: E-W patrol y=-6.64, x=-0.03→7.49 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p019">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-0.03 -6.64 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>6.49 -6.64 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>7.49 -6.64 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>7.49 -6.64 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>0.97 -6.64 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-0.03 -6.64 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-0.03 -6.64 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p020: N-S patrol x=-12.99, y=-1.36→2.51 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p020">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-12.99 -1.36 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>6</time>  <pose>-12.99 1.51 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time>  <pose>-12.99 2.51 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-12.99 2.51 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-12.99 -0.36 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-12.99 -1.36 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-12.99 -1.36 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p021: E-W patrol y=5.1, x=-9.57→-1.75 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p021">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.57 5.1 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-2.75 5.1 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-1.75 5.1 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-1.75 5.1 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-8.57 5.1 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-9.57 5.1 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-9.57 5.1 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p022: E-W patrol y=-6.73, x=1.31→5.11 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p022">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>1.31 -6.73 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>6</time>  <pose>4.11 -6.73 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>5.11 -6.73 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>5.11 -6.73 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time>  <pose>2.31 -6.73 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>1.31 -6.73 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>1.31 -6.73 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p023: N-S patrol x=5.69, y=16.66→21.8 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p023">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>5.69 16.66 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>5.69 20.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>5.69 21.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>5.69 21.8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>5.69 17.66 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>5.69 16.66 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>5.69 16.66 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p024: E-W patrol y=5.95, x=0.86→6.13 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p024">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>0.86 5.95 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>5.13 5.95 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>6.13 5.95 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>6.13 5.95 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>1.86 5.95 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>0.86 5.95 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>0.86 5.95 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p025: N-S patrol x=-12.12, y=-10.01→-0.47 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p025">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-12.12 -10.01 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-12.12 -1.47 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>21</time>  <pose>-12.12 -0.47 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>25</time>  <pose>-12.12 -0.47 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-12.12 -9.01 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>46</time>  <pose>-12.12 -10.01 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>50</time>  <pose>-12.12 -10.01 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p026: N-S patrol x=-0.8, y=3.42→7.86 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p026">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-0.8 3.42 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>7</time>  <pose>-0.8 6.86 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>11</time>  <pose>-0.8 7.86 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-0.8 7.86 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-0.8 4.42 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-0.8 3.42 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-0.8 3.42 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p027: E-W patrol y=-5.38, x=-12.82→-3.99 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p027">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-12.82 -5.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-4.99 -5.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-3.99 -5.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-3.99 -5.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-11.82 -5.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-12.82 -5.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>-12.82 -5.38 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p028: E-W patrol y=-9.26, x=6.21→11.03 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p028">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.21 -9.26 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>10.03 -9.26 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>11.03 -9.26 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>11.03 -9.26 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>7.21 -9.26 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>6.21 -9.26 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>6.21 -9.26 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p029: E-W patrol y=8.93, x=-9.09→-2.78 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p029">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.09 8.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>-3.78 8.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-2.78 8.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>19</time>  <pose>-2.78 8.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-8.09 8.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-9.09 8.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-9.09 8.93 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p030: E-W patrol y=-9.32, x=-0.94→5.33 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p030">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-0.94 -9.32 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>4.33 -9.32 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>5.33 -9.32 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>19</time>  <pose>5.33 -9.32 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>0.06 -9.32 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-0.94 -9.32 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-0.94 -9.32 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p031: N-S patrol x=6.9, y=-7.66→-2.38 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p031">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.9 -7.66 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>9</time>  <pose>6.9 -3.38 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>13</time>  <pose>6.9 -2.38 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>17</time>  <pose>6.9 -2.38 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>6.9 -6.66 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>6.9 -7.66 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>34</time>  <pose>6.9 -7.66 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p032: E-W patrol y=1.46, x=-12.38→-5.06 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p032">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-12.38 1.46 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-6.06 1.46 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-5.06 1.46 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>-5.06 1.46 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-11.38 1.46 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-12.38 1.46 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-12.38 1.46 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p033: E-W patrol y=-20.63, x=5.14→9.38 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p033">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>5.14 -20.63 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>6</time>  <pose>8.38 -20.63 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>9.38 -20.63 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>9.38 -20.63 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time>  <pose>6.14 -20.63 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>5.14 -20.63 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>5.14 -20.63 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p034: N-S patrol x=7.14, y=-6.73→-0.17 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p034">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>7.14 -6.73 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>11</time>  <pose>7.14 -1.17 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>7.14 -0.17 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>19</time>  <pose>7.14 -0.17 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>7.14 -5.73 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>34</time>  <pose>7.14 -6.73 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>38</time>  <pose>7.14 -6.73 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p035: E-W patrol y=22.83, x=7.35→13.17 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p035">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>7.35 22.83 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>12.17 22.83 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>13.17 22.83 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>18</time>  <pose>13.17 22.83 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>8.35 22.83 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>7.35 22.83 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>7.35 22.83 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p036: N-S patrol x=-0.12, y=2.56→10.35 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p036">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-0.12 2.56 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-0.12 9.35 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-0.12 10.35 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-0.12 10.35 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-0.12 3.56 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-0.12 2.56 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-0.12 2.56 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p037: E-W patrol y=1.07, x=1.65→5.93 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p037">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>1.65 1.07 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>7</time>  <pose>4.93 1.07 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>5.93 1.07 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>5.93 1.07 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>2.65 1.07 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>1.65 1.07 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>1.65 1.07 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p038: E-W patrol y=11.19, x=7.53→14.24 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p038">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>7.53 11.19 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>13.24 11.19 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>14.24 11.19 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>19</time>  <pose>14.24 11.19 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>8.53 11.19 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>7.53 11.19 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>7.53 11.19 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p039: E-W patrol y=-2.8, x=6.27→9.55 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p039">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.27 -2.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>5</time>  <pose>8.55 -2.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>9.55 -2.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>9.55 -2.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>18</time>  <pose>7.27 -2.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>6.27 -2.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>6.27 -2.8 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p040: N-S patrol x=7.19, y=3.8→12.68 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p040">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>7.19 3.8 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>7.19 11.68 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>7.19 12.68 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>7.19 12.68 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>7.19 4.8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>7.19 3.8 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>48</time>  <pose>7.19 3.8 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p041: E-W patrol y=-3.05, x=-11.92→-6.2 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p041">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-11.92 -3.05 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>-7.2 -3.05 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-6.2 -3.05 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-6.2 -3.05 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-10.92 -3.05 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-11.92 -3.05 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-11.92 -3.05 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p042: E-W patrol y=16.93, x=0.23→9.94 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p042">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>0.23 16.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>8.94 16.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>9.94 16.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>25</time>  <pose>9.94 16.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>1.23 16.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>46</time>  <pose>0.23 16.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>50</time>  <pose>0.23 16.93 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p043: E-W patrol y=2.38, x=-11.03→-3.34 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p043">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-11.03 2.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-4.34 2.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-3.34 2.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>-3.34 2.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-10.03 2.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-11.03 2.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-11.03 2.38 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p044: E-W patrol y=-2.08, x=8.7→14.15 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p044">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>8.7 -2.08 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>13.15 -2.08 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>14.15 -2.08 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>14.15 -2.08 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>9.7 -2.08 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>8.7 -2.08 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>8.7 -2.08 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p045: N-S patrol x=-13.52, y=-5.48→-2.47 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p045">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-13.52 -5.48 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>4</time>  <pose>-13.52 -3.47 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-13.52 -2.47 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-13.52 -2.47 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-13.52 -4.48 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-13.52 -5.48 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-13.52 -5.48 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p046: E-W patrol y=-3.49, x=-2.24→3.27 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p046">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-2.24 -3.49 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>2.27 -3.49 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>3.27 -3.49 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>3.27 -3.49 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-1.24 -3.49 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-2.24 -3.49 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-2.24 -3.49 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p047: N-S patrol x=10.54, y=8.08→14.77 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p047">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>10.54 8.08 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>11</time>  <pose>10.54 13.77 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>10.54 14.77 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>19</time>  <pose>10.54 14.77 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>10.54 9.08 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>34</time>  <pose>10.54 8.08 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>38</time>  <pose>10.54 8.08 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p048: N-S patrol x=9.28, y=11.36→20.68 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p048">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>9.28 11.36 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>17</time>  <pose>9.28 19.68 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>21</time>  <pose>9.28 20.68 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>25</time>  <pose>9.28 20.68 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>42</time>  <pose>9.28 12.36 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>46</time>  <pose>9.28 11.36 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>50</time>  <pose>9.28 11.36 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p049: E-W patrol y=-7.1, x=-12.07→-6.86 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p049">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-12.07 -7.1 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-7.86 -7.1 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-6.86 -7.1 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-6.86 -7.1 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-11.07 -7.1 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-12.07 -7.1 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-12.07 -7.1 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p050: N-S patrol x=-5.81, y=1.52→6.51 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p050">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-5.81 1.52 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-5.81 5.51 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-5.81 6.51 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-5.81 6.51 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-5.81 2.52 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-5.81 1.52 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-5.81 1.52 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p051: N-S patrol x=-13.61, y=-5.85→-0.89 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p051">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-13.61 -5.85 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-13.61 -1.89 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-13.61 -0.89 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-13.61 -0.89 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-13.61 -4.85 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-13.61 -5.85 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-13.61 -5.85 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p052: E-W patrol y=-8.47, x=-5.5→1.43 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p052">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-5.5 -8.47 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>0.43 -8.47 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>1.43 -8.47 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>1.43 -8.47 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-4.5 -8.47 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-5.5 -8.47 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-5.5 -8.47 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p053: N-S patrol x=6.61, y=16.22→24.19 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p053">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.61 16.22 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>6.61 23.19 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>6.61 24.19 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>6.61 24.19 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>6.61 17.22 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>6.61 16.22 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>6.61 16.22 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p054: E-W patrol y=-4.25, x=-11.9→-4.74 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p054">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-11.9 -4.25 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-5.74 -4.25 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-4.74 -4.25 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-4.74 -4.25 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-10.9 -4.25 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-11.9 -4.25 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-11.9 -4.25 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p055: E-W patrol y=-16.02, x=-5.2→3.88 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p055">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-5.2 -16.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>2.88 -16.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>3.88 -16.02 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>24</time>  <pose>3.88 -16.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-4.2 -16.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-5.2 -16.02 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>-5.2 -16.02 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p056: N-S patrol x=7.53, y=-1.31→2.89 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p056">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>7.53 -1.31 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>6</time>  <pose>7.53 1.89 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time>  <pose>7.53 2.89 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>7.53 2.89 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>7.53 -0.31 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>7.53 -1.31 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>7.53 -1.31 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p057: E-W patrol y=-6.09, x=0.87→6.01 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p057">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>0.87 -6.09 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>5.01 -6.09 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>6.01 -6.09 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>6.01 -6.09 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>1.87 -6.09 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>0.87 -6.09 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>0.87 -6.09 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p058: E-W patrol y=4.91, x=2.75→6.34 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p058">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>2.75 4.91 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>5</time>  <pose>5.34 4.91 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>6.34 4.91 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>6.34 4.91 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>18</time>  <pose>3.75 4.91 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>2.75 4.91 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>2.75 4.91 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p059: N-S patrol x=10.33, y=-10.58→-2.0 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p059">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>10.33 -10.58 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>10.33 -3.0 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>19</time>  <pose>10.33 -2.0 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>23</time>  <pose>10.33 -2.0 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>38</time>  <pose>10.33 -9.58 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>42</time>  <pose>10.33 -10.58 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>46</time>  <pose>10.33 -10.58 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p060: E-W patrol y=18.87, x=2.78→8.16 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p060">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>2.78 18.87 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>9</time>  <pose>7.16 18.87 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>8.16 18.87 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>8.16 18.87 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>3.78 18.87 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>2.78 18.87 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>2.78 18.87 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p061: N-S patrol x=-14.2, y=-10.57→-3.69 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p061">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-14.2 -10.57 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-14.2 -4.69 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-14.2 -3.69 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-14.2 -3.69 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-14.2 -9.57 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-14.2 -10.57 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-14.2 -10.57 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p062: E-W patrol y=-2.38, x=3.68→12.43 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p062">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>3.68 -2.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>11.43 -2.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>12.43 -2.38 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>24</time>  <pose>12.43 -2.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>4.68 -2.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>3.68 -2.38 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>3.68 -2.38 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p063: N-S patrol x=9.54, y=7.37→12.71 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p063">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>9.54 7.37 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>9</time>  <pose>9.54 11.71 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>13</time>  <pose>9.54 12.71 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>17</time>  <pose>9.54 12.71 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>9.54 8.37 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>9.54 7.37 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>34</time>  <pose>9.54 7.37 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p064: E-W patrol y=-19.09, x=-6.96→0.12 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p064">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-6.96 -19.09 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-0.88 -19.09 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>0.12 -19.09 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>0.12 -19.09 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-5.96 -19.09 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-6.96 -19.09 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-6.96 -19.09 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p065: E-W patrol y=-7.6, x=-10.31→-5.75 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p065">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-10.31 -7.6 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>7</time>  <pose>-6.75 -7.6 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>-5.75 -7.6 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-5.75 -7.6 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-9.31 -7.6 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-10.31 -7.6 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-10.31 -7.6 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p066: N-S patrol x=-9.71, y=8.79→16.92 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p066">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.71 8.79 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-9.71 15.92 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-9.71 16.92 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-9.71 16.92 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-9.71 9.79 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-9.71 8.79 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-9.71 8.79 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p067: E-W patrol y=-20.73, x=-2.56→5.15 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p067">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-2.56 -20.73 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>4.15 -20.73 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>5.15 -20.73 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>5.15 -20.73 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-1.56 -20.73 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-2.56 -20.73 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-2.56 -20.73 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p068: E-W patrol y=16.49, x=-11.46→-1.71 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p068">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>7.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-11.46 16.49 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-2.71 16.49 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-1.71 16.49 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-1.71 16.49 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-10.46 16.49 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>-11.46 16.49 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>52</time>  <pose>-11.46 16.49 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p069: N-S patrol x=-0.41, y=8.47→14.71 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p069">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-0.41 8.47 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time>  <pose>-0.41 13.71 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-0.41 14.71 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-0.41 14.71 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-0.41 9.47 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-0.41 8.47 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-0.41 8.47 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p070: E-W patrol y=-4.44, x=-10.47→-2.73 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p070">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-10.47 -4.44 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-3.73 -4.44 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-2.73 -4.44 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>-2.73 -4.44 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-9.47 -4.44 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-10.47 -4.44 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-10.47 -4.44 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p071: N-S patrol x=-13.12, y=-4.42→-1.2 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p071">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-13.12 -4.42 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>4</time>  <pose>-13.12 -2.2 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-13.12 -1.2 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-13.12 -1.2 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-13.12 -3.42 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-13.12 -4.42 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-13.12 -4.42 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p072: E-W patrol y=-19.8, x=-1.35→7.82 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p072">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-1.35 -19.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>6.82 -19.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>7.82 -19.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>24</time>  <pose>7.82 -19.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-0.35 -19.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-1.35 -19.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>-1.35 -19.8 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p073: E-W patrol y=0.88, x=-12.6→-3.24 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p073">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>7.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-12.6 0.88 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-4.24 0.88 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>-3.24 0.88 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>25</time>  <pose>-3.24 0.88 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-11.6 0.88 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>46</time>  <pose>-12.6 0.88 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>50</time>  <pose>-12.6 0.88 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p074: E-W patrol y=-16.59, x=2.15→11.05 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p074">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>2.15 -16.59 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>10.05 -16.59 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>11.05 -16.59 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>24</time>  <pose>11.05 -16.59 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>3.15 -16.59 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>44</time>  <pose>2.15 -16.59 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>48</time>  <pose>2.15 -16.59 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p075: E-W patrol y=-3.54, x=1.03→10.76 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p075">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>1.03 -3.54 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>9.76 -3.54 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>10.76 -3.54 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>25</time>  <pose>10.76 -3.54 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>2.03 -3.54 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>46</time>  <pose>1.03 -3.54 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>50</time>  <pose>1.03 -3.54 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p076: E-W patrol y=10.15, x=7.19→12.25 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p076">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>7.19 10.15 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>11.25 10.15 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>12.25 10.15 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>12.25 10.15 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>8.19 10.15 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>7.19 10.15 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>7.19 10.15 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p077: E-W patrol y=1.93, x=8.53→14.34 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p077">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>7.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>8.53 1.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>13.34 1.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>14.34 1.93 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>18</time>  <pose>14.34 1.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>9.53 1.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>8.53 1.93 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>8.53 1.93 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p078: N-S patrol x=-12.42, y=-5.83→-0.74 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p078">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-12.42 -5.83 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>8</time>  <pose>-12.42 -1.74 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-12.42 -0.74 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-12.42 -0.74 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-12.42 -4.83 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-12.42 -5.83 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-12.42 -5.83 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p079: E-W patrol y=6.18, x=-9.88→-5.2 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p079">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.88 6.18 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>7</time>  <pose>-6.2 6.18 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>-5.2 6.18 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-5.2 6.18 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-8.88 6.18 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-9.88 6.18 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-9.88 6.18 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p080: E-W patrol y=-2.11, x=-11.83→-4.42 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p080">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>5.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-11.83 -2.11 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-5.42 -2.11 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>-4.42 -2.11 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>-4.42 -2.11 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-10.83 -2.11 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-11.83 -2.11 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-11.83 -2.11 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p081: N-S patrol x=11.8, y=8.29→15.36 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p081">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>11.8 8.29 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>12</time>  <pose>11.8 14.36 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>11.8 15.36 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>11.8 15.36 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>32</time>  <pose>11.8 9.29 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>36</time>  <pose>11.8 8.29 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>11.8 8.29 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p082: E-W patrol y=-6.81, x=4.19→13.45 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p082">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>7.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>4.19 -6.81 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>12.45 -6.81 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>13.45 -6.81 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>25</time>  <pose>13.45 -6.81 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>5.19 -6.81 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>46</time>  <pose>4.19 -6.81 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>50</time>  <pose>4.19 -6.81 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p083: E-W patrol y=6.04, x=-0.55→4.58 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p083">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-0.55 6.04 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>3.58 6.04 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>4.58 6.04 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>4.58 6.04 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>0.45 6.04 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-0.55 6.04 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-0.55 6.04 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p084: N-S patrol x=-3.56, y=9.41→13.04 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p084">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-3.56 9.41 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>5</time>  <pose>-3.56 12.04 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>9</time>  <pose>-3.56 13.04 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>13</time>  <pose>-3.56 13.04 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-3.56 10.41 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-3.56 9.41 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-3.56 9.41 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p085: E-W patrol y=15.83, x=-7.17→-3.24 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p085">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-7.17 15.83 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>6</time>  <pose>-4.24 15.83 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>-3.24 15.83 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-3.24 15.83 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-6.17 15.83 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-7.17 15.83 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-7.17 15.83 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p086: N-S patrol x=6.98, y=-1.01→8.23 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p086">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.98 -1.01 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>6.98 7.23 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>6.98 8.23 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>6.98 8.23 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>6.98 -0.01 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>6.98 -1.01 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>48</time>  <pose>6.98 -1.01 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p087: E-W patrol y=-21.29, x=2.31→6.07 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p087">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>7.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>2.31 -21.29 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>6</time>  <pose>5.07 -21.29 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>6.07 -21.29 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>6.07 -21.29 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time>  <pose>3.31 -21.29 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>2.31 -21.29 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>2.31 -21.29 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p088: E-W patrol y=-6.45, x=6.04→9.18 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p088">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>6.04 -6.45 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>4</time>  <pose>8.18 -6.45 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>8</time>  <pose>9.18 -6.45 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>9.18 -6.45 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>16</time>  <pose>7.04 -6.45 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time>  <pose>6.04 -6.45 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>6.04 -6.45 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p089: E-W patrol y=-19.9, x=0.65→5.37 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p089">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>0.65 -19.9 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>7</time>  <pose>4.37 -19.9 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>5.37 -19.9 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>5.37 -19.9 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>22</time>  <pose>1.65 -19.9 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>26</time>  <pose>0.65 -19.9 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>0.65 -19.9 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p090: N-S patrol x=10.04, y=-19.23→-14.73 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p090">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>1.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>10.04 -19.23 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>7</time>  <pose>10.04 -15.73 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>11</time>  <pose>10.04 -14.73 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>10.04 -14.73 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>10.04 -18.23 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>10.04 -19.23 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>10.04 -19.23 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p091: N-S patrol x=-7.93, y=-3.48→4.97 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p091">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-7.93 -3.48 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-7.93 3.97 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>19</time>  <pose>-7.93 4.97 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>23</time>  <pose>-7.93 4.97 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-7.93 -2.48 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-7.93 -3.48 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>46</time>  <pose>-7.93 -3.48 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p092: E-W patrol y=3.8, x=-9.97→-3.68 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p092">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>3.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.97 3.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>11</time>  <pose>-4.68 3.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-3.68 3.8 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>19</time>  <pose>-3.68 3.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-8.97 3.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>34</time>  <pose>-9.97 3.8 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>38</time>  <pose>-9.97 3.8 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p093: E-W patrol y=-6.57, x=-3.43→0.6 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p093">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-3.43 -6.57 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>6</time>  <pose>-0.4 -6.57 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>0.6 -6.57 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>0.6 -6.57 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-2.43 -6.57 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-3.43 -6.57 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-3.43 -6.57 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p094: E-W patrol y=-7.54, x=-8.58→-2.74 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p094">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>9.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-8.58 -7.54 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>-3.74 -7.54 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-2.74 -7.54 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-2.74 -7.54 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-7.58 -7.54 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-8.58 -7.54 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-8.58 -7.54 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p095: E-W patrol y=-0.05, x=-7.72→-1.78 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p095">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>0.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-7.72 -0.05 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>10</time>  <pose>-2.78 -0.05 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-1.78 -0.05 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>18</time>  <pose>-1.78 -0.05 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-6.72 -0.05 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-7.72 -0.05 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-7.72 -0.05 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p096: E-W patrol y=-8.45, x=-7.93→-1.0 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p096">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-7.93 -8.45 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>12</time>  <pose>-2.0 -8.45 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-1.0 -8.45 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-1.0 -8.45 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>32</time>  <pose>-6.93 -8.45 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>36</time>  <pose>-7.93 -8.45 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-7.93 -8.45 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p097: N-S patrol x=-9.28, y=-8.15→0.82 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p097">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>8.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-9.28 -8.15 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>16</time>  <pose>-9.28 -0.18 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-9.28 0.82 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-9.28 0.82 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>40</time>  <pose>-9.28 -7.15 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>44</time>  <pose>-9.28 -8.15 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>48</time>  <pose>-9.28 -8.15 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p098: N-S patrol x=-10.33, y=-5.43→-1.43 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p098">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>4.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-10.33 -5.43 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>6</time>  <pose>-10.33 -2.43 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>10</time>  <pose>-10.33 -1.43 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>14</time>  <pose>-10.33 -1.43 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>20</time>  <pose>-10.33 -4.43 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>24</time>  <pose>-10.33 -5.43 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>28</time>  <pose>-10.33 -5.43 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p099: E-W patrol y=-16.21, x=-6.65→2.94 (~0.5 m/s, crosses N-S robot corridor) -->
+    <actor name="person_p099">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>2.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-6.65 -16.21 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>17</time>  <pose>1.94 -16.21 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>21</time>  <pose>2.94 -16.21 1.0 0 0 0.0</pose></waypoint>
+          <waypoint><time>25</time>  <pose>2.94 -16.21 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>42</time>  <pose>-5.65 -16.21 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>46</time>  <pose>-6.65 -16.21 1.0 0 0 3.1416</pose></waypoint>
+          <waypoint><time>50</time>  <pose>-6.65 -16.21 1.0 0 0 0.0</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+
+    <!-- person_p100: N-S patrol x=-7.05, y=5.01→9.67 (~0.5 m/s, crosses E-W robot corridor) -->
+    <actor name="person_p100">
+      <skin><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><scale>1.0</scale></skin>
+      <animation name="walk"><filename>https://fuel.gazebosim.org/1.0/Mingfei/models/actor/tip/files/meshes/walk.dae</filename><interpolate_x>true</interpolate_x></animation>
+      <script>
+        <loop>true</loop><delay_start>6.0</delay_start><auto_start>true</auto_start>
+        <trajectory id="0" type="walk">
+          <waypoint><time>0</time>   <pose>-7.05 5.01 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>7</time>  <pose>-7.05 8.67 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>11</time>  <pose>-7.05 9.67 1.0 0 0 1.5708</pose></waypoint>
+          <waypoint><time>15</time>  <pose>-7.05 9.67 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>22</time>  <pose>-7.05 6.01 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>26</time>  <pose>-7.05 5.01 1.0 0 0 -1.5708</pose></waypoint>
+          <waypoint><time>30</time>  <pose>-7.05 5.01 1.0 0 0 1.5708</pose></waypoint>
+        </trajectory>
+      </script>
+    </actor>
+  </world>
+</sdf>
