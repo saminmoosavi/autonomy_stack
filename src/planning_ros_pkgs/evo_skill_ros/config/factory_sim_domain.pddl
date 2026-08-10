@@ -1,239 +1,150 @@
+;; ============================================================================
+;; Factory domain -- CLASSICAL (STRIPS). Single source of truth for both halves
+;; of the pipeline.
+;;
+;; PROVENANCE: this is a verbatim copy of
+;;   evolve_stl_pddl/jackal/in/factory_jackal_domain.pddl
+;; which is the canonical original (it lives in the EvoPlan submodule and is
+;; what the replan service, Fast Downward and VAL all plan/validate against).
+;; The copy exists because this path is referenced from eight places -- run_sim.sh,
+;; ran.sh, density_sweep.py, the launch default, and three node parameter
+;; defaults -- and because it must be installed into the ROS package share.
+;;
+;; Keep the two byte-identical below this header. test_domain_consistency.py
+;; fails if they drift.
+;;
+;; WHY CLASSICAL, not the durative model this file used to hold:
+;;   * Fast Downward rejects :durative-actions outright (translate exit code 31),
+;;     and FD/VAL is what scores every candidate plan.
+;;   * The durative `move` required (available/localized/battery-ok/safe), none
+;;     of which any factory_mission_*.pddl asserts -- so validating against it
+;;     rejected every plan the planner could legally produce.
+;;   * Nothing executes durations, battery or narrow-aisle semantics anyway.
+;; The durative version is preserved as factory_sim_domain_durative.pddl.archive.
+;; ============================================================================
+
 (define (domain factory_jackal)
   (:requirements
     :strips
     :typing
     :negative-preconditions
-    :durative-actions
-    :fluents
-    :conditional-effects
   )
 
+  ;; ------------------------------------------------------------
+  ;; Type hierarchy
+  ;;   robot     — the Jackal
+  ;;   location  — discrete navigation regions
+  ;;     aisle          — open traversal region
+  ;;     shelf_zone     — region adjacent to a shelf, inspectable
+  ;;     loading_zone   — region where boxes can be picked up
+  ;;     charging_zone  — region with a charging dock
+  ;;   box       — pickupable payload
+  ;; ------------------------------------------------------------
   (:types
     robot
     location
     aisle shelf_zone loading_zone charging_zone - location
-    object
-    box pallet - object
-    human
+    box
   )
 
   (:predicates
     ;; Robot state
     (at ?r - robot ?l - location)
     (connected ?from - location ?to - location)
-    (localized ?r - robot)
-    (battery-ok ?r - robot)
-    (available ?r - robot)
-
-    ;; Navigation/environment state
-    (blocked ?l - location)
-    (occupied-by-human ?l - location)
-    (narrow ?l - location)
-    (safe ?l - location)
-
-    ;; Objects
-    (box-at ?b - box ?l - location)
     (carrying ?r - robot ?b - box)
     (free-gripper ?r - robot)
+
+    ;; Location flags (asserted in :init or by runtime failure facts)
+    (blocked ?l - location)
     (pickup-zone ?l - location)
     (dropoff-zone ?l - location)
-
-    ;; Shelves / destinations
     (shelf-access ?s - shelf_zone)
-    (inspected ?s - shelf_zone)
 
-    ;; Mission status
+    ;; Object state
+    (box-at ?b - box ?l - location)
+
+    ;; Mission status (asserted by action effects)
+    (inspected ?s - shelf_zone)
     (visited ?l - location)
     (delivered ?b - box ?l - location)
   )
 
-  (:functions
-    (battery-level ?r - robot)
-    (move-cost ?from - location ?to - location)
-    (risk-level ?l - location)
-  )
-
   ;; ------------------------------------------------------------
-  ;; Normal movement through safe, unblocked space
+  ;; Move between connected regions.
+  ;; Continuous timing, clearance, and battery constraints live in
+  ;; the STL contract attached to this action at runtime.
   ;; ------------------------------------------------------------
-  (:durative-action move
+  (:action move
     :parameters (?r - robot ?from - location ?to - location)
-    :duration (= ?duration (move-cost ?from ?to))
-    :condition (and
-      (at start (available ?r))
-      (at start (localized ?r))
-      (at start (battery-ok ?r))
-      (at start (at ?r ?from))
-      (at start (connected ?from ?to))
-      (over all (not (blocked ?to)))
-      (over all (not (occupied-by-human ?to)))
-      (over all (safe ?to))
+    :precondition (and
+      (at ?r ?from)
+      (connected ?from ?to)
+      (not (blocked ?to))
     )
     :effect (and
-      (at start (not (available ?r)))
-      (at end (not (at ?r ?from)))
-      (at end (at ?r ?to))
-      (at end (visited ?to))
-      (at end (available ?r))
-      (at end (decrease (battery-level ?r) 2))
+      (not (at ?r ?from))
+      (at ?r ?to)
+      (visited ?to)
     )
   )
 
   ;; ------------------------------------------------------------
-  ;; Slow movement through narrow aisles
-  ;; Higher duration and higher battery penalty
+  ;; Pick up a box at a designated pickup zone.
   ;; ------------------------------------------------------------
-  (:durative-action move-through-narrow-aisle
-    :parameters (?r - robot ?from - location ?to - location)
-    :duration (= ?duration (* 2 (move-cost ?from ?to)))
-    :condition (and
-      (at start (available ?r))
-      (at start (localized ?r))
-      (at start (battery-ok ?r))
-      (at start (at ?r ?from))
-      (at start (connected ?from ?to))
-      (at start (narrow ?to))
-      (over all (not (blocked ?to)))
-      (over all (not (occupied-by-human ?to)))
-      (over all (safe ?to))
-    )
-    :effect (and
-      (at start (not (available ?r)))
-      (at end (not (at ?r ?from)))
-      (at end (at ?r ?to))
-      (at end (visited ?to))
-      (at end (available ?r))
-      (at end (decrease (battery-level ?r) 4))
-    )
-  )
-
-  ;; ------------------------------------------------------------
-  ;; Stop when human is detected in the next location
-  ;; ------------------------------------------------------------
-  (:durative-action wait-for-human
-    :parameters (?r - robot ?l - location)
-    :duration (= ?duration 5)
-    :condition (and
-      (at start (at ?r ?l))
-      (at start (available ?r))
-    )
-    :effect (and
-      (at end (available ?r))
-    )
-  )
-
-  ;; ------------------------------------------------------------
-  ;; Pick up a box
-  ;; ------------------------------------------------------------
-  (:durative-action pickup-box
+  (:action pickup-box
     :parameters (?r - robot ?b - box ?l - location)
-    :duration (= ?duration 3)
-    :condition (and
-      (at start (available ?r))
-      (at start (at ?r ?l))
-      (at start (box-at ?b ?l))
-      (at start (pickup-zone ?l))
-      (at start (free-gripper ?r))
-      (over all (not (occupied-by-human ?l)))
+    :precondition (and
+      (at ?r ?l)
+      (box-at ?b ?l)
+      (pickup-zone ?l)
+      (free-gripper ?r)
     )
     :effect (and
-      (at start (not (available ?r)))
-      (at end (not (box-at ?b ?l)))
-      (at end (carrying ?r ?b))
-      (at end (not (free-gripper ?r)))
-      (at end (available ?r))
+      (not (box-at ?b ?l))
+      (carrying ?r ?b)
+      (not (free-gripper ?r))
     )
   )
 
   ;; ------------------------------------------------------------
-  ;; Drop off a box
+  ;; Drop off a carried box at a designated dropoff zone.
   ;; ------------------------------------------------------------
-  (:durative-action dropoff-box
+  (:action dropoff-box
     :parameters (?r - robot ?b - box ?l - location)
-    :duration (= ?duration 3)
-    :condition (and
-      (at start (available ?r))
-      (at start (at ?r ?l))
-      (at start (carrying ?r ?b))
-      (at start (dropoff-zone ?l))
-      (over all (not (occupied-by-human ?l)))
+    :precondition (and
+      (at ?r ?l)
+      (carrying ?r ?b)
+      (dropoff-zone ?l)
     )
     :effect (and
-      (at start (not (available ?r)))
-      (at end (not (carrying ?r ?b)))
-      (at end (box-at ?b ?l))
-      (at end (delivered ?b ?l))
-      (at end (free-gripper ?r))
-      (at end (available ?r))
+      (not (carrying ?r ?b))
+      (box-at ?b ?l)
+      (delivered ?b ?l)
+      (free-gripper ?r)
     )
   )
 
   ;; ------------------------------------------------------------
-  ;; Inspect shelf area
+  ;; Inspect a shelf at the robot's current shelf_zone.
+  ;; Coverage and viewing-pose constraints live in the STL contract.
   ;; ------------------------------------------------------------
-  (:durative-action inspect-shelf
+  (:action inspect-shelf
     :parameters (?r - robot ?s - shelf_zone)
-    :duration (= ?duration 6)
-    :condition (and
-      (at start (available ?r))
-      (at start (at ?r ?s))
-      (at start (shelf-access ?s))
-      (over all (not (occupied-by-human ?s)))
-      (over all (safe ?s))
+    :precondition (and
+      (at ?r ?s)
+      (shelf-access ?s)
     )
-    :effect (and
-      (at start (not (available ?r)))
-      (at end (inspected ?s))
-      (at end (available ?r))
-      (at end (decrease (battery-level ?r) 1))
-    )
+    :effect (inspected ?s)
   )
 
   ;; ------------------------------------------------------------
-  ;; Recharge at charging station
+  ;; Recharge at a charging dock.
+  ;; The actual battery dynamics are enforced by the STL contract
+  ;; (battery signal must reach b_full within t_charge_max).
   ;; ------------------------------------------------------------
-  (:durative-action recharge
+  (:action recharge
     :parameters (?r - robot ?c - charging_zone)
-    :duration (= ?duration 20)
-    :condition (and
-      (at start (available ?r))
-      (at start (at ?r ?c))
-    )
-    :effect (and
-      (at start (not (available ?r)))
-      (at end (assign (battery-level ?r) 100))
-      (at end (battery-ok ?r))
-      (at end (available ?r))
-    )
-  )
-
-  ;; ------------------------------------------------------------
-  ;; Mark a location unsafe if risk is high
-  ;; This represents perception/safety layer input
-  ;; ------------------------------------------------------------
-  (:action mark-unsafe
-    :parameters (?l - location)
-    :precondition (and
-      (not (safe ?l))
-    )
-    :effect (and
-      (blocked ?l)
-    )
-  )
-
-  ;; ------------------------------------------------------------
-  ;; Clear temporary obstacle after perception update
-  ;; Example: box or person moved away
-  ;; ------------------------------------------------------------
-  (:action clear-location
-    :parameters (?l - location)
-    :precondition (and
-      (blocked ?l)
-      (not (occupied-by-human ?l))
-    )
-    :effect (and
-      (not (blocked ?l))
-      (safe ?l)
-    )
+    :precondition (at ?r ?c)
+    :effect (visited ?c)
   )
 )

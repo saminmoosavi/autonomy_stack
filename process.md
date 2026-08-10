@@ -6,6 +6,15 @@ cp /planning/autonomy_stack/robot_4cam.yaml ~/clearpath/robot.yaml
 sc && export ROS_LOCALHOST_ONLY=1
 
 terminal 1:
+# IGNORE
+# reduce human speed
+
+sudo sed -i "s|<horizontal_fov>1.25</horizontal_fov>|<horizontal_fov>2.0</horizontal_fov>|"     /opt/ros/humble/share/clearpath_sensors_description/urdf/intel_realsense.urdf.xacro
+
+# reduce robot speed
+
+sudo sed -i -e 's/max_vel_x: 1\.0/max_vel_x: 0.5/' -e 's/max_vel_theta: 1\.0/max_vel_theta: 0.5/' -e 's/max_speed_xy: 1\.0/max_speed_xy: 0.5/' -e 's/max_velocity: \[1\.0, 0\.0, 1\.0\]/max_velocity: [0.5, 0.0, 0.5]/' -e 's/min_velocity: \[-1\.0, 0\.0, -1\.0\]/min_velocity: [-0.5, 0.0, -0.5]/' -e 's/max_rotational_vel: 1\.0/max_rotational_vel: 0.5/' -e 's/min_rotational_vel: 0\.2/min_rotational_vel: 0.1/' /opt/ros/humble/share/clearpath_nav2_demos/config/j100/nav2.yaml
+# ENDIGNORE
 
 export IGN_IP=127.0.0.1 && ros2 launch clearpath_gz simulation.launch.py world:=/home/user/autonomy_stack_ros_humble/worlds/warehouse_people10 y:=1.0
 
@@ -34,7 +43,7 @@ terminal 6:
 terminal 7:
 sc && export ROS_LOCALHOST_ONLY=1
 
- ros2 run evo_skill_ros tracker_with_yolo --ros-args -r __node:=tracker_with_yolo_cam1 -r __ns:=/j100_0000 -p namespace:=/j100_0000 -p tracking_topic:=/yolo_1/tracking -p points_topic:=/sensors/camera_1/points -p out_topic:=/tracks -p target_frame:=map -p use_sim_time:=true -r /tf:=tf -r /tf_static:=tf_static &
+ros2 run evo_skill_ros tracker_with_yolo --ros-args -r __node:=tracker_with_yolo_cam1 -r __ns:=/j100_0000 -p namespace:=/j100_0000 -p tracking_topic:=/yolo_1/tracking -p points_topic:=/sensors/camera_1/points -p out_topic:=/tracks -p target_frame:=map -p use_sim_time:=true -r /tf:=tf -r /tf_static:=tf_static &
 ros2 run evo_skill_ros tracker_with_yolo --ros-args -r __node:=tracker_with_yolo_cam2 -r __ns:=/j100_0000 -p namespace:=/j100_0000 -p tracking_topic:=/yolo_2/tracking -p points_topic:=/sensors/camera_2/points -p out_topic:=/tracks -p target_frame:=map -p use_sim_time:=true -r /tf:=tf -r /tf_static:=tf_static &
 ros2 run evo_skill_ros tracker_with_yolo --ros-args -r __node:=tracker_with_yolo_cam3 -r __ns:=/j100_0000 -p namespace:=/j100_0000 -p tracking_topic:=/yolo_3/tracking -p points_topic:=/sensors/camera_3/points -p out_topic:=/tracks -p target_frame:=map -p use_sim_time:=true -r /tf:=tf -r /tf_static:=tf_static &
 
@@ -57,7 +66,6 @@ cp /home/user/autonomy_stack_ros_humble/scand_metrics_out.json \
    $WS/results/factory_missions/plan01_rep1_metrics.json
 python3 $WS/gen_results_table.py
 # writes results/factory_missions/results_table.tex and prints a plaintext preview
-# then rename the json and tex file to [num_ppl]_[trial_number].json/tex
 
 # batch experiments — run all trials then finalise:
 cd $WS && ./run_experiments_par.sh        # runs 5 plans x 3 reps across 4 workers

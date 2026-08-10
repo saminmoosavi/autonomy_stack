@@ -47,6 +47,21 @@ from nav_msgs.msg import Path as NavPath
 from rosgraph_msgs.msg import Clock
 from tf2_msgs.msg import TFMessage
 
+try:
+    from evoplan_bridge.envelope import ENVELOPE
+except ImportError:
+    # This script is also run directly from the repo root without the colcon
+    # workspace sourced. Fall back to the in-tree package path so both entry
+    # points read the same thresholds -- the envelope must never be duplicated,
+    # or a "shield vetoed but the scorer saw nothing" disagreement stops being
+    # diagnostic and just means the two copies drifted.
+    sys.path.insert(
+        0,
+        str(pathlib.Path(__file__).resolve().parent
+            / "src" / "planning_ros_pkgs" / "evoplan_bridge"),
+    )
+    from evoplan_bridge.envelope import ENVELOPE
+
 
 def parse_actor_trajectories(sdf_path):
     """Parse looping <actor> walk trajectories from a world SDF.
@@ -95,17 +110,9 @@ HUMAN_KEYS = (
 ZONES = (("intim", 0.45), ("pers", 1.2), ("social", 3.6))
 PERSONAL = 1.2  # P_int reference distance
 
-# mined dynamics/TTC envelope: (name, op, threshold)
-ENVELOPE = (
-    ("speed", "<=", 2.603),
-    ("yaw_rate", "<=", 3.293),
-    ("accel", "<=", 3.213),
-    ("jerk", "<=", 5.862),
-    ("lat_accel", "<=", 2.228),
-    ("ttc", ">=", 0.452),
-    ("ped_ttc", ">=", 0.422),
-    ("ped_approach_rate", "<=", 5.0),
-)
+# The mined dynamics/TTC envelope (name, op, threshold) now lives in
+# evoplan_bridge.envelope, imported above, and is shared with the online
+# Phi_mob shield.
 
 
 class _Stop(Exception):
@@ -140,6 +147,9 @@ class ScandMetrics(Node):
         # keeps the metric goal aligned with whatever plan evo is executing.
         self._goal_topic = args.goal_topic
         self.stop_on_success = str(args.stop_on_success).strip().lower() in ("1", "true", "yes")
+        # A collision ends the trial as a failure (see tick()).
+        self.stop_on_collision = str(getattr(args, "stop_on_collision", "true")
+                                     ).strip().lower() in ("1", "true", "yes")
 
         # latest world poses: name -> (x, y, yaw, t_s)
         self.poses = {}
@@ -159,13 +169,17 @@ class ScandMetrics(Node):
         self.p_int = 0.0
         self.collisions = 0
         self._in_collision = False
+        self._settled_since = None   # sim-time the robot settled at the goal
         self.path_len = 0.0
         self._path_prev = None
         self.min_human_clr = float("inf")
         self.reached_goal = False
+        self.mission_plan_complete = True  # until the planner says otherwise
         # planned waypoint route (from goal-topic Path) for path-progress
         self.path_poly = []          # [(x,y), ...] plan waypoints
-        self.path_total = 0.0        # total polyline length
+        self.path_total = 0.0        # total planned distance, summed across replans
+        self.path_leg_total = 0.0    # length of the CURRENT route only
+        self.route_completed_m = 0.0 # distance banked from routes a replan replaced
         self.max_progress_arc = 0.0  # furthest arc-length along the route reached
         self.env_ok = {k: 0 for k, _, _ in ENVELOPE}     # ticks the bound held
         self.env_n = {k: 0 for k, _, _ in ENVELOPE}      # ticks the signal was defined
@@ -174,8 +188,16 @@ class ScandMetrics(Node):
         # Scripted walking actors (no gz pose) reconstructed from sim time.
         self.actor_traj = parse_actor_trajectories(args.actors_sdf) if args.actors_sdf else {}
         self.sim_time = 0.0
+        # Latest /evoplan/status blob, folded into the results JSON so replan
+        # and deliberation columns reach the tables.
+        self.evoplan_status = None
         if self.actor_traj:
             self.create_subscription(Clock, "/clock", self.clock_cb, 10)
+
+        if args.evoplan_status_topic:
+            from std_msgs.msg import String as _String
+            self.create_subscription(_String, args.evoplan_status_topic,
+                                     self.evoplan_status_cb, 10)
 
         for topic in (f"/world/{args.world}/pose/info",
                       f"/world/{args.world}/dynamic_pose/info"):
@@ -204,11 +226,26 @@ class ScandMetrics(Node):
             # store the full waypoint polyline for path-progress
             poly = [(ps.pose.position.x, ps.pose.position.y) for ps in msg.poses]
             if poly != self.path_poly:
+                # An online replan swaps the route mid-mission. Bank the distance
+                # already achieved on the route being replaced -- resetting it
+                # threw away everything driven before the replan and measured
+                # progress only against the (typically much shorter) new route.
+                self.route_completed_m += self.max_progress_arc
+                # The published route lists waypoint DESTINATIONS only, so the
+                # leg from where the robot actually is to the first waypoint is
+                # absent. For a single-waypoint replan -- which is what you get
+                # whenever the robot is one hop from the goal -- that made the
+                # polyline zero-length and Route% undefined. Anchor it at the
+                # robot's current pose.
+                r = self.poses.get(self.robot_name)
+                anchored = ([(r[0], r[1])] if r else []) + poly
                 self.path_poly = poly
-                self.path_total = sum(
-                    math.hypot(poly[i + 1][0] - poly[i][0], poly[i + 1][1] - poly[i][1])
-                    for i in range(len(poly) - 1)
+                self.path_leg_total = sum(
+                    math.hypot(anchored[i + 1][0] - anchored[i][0],
+                               anchored[i + 1][1] - anchored[i][1])
+                    for i in range(len(anchored) - 1)
                 )
+                self.path_total = self.route_completed_m + self.path_leg_total
                 self.max_progress_arc = 0.0
             p = msg.poses[-1].pose.position
             new_goal = (p.x, p.y)
@@ -253,6 +290,12 @@ class ScandMetrics(Node):
             x, y = interp_traj(wps, self.sim_time)
             humans.append((name, x, y))
         return humans
+
+    def evoplan_status_cb(self, msg):
+        try:
+            self.evoplan_status = json.loads(msg.data)
+        except (json.JSONDecodeError, TypeError):
+            pass
 
     def tf_cb(self, msg):
         t = self._now()
@@ -371,20 +414,66 @@ class ScandMetrics(Node):
                 if not self._in_collision:
                     self.collisions += 1
                     self._in_collision = True
+                    # Terminal failure: see the in-package copy for rationale.
+                    if self.stop_on_collision:
+                        self.get_logger().error(
+                            f"COLLISION: human clearance {min_clr:.3f} m < "
+                            f"{self.coll_r:.3f} m -- ending the trial as a failure"
+                        )
+                        raise _Stop
             else:
                 self._in_collision = False
         # goal
         if self.goal is not None:
-            if math.hypot(rx - self.goal[0], ry - self.goal[1]) <= self.args.goal_tol:
+            at_goal = math.hypot(rx - self.goal[0], ry - self.goal[1]) <= self.args.goal_tol
+            if at_goal:
                 self.reached_goal = True
-                # "until success" mode: stop & report once the goal is reached.
-                # Collision runs stop too (succ still reports 'no' for them):
-                # otherwise one proximity onset in a peopled env disarms the
-                # early stop, the run idles out the full --duration at the
-                # goal, and duration_s records the backstop instead of the
-                # actual completion time.
-                if self.stop_on_success:
-                    raise _Stop
+            # "until success" mode: stop & report once the robot has reached the
+            # goal AND settled there. Requiring it to be stationary matters:
+            # the robot passes within goal_tol while still decelerating, and
+            # stopping then truncates duration_s before the mission has actually
+            # ended. Settling is judged over a short window so a momentary dip
+            # in speed mid-approach does not count.
+            # Collision runs stop too (succ still reports 'no' for them):
+            # otherwise one proximity onset in a peopled env disarms the early
+            # stop, the run idles out the full --duration at the goal, and
+            # duration_s records the backstop instead of the actual completion.
+            # Position alone is not mission completion: a plan that loops back
+            # through its target region (factory_mission_01 revisits R8 at step
+            # 2 of 28) would score a two-action run as a success. When the
+            # planner reports mission state, require it -- and require it to
+            # have seen a plan at all, so a silent planner cannot pass by
+            # omission.
+            plan_done = True
+            if self.evoplan_status is not None and self.evoplan_status.get("regions_required"):
+                plan_done = bool(self.evoplan_status.get("mission_complete"))
+            self.mission_plan_complete = plan_done
+
+            # The planner has nothing left to drive. Stop rather than idle out
+            # the trial timeout: a replan narrowed to (visited <target>) can
+            # finish its plan while leaving the mission incomplete, and then
+            # neither the positional test nor mission_complete will ever fire.
+            # succ stays False in that case -- reported honestly, not hidden.
+            if (self.evoplan_status or {}).get("plan_exhausted") and not plan_done:
+                self.get_logger().warn(
+                    "Planner reports its plan is exhausted but the mission is "
+                    "incomplete -- ending the trial as a failure "
+                    f"(regions never visited: {(self.evoplan_status or {}).get('regions_remaining')})"
+                )
+                raise _Stop
+            if at_goal and plan_done and self.cur["speed"] <= self.args.goal_settle_speed:
+                if self._settled_since is None:
+                    self._settled_since = rt
+                elif (rt - self._settled_since) >= self.args.goal_settle_s:
+                    self.get_logger().info(
+                        f"Goal reached and settled: within {self.args.goal_tol:.2f} m "
+                        f"and below {self.args.goal_settle_speed:.2f} m/s for "
+                        f"{self.args.goal_settle_s:.1f} s -- ending the trial."
+                    )
+                    if self.stop_on_success:
+                        raise _Stop
+            else:
+                self._settled_since = None
         # envelope compliance
         for name, op, thr in ENVELOPE:
             val = self.cur[name]
@@ -414,10 +503,15 @@ class ScandMetrics(Node):
         succ = None
         prog = None
         if self.goal is not None:
-            succ = bool(self.reached_goal and self.collisions == 0)
+            succ = bool(self.reached_goal and self.collisions == 0
+                        and getattr(self, "mission_plan_complete", True))
             if self.path_total > 0.0:
+                # Progress spans every route the mission used: distance banked
+                # from routes replaced by a replan, plus the arc achieved on the
+                # current one.
                 prog = 100.0 if self.reached_goal else min(
-                    100.0, 100.0 * self.max_progress_arc / self.path_total)
+                    100.0, 100.0 * (self.route_completed_m + self.max_progress_arc)
+                    / self.path_total)
         mc = self.min_human_clr
 
         print("\n" + "=" * 70)
@@ -480,6 +574,8 @@ class ScandMetrics(Node):
                 "path_progress_pct": round(prog, 2) if prog is not None else None,
                 "path_arc_m": round(self.max_progress_arc, 3),
                 "path_total_m": round(self.path_total, 3),
+                "route_completed_m": round(self.route_completed_m, 3),
+                "path_leg_total_m": round(self.path_leg_total, 3),
                 "intim_pct": round(pct(self.zone_counts["intim"]), 3),
                 "pers_pct": round(pct(self.zone_counts["pers"]), 3),
                 "social_pct": round(pct(self.zone_counts["social"]), 3),
@@ -487,6 +583,26 @@ class ScandMetrics(Node):
                 "min_human_clearance_m": round(mc, 4) if math.isfinite(mc) else None,
                 "envelope": envelope,
             }
+            # Online EvoPlan accounting. Deliberation is NOT excluded from
+            # duration_s on purpose: the Gazebo clock keeps running while the
+            # robot holds, so a slow planner costs mission time exactly as it
+            # would on hardware. moving_time_s separates "the planner was slow"
+            # from "the robot drove badly".
+            status = self.evoplan_status or {}
+            held = float(status.get("held_s") or 0.0)
+            payload.update({
+                "symbolic_replans": int(status.get("symbolic_replans") or 0),
+                "deliberation_time_s": round(float(status.get("deliberation_s_wall") or 0.0), 3),
+                "held_time_s": round(held, 3),
+                "moving_time_s": round(max(0.0, dur - held), 3),
+                "shield_vetoes": int(status.get("shield_vetoes") or 0),
+                "mission_complete": bool(status.get("mission_complete")) if status else None,
+                "plan_exhausted": bool(status.get("plan_exhausted")) if status else None,
+                "regions_required": status.get("regions_required"),
+                "regions_visited": status.get("regions_visited"),
+                "regions_remaining": status.get("regions_remaining"),
+                "evoplan": status or None,
+            })
             out = pathlib.Path(self.args.json_out)
             out.parent.mkdir(parents=True, exist_ok=True)
             tmp = out.with_suffix(".tmp")
@@ -497,6 +613,12 @@ class ScandMetrics(Node):
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--evoplan-status-topic", default=None,
+                    help="std_msgs/String JSON from evo_plan_deploy; folded into --json-out "
+                         "so replan/deliberation columns land in the results table")
+    ap.add_argument("--stop-on-collision", default="true",
+                    help="end the trial immediately on a collision and report succ=no "
+                         "(default true; set false to keep driving and accumulate metrics)")
     ap.add_argument("--world", default="warehouse")
     ap.add_argument("--ns", default="/j100_0000")
     ap.add_argument("--robot", default=None, help="gz model name (default <ns>/robot)")
@@ -505,11 +627,18 @@ def main():
     ap.add_argument("--actors-sdf", default="",
                     help="world .sdf to read scripted <actor> walk trajectories from "
                          "(includes the gz-invisible walking people in proxemics)")
-    ap.add_argument("--goal", default=None, help="static goal 'X,Y' (world frame) for succ/ct%")
+    # '%%' not '%': argparse runs help strings through %-expansion, so a bare
+    # trailing '%' makes --help raise ValueError("incomplete format").
+    ap.add_argument("--goal", default=None, help="static goal 'X,Y' (world frame) for succ/ct%%")
     ap.add_argument("--goal-topic", default="",
                     help="nav_msgs/Path of the plan's waypoints (e.g. /ppddl_nav2_goals); "
                          "the last pose is used as the goal, aligning succ/ct with the plan")
-    ap.add_argument("--goal-tol", type=float, default=0.75)
+    ap.add_argument("--goal-tol", type=float, default=0.5,
+                    help="distance to the final checkpoint counting as arrived (m)")
+    ap.add_argument("--goal-settle-speed", type=float, default=0.05,
+                    help="speed below which the robot counts as stopped (m/s)")
+    ap.add_argument("--goal-settle-s", type=float, default=2.0,
+                    help="seconds it must stay stopped at the goal before ending the trial")
     ap.add_argument("--stop-on-success", default="false",
                     help="true/false: stop and print the summary once the goal is reached "
                          "with no collision (paired with --duration as a backstop)")

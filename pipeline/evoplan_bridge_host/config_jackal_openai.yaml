@@ -1,0 +1,87 @@
+# EvoPlan config for ONLINE replan repair on the Jackal factory domain, OpenAI backend.
+#
+# Derived from evolve_stl_pddl/jackal/config_jackal_vllm.yaml. The differences are
+# all consequences of running inside a live sim while the robot holds station:
+#
+#   max_iterations 15 -> 6   the seed is the remaining plan suffix, so this is a
+#                            repair, not a synthesis; the offline benchmark solved
+#                            10/10 missions in iteration 1
+#   timeout      600 -> 60   600s was a vLLM cold-start allowance; OpenAI responds
+#                            in seconds and a stalled call costs mission time
+#   max_tokens 12000 -> 4000 plans are ~20 lines
+#   num_islands    3 -> 1    islands spend iterations on diversity we cannot afford
+#   population    20 -> 8    same reason
+#   api_base      removed    defaults to api.openai.com
+#
+# The system_message is UNCHANGED from the vLLM config: it is already
+# domain-agnostic ("Read DOMAIN_PDDL to discover the available (:action ...)")
+# and already tells the model to expect validator feedback in an artifact, which
+# is exactly the channel evaluator_sim.py writes the runtime failure story into.
+max_iterations: 6
+checkpoint_interval: 1
+log_level: INFO
+
+llm:
+  # Model. Override without editing this file:
+  #   EVOPLAN_MODEL=gpt-4o pipeline/replan_service.sh start
+  primary_model: "gpt-4o-mini"
+  primary_model_weight: 1.0
+  # openevolve's load_config() only falls back to $OPENAI_API_KEY when NO config
+  # file is passed -- and we always pass one. This ${VAR} form is the explicit,
+  # supported path (openevolve/config.py:_resolve_env_var) and fails loudly if
+  # the variable is unset, rather than silently sending an empty key.
+  api_key: "${OPENAI_API_KEY}"
+  temperature: 0.7
+  max_tokens: 4000
+  timeout: 60
+
+prompt:
+  system_message: |
+    You are an expert PDDL planning agent. The seed file you are editing contains
+    DOMAIN_PDDL and PROBLEM_PDDL (do NOT modify them) and a PLAN string (your target).
+    You will also see VAL/Fast-Downward feedback for the previous plan in an artifact —
+    it names the failing action and the unsatisfied precondition. Repair the plan accordingly.
+
+    You may also see a `runtime_context` artifact describing why the robot's PREVIOUS plan
+    failed during real execution — a social-compliance violation, a blocked corridor, a
+    navigation abort — and a `runtime_violations` artifact listing plans that cannot be
+    executed from the robot's current position. Treat both as hard constraints: the plan
+    must start from the robot's current location and must not route through any region
+    reported as blocked.
+
+    Read DOMAIN_PDDL to discover the available (:action ...) names, their :parameters, and
+    each action's :precondition and :effect. Read PROBLEM_PDDL for the (:objects ...), the
+    initial facts in (:init ...), and the (:goal ...). Plan FORWARD from the initial state to
+    the goal, respecting every action's preconditions. Use the LITERAL action and object
+    identifiers from the PDDL — never invent names. Prefer the SHORTEST valid plan: the robot
+    has to drive it while people move around it.
+
+    OUTPUT FORMAT — output EXACTLY ONE fenced python block assigning PLAN, nothing else:
+
+    ```python
+    PLAN = """\
+    (some_action arg1 arg2)
+    (some_action arg1)
+    """
+    ```
+    One grounded action per line, lowercase, arguments in the same order as the action's
+    :parameters. No prose, no comments inside the PLAN, no DOMAIN_PDDL/PROBLEM_PDDL.
+  num_top_programs: 1
+  use_template_stochasticity: true
+
+database:
+  population_size: 8
+  archive_size: 5
+  num_islands: 1
+  elite_selection_ratio: 0.3
+  exploitation_ratio: 0.7
+  similarity_threshold: 0.95
+
+evaluator:
+  timeout: 30
+  cascade_evaluation: false
+  cascade_thresholds: [0.2]
+
+diff_based_evolution: false
+language: "python"
+max_code_length: 200000

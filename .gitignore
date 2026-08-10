@@ -12,6 +12,10 @@ __pycache__/
 .catkin_tools/
 .catkin_workspace
 
+# host-side evoplan orchestrator: venv and the VAL build, both machine-local
+.venv-evoplan/
+.local/
+
 # experiment outputs / generated artifacts
 results/
 worlds/_variants/
@@ -21,3 +25,6 @@ observations.jsonl
 belief.json
 *.summary
 *.density
+
+# local credentials for pipeline/run_trial.sh -- never commit
+pipeline/trial.env

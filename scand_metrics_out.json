@@ -2,67 +2,126 @@
   "node": "scand_metrics",
   "robot": "j100_0000/robot",
   "world": "warehouse",
-  "duration_s": 183.315,
-  "ticks": 1561,
-  "path_length_m": 113.281,
-  "collisions": 2,
+  "duration_s": 53.601,
+  "ticks": 456,
+  "path_length_m": 38.077,
+  "collisions": 1,
   "success": false,
-  "path_progress_pct": 100.0,
-  "path_arc_m": 73.79,
-  "path_total_m": 73.979,
-  "intim_pct": 0.897,
-  "pers_pct": 9.609,
-  "social_pct": 84.561,
-  "p_int": 48.654,
-  "min_human_clearance_m": 0.0596,
+  "path_progress_pct": 25.95,
+  "path_arc_m": 0.0,
+  "path_total_m": 168.531,
+  "route_completed_m": 43.736,
+  "path_leg_total_m": 124.795,
+  "intim_pct": 0.658,
+  "pers_pct": 2.632,
+  "social_pct": 16.447,
+  "p_int": 5.837,
+  "min_human_clearance_m": 0.2961,
   "envelope": {
     "speed": {
-      "extreme": 1.0644,
+      "extreme": 1.0619,
       "bound": "<=",
       "threshold": 2.603,
       "compliant_pct": 100.0
     },
     "yaw_rate": {
-      "extreme": 1.0327,
+      "extreme": 1.0371,
       "bound": "<=",
       "threshold": 3.293,
       "compliant_pct": 100.0
     },
     "accel": {
-      "extreme": 4.3732,
+      "extreme": 1.9808,
       "bound": "<=",
       "threshold": 3.213,
-      "compliant_pct": 99.49
+      "compliant_pct": 100.0
     },
     "jerk": {
-      "extreme": 55.3783,
+      "extreme": 19.5522,
       "bound": "<=",
       "threshold": 5.862,
-      "compliant_pct": 84.37
+      "compliant_pct": 94.07
     },
     "lat_accel": {
-      "extreme": 0.9378,
+      "extreme": 0.8322,
       "bound": "<=",
       "threshold": 2.228,
       "compliant_pct": 100.0
     },
     "ttc": {
-      "extreme": 0.1578,
+      "extreme": 0.5635,
       "bound": ">=",
       "threshold": 0.452,
-      "compliant_pct": 99.62
+      "compliant_pct": 100.0
     },
     "ped_ttc": {
-      "extreme": 0.1578,
+      "extreme": 0.5635,
       "bound": ">=",
       "threshold": 0.422,
-      "compliant_pct": 99.62
+      "compliant_pct": 100.0
     },
     "ped_approach_rate": {
-      "extreme": 1.5784,
+      "extreme": 1.1314,
       "bound": "<=",
       "threshold": 5.0,
       "compliant_pct": 100.0
+    }
+  },
+  "symbolic_replans": 0,
+  "deliberation_time_s": 0.0,
+  "held_time_s": 0.0,
+  "moving_time_s": 53.601,
+  "shield_vetoes": 44,
+  "mission_complete": false,
+  "plan_exhausted": false,
+  "regions_required": 14,
+  "regions_visited": 0,
+  "regions_remaining": [
+    "r1",
+    "r10",
+    "r11",
+    "r12",
+    "r13",
+    "r14",
+    "r2",
+    "r3",
+    "r4",
+    "r5",
+    "r6",
+    "r7",
+    "r8",
+    "r9"
+  ],
+  "evoplan": {
+    "state": "idle",
+    "symbolic_replans": 0,
+    "deliberation_s_wall": 0.0,
+    "held_s": 0.0,
+    "shield_vetoes": 44,
+    "blocked_regions": [],
+    "mission_complete": false,
+    "regions_required": 14,
+    "regions_visited": 0,
+    "regions_remaining": [
+      "r1",
+      "r10",
+      "r11",
+      "r12",
+      "r13",
+      "r14",
+      "r2",
+      "r3",
+      "r4",
+      "r5",
+      "r6",
+      "r7",
+      "r8",
+      "r9"
+    ],
+    "region_closest_m": {
+      "r1": 1.9,
+      "r2": 7.4,
+      "r5": 3.1
     }
   }
 }

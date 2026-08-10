@@ -1,0 +1,6 @@
+(move jackal_1 r5 r1)
+(move jackal_1 r1 r2)
+(move jackal_1 r2 r3)
+(move jackal_1 r3 r4)
+(move jackal_1 r4 r5)
+

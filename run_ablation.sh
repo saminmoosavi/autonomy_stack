@@ -286,6 +286,7 @@ for r in $(seq 1 "$TRIALS"); do
     if [ "$pct" -ge 100 ]; then
       cp "$mj" "$final"
       cp -f "$res_h/world${N}_evo_log.json" "$OUT/${N}_${r}_evo_log.json" 2>/dev/null
+      cp -f "$res_h/world${N}_trace.jsonl" "$OUT/${N}_${r}_trace.jsonl" 2>/dev/null
       cp -f "$res_h/density_table.tex" "$OUT/${N}_${r}.tex" 2>/dev/null
       echo "[abl]   N $N trial $r COMPLETE: 100% route on attempt $a -> $(basename "$final")"
       logged=1

@@ -113,7 +113,12 @@ PAT_POSE_RECEIVED   = "initialPoseReceived"
 PAT_NAV2_BONDED     = "Creating bond timer"
 
 # yolo.log: each YOLO camera responds to set_classes; appears once per camera (0-3)
-PAT_YOLO_CLASSES    = "New classes: {0: 'person'}"
+# Match the prefix only: start_yolo.sh requests person plus the graph.json object
+# types (chair/table/shelf/...) so observation_logger can compare expected vs
+# observed, so the node prints "New classes: {0: 'person', 1: 'chair', ...}".
+# Anchoring on the closing brace (the old person-only string) never matched and
+# failed every bringup at the 120 s YOLO wait.
+PAT_YOLO_CLASSES    = "New classes: {0: 'person'"
 YOLO_CAMERAS        = 4      # wait for this many occurrences before launching trackers
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -382,12 +387,13 @@ def run_trial(density: int, ros_env: dict, trial_num: int, total: int, attempt: 
     evo_log    = RESULTS_DIR / f"world{density}_evo_log.json"
     obs_log    = RESULTS_DIR / f"world{density}_observations.jsonl"
     obs_belief = RESULTS_DIR / f"world{density}_belief.json"
+    trace_out  = RESULTS_DIR / f"world{density}_trace.jsonl"
     log_dir    = RESULTS_DIR / f"_logs/world{density}/attempt{attempt}"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     # obs_log is APPENDED and obs_belief ACCUMULATES, so a stale file from a
     # previous attempt would silently merge two trials into one.
-    for stale in [out_json, evo_log, obs_log, obs_belief]:
+    for stale in [out_json, evo_log, obs_log, obs_belief, trace_out]:
         if stale.exists():
             stale.unlink()
             log(f"  Removed stale {stale.name}")
@@ -588,6 +594,7 @@ def run_trial(density: int, ros_env: dict, trial_num: int, total: int, attempt: 
             f"metrics_stop_on_success:=true "
             f"metrics_actors_sdf:={world_sdf} "
             f"metrics_json_out:={out_json} "
+            f"metrics_trace_out:={trace_out} "
             f"json_log_file:={evo_log} "
             f"enable_observation_log:={'true' if OBS_LOG == '1' else 'false'} "
             f"obs_log_file:={obs_log} "

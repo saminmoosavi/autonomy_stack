@@ -27,9 +27,11 @@ from rclpy.node import Node
 from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 from rclpy.time import Time
 
-from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
+from action_msgs.msg import GoalStatus
+from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped, Twist
 from nav2_msgs.action import FollowWaypoints
 from nav_msgs.msg import OccupancyGrid, Odometry, Path as NavPath
+from std_msgs.msg import String
 from vision_msgs.msg import Detection3D
 
 from evo_skill_ros.pddl_stl.pipeline import (
@@ -37,6 +39,17 @@ from evo_skill_ros.pddl_stl.pipeline import (
     ProblemState,
     parse_domain,
     validate_plan,
+)
+from evoplan_bridge import symbolic_replan
+from evoplan_bridge.observation_memory import load_observations, locate_object
+from evoplan_bridge.phi_mob_shield import PhiMobShield
+from evoplan_bridge.replan_client import ReplanClient
+from evoplan_bridge.symbolic_replan import (
+    SymbolicReplanState,
+    build_reason_text,
+    derive_blocked_regions,
+    filter_executable_actions,
+    plan_reaches_target,
 )
 
 
@@ -68,6 +81,18 @@ class TrackedObject:
     stamp: Time
 
 
+def _finite_or_none(value):
+    """Map non-finite floats to ``None`` for the JSON event log.
+
+    Shield margins are ``inf`` whenever a signal is undefined (an infinite TTC
+    with nobody ahead is the common case). ``json.dumps`` would emit a bare
+    ``Infinity`` token, which Python re-reads but which is not valid JSON and
+    breaks any other consumer of ``evo_plan_deploy_log.json``. ``null`` says
+    "not measured" unambiguously.
+    """
+    return value if isinstance(value, (int, float)) and math.isfinite(value) else None
+
+
 class PpddlNav2StlSat(Node):
     def __init__(self):
         super().__init__("ppddl_nav2_stl_sat")
@@ -91,8 +116,28 @@ class PpddlNav2StlSat(Node):
         self.fast_downward_timeout_s = float(
             self.declare_parameter("fast_downward_timeout_s", 30.0).value
         )
-        self.pose_timeout_s = float(self.declare_parameter("pose_timeout_s", 3.0).value)
+        # 3.0 was too impatient: odometry publishes at 30 Hz once the Gazebo
+        # bridge is up, but that can take longer than three seconds after the
+        # node starts, and the fallback then guesses the start region from
+        # graph.json. It happened to be right (the robot spawns at r5), which is
+        # exactly what makes it dangerous -- a wrong guess sends the whole plan
+        # off from the wrong origin. The fallback should be a last resort.
+        self.pose_timeout_s = float(self.declare_parameter("pose_timeout_s", 20.0).value)
         self.map_timeout_s = float(self.declare_parameter("map_timeout_s", 5.0).value)
+        # A lifecycle-managed action server is DISCOVERABLE from on_configure but
+        # only ACCEPTS goals from on_activate, so wait_for_server() returning
+        # true proves nothing about whether a goal will be taken. One rejected
+        # goal used to end the mission silently: the robot never moved while
+        # Gazebo, Nav2 and all four cameras looked healthy. Retry instead.
+        self.goal_reject_max_retries = int(
+            self.declare_parameter("goal_reject_max_retries", 15).value
+        )
+        self.goal_reject_retry_s = float(
+            self.declare_parameter("goal_reject_retry_s", 2.0).value
+        )
+        self._goal_reject_retries = 0
+        self._pending_waypoints = None
+        self._goal_retry_timer = None
         self.require_map = bool(self.declare_parameter("require_map", False).value)
         self.goal_tolerance = float(self.declare_parameter("goal_tolerance", 0.75).value)
         self.eventual_goal_check_distance = float(
@@ -157,6 +202,135 @@ class PpddlNav2StlSat(Node):
             float(self.declare_parameter("costmap_edit_replan_delay_s", 0.2).value),
         )
 
+        # --- Phi_mob runtime shield -------------------------------------
+        # Off by default: with this false the node behaves exactly as it did
+        # before the shield existed.
+        self.enable_phi_mob_shield = bool(
+            self.declare_parameter("enable_phi_mob_shield", False).value
+        )
+        self.shield_horizon_s = float(self.declare_parameter("shield_horizon_s", 3.0).value)
+        self.shield_period_s = float(self.declare_parameter("shield_period_s", 0.1).value)
+        # A single YOLO false positive should not be able to declare a
+        # violation; the robustness must stay negative for this long first.
+        self.shield_violation_persist_s = float(
+            self.declare_parameter("shield_violation_persist_s", 1.0).value
+        )
+
+        # --- Tier-2 online symbolic replan ------------------------------
+        # Also off by default. With both switches false this node is
+        # byte-for-byte the executor it was before the merge.
+        self.enable_symbolic_replan = bool(
+            self.declare_parameter("enable_symbolic_replan", False).value
+        )
+        self.replan_service_url = self.declare_parameter(
+            "replan_service_url", "http://127.0.0.1:8077"
+        ).value
+        self.replan_service_timeout_s = float(
+            self.declare_parameter("replan_service_timeout_s", 60.0).value
+        )
+        # Wall seconds: the service is wall-clock, so its deadline must be too.
+        self.symbolic_replan_deadline_s = float(
+            self.declare_parameter("symbolic_replan_deadline_s", 45.0).value
+        )
+        self.max_symbolic_replans = max(
+            0, int(self.declare_parameter("max_symbolic_replans", 2).value)
+        )
+        # Sim seconds: paced against the world the robot lives in.
+        self.symbolic_replan_cooldown_s = float(
+            self.declare_parameter("symbolic_replan_cooldown_s", 30.0).value
+        )
+        self.mission_deliberation_budget_s = float(
+            self.declare_parameter("mission_deliberation_budget_s", 120.0).value
+        )
+        self.mission_id = self.declare_parameter("mission_id", "factory_mission_01").value
+        self.planner_mode = self.declare_parameter("planner_mode", "evoplan").value
+        self.hold_on_replan = bool(self.declare_parameter("hold_on_replan", True).value)
+        # Distance to the target region within which the mission counts as
+        # arrived: escalation stops and the trial may terminate.
+        self.goal_arrival_radius_m = float(
+            self.declare_parameter("goal_arrival_radius_m", 0.5).value
+        )
+        # Counting a region as VISITED is a looser test than "parked at the
+        # target". Nav2's general_goal_checker uses xy_goal_tolerance: 0.3, but
+        # that is applied to the controller's goal, and a FollowWaypoints
+        # intermediate waypoint can be declared reached from further out -- so a
+        # radius equal to the arrival radius under-counts. Keep them separate.
+        # MEASURED, not guessed: region_closest_m from a real tour showed the
+        # closest approach to a COMPLETED waypoint was 1.90 m, so 0.5 and 1.25
+        # both scored a perfect tour as 0/14. 2.5 m clears that with margin and
+        # stays far below the ~11 m inter-region spacing, so it cannot credit
+        # the wrong region.
+        self.region_visit_radius_m = float(
+            self.declare_parameter("region_visit_radius_m", 2.5).value
+        )
+        # Closest approach to each required region, for diagnosing under-counts.
+        self._region_closest = {}
+        # Sim-time the robot finished its last plan, or None while driving.
+        self._plan_finished_sim_s = None
+        self.plan_exhausted = False
+        # Grace period before calling a finished plan terminal: a replan may
+        # still be in flight, or about to be triggered by the arrival itself.
+        # 0.0 terminates the instant the plan is exhausted, with no wait for a
+        # possible replan. Useful for batch runs where a hang costs more than a
+        # missed late replan.
+        self.plan_exhaustion_grace_s = float(
+            self.declare_parameter("plan_exhaustion_grace_s", 10.0).value
+        )
+        # Hard mission cap in SIM seconds; 0 disables. Independent of the
+        # trial-level wall timeout, which cannot distinguish "still working"
+        # from "wedged".
+        self.mission_timeout_s = float(
+            self.declare_parameter("mission_timeout_s", 1800.0).value
+        )
+        # End the run as soon as the symbolic replan budget is spent and the
+        # plan is finished, rather than waiting out the grace period.
+        self.end_on_replans_exhausted = bool(
+            self.declare_parameter("end_on_replans_exhausted", False).value
+        )
+        # --- find-an-object missions (search tour, then approach) ---
+        # Set find_object_class to run the mission in two phases: drive the
+        # tour to completion while the observation logger records what is seen
+        # where, then look the object up in that log and replan an approach to
+        # whichever region actually held it. The region is NOT known when the
+        # mission starts -- that is the point -- so it cannot be a PDDL goal
+        # written up front. Empty disables the whole thing and the mission
+        # behaves exactly as before.
+        self.find_object_class = str(
+            self.declare_parameter("find_object_class", "").value or ""
+        ).strip().lower()
+        self.find_object_obs_log = str(
+            self.declare_parameter("find_object_obs_log", "").value or ""
+        )
+        # Evidence thresholds. Deliberately the module defaults: a live run
+        # produced spurious labels, and a false negative here just ends the
+        # mission after the tour, while a false positive sends the robot to
+        # the wrong region and calls it success.
+        self.find_object_min_hits = int(
+            self.declare_parameter("find_object_min_hits", 3).value
+        )
+        self.find_object_min_score = float(
+            self.declare_parameter("find_object_min_score", 0.5).value
+        )
+        #: "disabled" | "search" | "approach" | "done" | "not_found"
+        self.find_phase = "search" if self.find_object_class else "disabled"
+        self.find_object_region = None
+        self.find_object_evidence = None
+
+        self.cmd_vel_topic = self.declare_parameter(
+            "cmd_vel_topic", f"{self.ns}/cmd_vel"
+        ).value
+        self.stuck_window_s = float(self.declare_parameter("stuck_window_s", 20.0).value)
+        self.stuck_min_displacement_m = float(
+            self.declare_parameter("stuck_min_displacement_m", 0.3).value
+        )
+        self.evoplan_status_topic = self.declare_parameter(
+            "evoplan_status_topic", f"{self.ns}/evoplan/status"
+        ).value
+        # Debug lever: set true at runtime with `ros2 param set` to force one
+        # escalation, so the hot-swap path can be exercised without having to
+        # choreograph a pedestrian.
+        self.declare_parameter("force_symbolic_replan", False)
+
         self.world, self.regions, self.objects = self.load_graph(self.graph_file)
         if self.target_region not in self.regions:
             raise ValueError(f"target_region '{self.target_region}' is not in {self.graph_file}")
@@ -187,6 +361,27 @@ class PpddlNav2StlSat(Node):
         self._last_feedback_waypoint = None
         self._waypoints_offset = 0
 
+        self.shield = PhiMobShield(horizon_s=self.shield_horizon_s)
+        self.shield_veto_count = 0
+        self.shield_violation_since = None
+        self.shield_violation_active = False
+        self.last_shield_result = None
+
+        self.symbolic = SymbolicReplanState()
+        self.replan_client = ReplanClient(
+            self.replan_service_url,
+            http_timeout_s=self.replan_service_timeout_s,
+            logger=self.get_logger(),
+        )
+        self._replan_started_wall = None
+        self._giveup_reasons_logged = set()
+        # Mission-completion tracking, anchored to the ORIGINAL plan.
+        self.mission_required_regions = []   # move destinations of the initial plan
+        self.mission_visited_regions = set() # regions actually reached
+        self.mission_complete = False
+        self._stuck_anchor = None  # (x, y, sim_seconds)
+        self.hold_timer = None
+
         self.client = ActionClient(self, FollowWaypoints, f"{self.ns}/follow_waypoints")
         path_qos = QoSProfile(
             depth=1,
@@ -209,6 +404,22 @@ class PpddlNav2StlSat(Node):
             self.republish_waypoints_path,
         )
         self.costmap_restore_timer = self.create_timer(0.5, self.restore_costmap_if_obstacle_cleared)
+        if self.enable_phi_mob_shield:
+            self.shield_timer = self.create_timer(self.shield_period_s, self.shield_tick)
+        # The status blob carries mission_complete / plan_exhausted, which
+        # scand_metrics gates success and termination on. Publishing it only
+        # when Tier-2 was enabled meant any SYMBOLIC_REPLAN=0 run reported
+        # mission_complete: None and silently fell back to the positional test.
+        self.cmd_vel_pub = self.create_publisher(Twist, self.cmd_vel_topic, 10)
+        self.status_pub = self.create_publisher(String, self.evoplan_status_topic, 10)
+        self.status_timer = self.create_timer(1.0, self.publish_evoplan_status)
+        if self.enable_symbolic_replan:
+            # Drains the replan worker's result queue. Every mutation of plan
+            # bookkeeping happens from this callback, on the executor thread.
+            self.symbolic_timer = self.create_timer(0.2, self.symbolic_replan_tick)
+            self.stuck_timer = self.create_timer(1.0, self.stuck_check_tick)
+        self.exhaustion_timer = self.create_timer(1.0, self.plan_exhaustion_tick)
+        self.mission_timeout_timer = self.create_timer(2.0, self.mission_timeout_tick)
 
         self.get_logger().info(
             f"Waiting for {self.pose_msg_type} pose on {self.pose_topic}; "
@@ -386,9 +597,15 @@ class PpddlNav2StlSat(Node):
         lines.append("")
         return "\n".join(lines)
 
-    def parse_fast_downward_plan(self, path):
+    def parse_plan_text(self, text):
+        """Parse ``(action arg ...)`` lines into GroundActions.
+
+        Split out of :meth:`parse_fast_downward_plan` so a plan arriving from
+        the replan service over HTTP goes through exactly the same parser as one
+        read off disk -- the two must never diverge in what they accept.
+        """
         actions = []
-        for line in Path(path).read_text().splitlines():
+        for line in text.splitlines():
             line = line.strip().lower()
             if not line or line.startswith(";"):
                 continue
@@ -396,7 +613,13 @@ class PpddlNav2StlSat(Node):
             if not match:
                 continue
             parts = match.group(1).split()
+            if not parts:
+                continue
             actions.append(GroundAction(parts[0], tuple(parts[1:])))
+        return actions
+
+    def parse_fast_downward_plan(self, path):
+        actions = self.parse_plan_text(Path(path).read_text())
         return actions
 
     def run_fast_downward(self, domain_text, problem_text):
@@ -492,17 +715,56 @@ class PpddlNav2StlSat(Node):
             self.create_subscription(Odometry, self.pose_topic, self.odom_callback, 10)
 
     def odom_callback(self, msg):
-        self.update_current_pose(msg.pose.pose.position.x, msg.pose.pose.position.y)
+        self.update_current_pose(
+            msg.pose.pose.position.x,
+            msg.pose.pose.position.y,
+            self.yaw_from_quaternion(msg.pose.pose.orientation),
+        )
 
     def pose_callback(self, msg):
-        self.update_current_pose(msg.pose.pose.position.x, msg.pose.pose.position.y)
+        self.update_current_pose(
+            msg.pose.pose.position.x,
+            msg.pose.pose.position.y,
+            self.yaw_from_quaternion(msg.pose.pose.orientation),
+        )
 
-    def update_current_pose(self, x, y):
+    def update_current_pose(self, x, y, yaw=None):
         self.current_xy = (float(x), float(y))
         self.current_region, distance = self.nearest_region(self.current_xy)
         self.get_logger().debug(
             f"Current pose ({x:.2f}, {y:.2f}) snapped to {self.current_region} at distance {distance:.2f}"
         )
+        # Mission progress is "which required regions have actually been
+        # reached", not "where am I now" -- the latter cannot distinguish the
+        # first visit to a region from the last in a plan that loops back.
+        if self.current_region and self.mission_required_regions:
+            target_xy = self.regions.get(self.current_region)
+            if target_xy is not None:
+                dist = math.hypot(float(x) - target_xy[0], float(y) - target_xy[1])
+                prev = self._region_closest.get(self.current_region)
+                if prev is None or dist < prev:
+                    self._region_closest[self.current_region] = dist
+            if target_xy is not None and math.hypot(
+                    float(x) - target_xy[0], float(y) - target_xy[1]
+            ) <= self.region_visit_radius_m:
+                if self.current_region not in self.mission_visited_regions:
+                    self.mission_visited_regions.add(self.current_region)
+                    remaining = self.regions_remaining()
+                    self.get_logger().info(
+                        f"[MISSION] reached {self.current_region} "
+                        f"({len(self.mission_visited_regions)}/"
+                        f"{len(set(self.mission_required_regions))} regions, "
+                        f"{len(remaining)} left)"
+                    )
+                self.update_mission_completion()
+
+        # Phi_mob needs heading to tell an approaching pedestrian from one the
+        # robot is driving away from, so the shield is fed here rather than
+        # from a pose sample that has already discarded orientation.
+        if self.enable_phi_mob_shield and yaw is not None:
+            self.shield.update_odom(
+                float(x), float(y), float(yaw), self.sim_time_now()
+            )
 
     def map_callback(self, msg):
         stamp_key = (msg.header.stamp.sec, msg.header.stamp.nanosec)
@@ -579,6 +841,802 @@ class PpddlNav2StlSat(Node):
                 self.log_monitor_result(monitor_result)
                 self.refine_pddl_plan_from_monitor(self.active_plan_report, monitor_result)
 
+    def sim_time_now(self):
+        """Current sim time in seconds.
+
+        The shield's horizon, the violation debounce and every cooldown are in
+        *sim* seconds. Using wall time would silently rescale all of them
+        whenever Gazebo runs off 1.0x real time, which it routinely does under
+        a crowded world plus four YOLO instances.
+        """
+        return self.get_clock().now().nanoseconds / 1e9
+
+    def human_tracks_for_shield(self):
+        """Live human tracks as ``(name, x, y)``, dropping stale ones.
+
+        Reuses the same staleness bound and human classification as
+        ``build_tracked_obstacles`` so the shield and the geometric Tier-1
+        monitor never disagree about who is present.
+        """
+        now = self.get_clock().now()
+        tracks = []
+        for name, tracked in self.tracked_objects.items():
+            age_s = (now - tracked.stamp).nanoseconds / 1e9
+            if age_s > self.tracked_object_timeout_s:
+                continue
+            if self.object_type_from_name(tracked.label) != "human":
+                continue
+            tracks.append((name, tracked.xy[0], tracked.xy[1]))
+        return tracks
+
+    def shield_tick(self):
+        """Evaluate Phi_mob and record sustained violations.
+
+        Phase 1 only observes -- it counts vetoes and logs which conjunct fired.
+        The escalation to a symbolic replan hooks in here in Phase 2.
+        """
+        if not self.enable_phi_mob_shield:
+            return
+        now_s = self.sim_time_now()
+        self.shield.update_tracks(self.human_tracks_for_shield(), now_s)
+        result = self.shield.evaluate(now_s)
+        self.last_shield_result = result
+
+        if result.satisfied:
+            if self.shield_violation_active:
+                held_s = now_s - (self.shield_violation_since or now_s)
+                self.shield_violation_active = False
+                self.record_json_event(
+                    "phi_mob_recovered",
+                    {"robustness": result.robustness, "violated_for_s": held_s},
+                )
+                self.get_logger().info(
+                    f"Phi_mob recovered after {held_s:.1f} s "
+                    f"(rho={result.robustness:.3f})"
+                )
+            self.shield_violation_since = None
+            return
+
+        self.shield_veto_count += 1
+        if self.shield_violation_since is None:
+            self.shield_violation_since = now_s
+            return
+        if now_s - self.shield_violation_since < self.shield_violation_persist_s:
+            return
+        if self.shield_violation_active:
+            return  # already reported this episode
+
+        self.shield_violation_active = True
+        self.record_json_event(
+            "phi_mob_violation",
+            {
+                "robustness": result.robustness,
+                "worst_conjunct": result.worst_conjunct,
+                "persisted_s": now_s - self.shield_violation_since,
+                "margins": {k: _finite_or_none(v) for k, v in result.margins.items()},
+                "signals": {k: _finite_or_none(v) for k, v in result.signals.items()},
+            },
+        )
+        self.get_logger().warn(
+            f"Phi_mob violated: {result.worst_conjunct} "
+            f"rho={result.robustness:.3f} "
+            f"(sustained {now_s - self.shield_violation_since:.1f} s)"
+        )
+        # Trigger (a): a sustained social-compliance breach the reactive layer
+        # has not resolved warrants a new symbolic route, not just a nudge.
+        self.escalate_symbolic_replan(self.active_plan_report, trigger="stl_shield")
+
+    # ==================================================================
+    # Tier 2: online symbolic replan
+    # ==================================================================
+    def regions_remaining(self):
+        """Required regions the mission has not visited yet."""
+        return sorted(set(self.mission_required_regions) - self.mission_visited_regions)
+
+    def update_mission_completion(self):
+        """Mission is complete when every required region has been visited AND
+        the robot is parked at the target.
+
+        Requiring the full region set is what stops a shortened replan from
+        declaring victory, and requiring the target last is what stops a
+        mid-tour pass through the goal region from doing the same.
+        """
+        if self.mission_complete or not self.mission_required_regions:
+            return
+        # A find-an-object mission is not over when the tour is: the whole
+        # point is the approach that follows. Without this gate the tour's
+        # final waypoint would latch mission_complete and the object would
+        # never be looked up.
+        if self.find_phase == "search":
+            return
+        if self.find_phase == "approach":
+            if not self.at_target_region():
+                return
+            self.find_phase = "done"
+            self.get_logger().info(
+                f"[OBJECT REACHED] {self.find_object_class} at {self.find_object_region}"
+            )
+            self.record_json_event("find_object_reached", {
+                "object": self.find_object_class,
+                "region": self.find_object_region,
+                "evidence": self.find_object_evidence,
+            })
+        if self.regions_remaining() or not self.at_target_region():
+            return
+        self.mission_complete = True
+        self.get_logger().info(
+            f"[MISSION COMPLETE] all {len(set(self.mission_required_regions))} "
+            f"required regions visited and parked at {self.target_region}"
+        )
+        self.record_json_event("mission_complete", {
+            "required_regions": sorted(set(self.mission_required_regions)),
+            "visited_regions": sorted(self.mission_visited_regions),
+        })
+
+    def begin_object_approach(self):
+        """Look the target object up in observation memory and retarget to it.
+
+        This is the search -> approach transition, and it runs when the tour's
+        plan finishes rather than the moment the object is first seen: the
+        mission the user asked for is "visit all regions, log what is where,
+        THEN go to the object", and stopping the tour at first sighting would
+        skip regions that were never searched.
+
+        Returns True when a replan toward the object is in flight, meaning the
+        caller must not declare the plan exhausted.
+        """
+        self.find_phase = "not_found"          # pessimistic until proven
+        records = load_observations(self.find_object_obs_log)
+        if not records:
+            self.get_logger().warn(
+                f"[OBJECT NOT FOUND] no observation records at "
+                f"{self.find_object_obs_log!r}; cannot approach "
+                f"{self.find_object_class}"
+            )
+            self.record_json_event("find_object_failed", {
+                "object": self.find_object_class,
+                "reason": "no observation records",
+                "obs_log": self.find_object_obs_log,
+            })
+            return False
+
+        found = locate_object(
+            records, self.find_object_class,
+            min_score=self.find_object_min_score,
+            min_hits=self.find_object_min_hits,
+            regions=self.regions,
+        )
+        if not found or found[0]["region"] not in self.regions:
+            self.get_logger().warn(
+                f"[OBJECT NOT FOUND] {self.find_object_class} was never seen "
+                f"with >= {self.find_object_min_hits} detections above score "
+                f"{self.find_object_min_score} in any known region; the tour "
+                f"finished but there is nowhere to approach"
+            )
+            self.record_json_event("find_object_failed", {
+                "object": self.find_object_class,
+                "reason": "insufficient evidence",
+                "min_hits": self.find_object_min_hits,
+                "min_score": self.find_object_min_score,
+                "candidates": found,
+            })
+            return False
+
+        best = found[0]
+        self.find_object_region = best["region"]
+        self.find_object_evidence = best
+        self.target_region = best["region"]
+        self.find_phase = "approach"
+        self.get_logger().warn(
+            f"[OBJECT FOUND] {self.find_object_class} in {best['region']} "
+            f"({best['hits']} detections, mean score {best['mean_score']}, "
+            f"at {best['xy']}); retargeting mission there"
+        )
+        self.record_json_event("find_object_located", {
+            "object": self.find_object_class,
+            "region": best["region"],
+            "evidence": best,
+            "all_candidates": found,
+        })
+
+        if self.at_target_region():
+            # The tour already ended standing on it. Nothing to drive.
+            self.find_phase = "done"
+            self.get_logger().info(
+                f"[OBJECT REACHED] already at {best['region']}; no approach needed"
+            )
+            return False
+
+        # force=True: the approach is the mission, not a contingency. If the
+        # tour spent the replan budget on obstacles, refusing to plan the
+        # approach would fail the mission for a reason unrelated to the object.
+        self.escalate_symbolic_replan(
+            self.active_plan_report, trigger="object_found", force=True
+        )
+        return self.symbolic.state != symbolic_replan.IDLE
+
+    def at_target_region(self):
+        """True when the robot is parked at the mission target.
+
+        Deliberately geometric rather than "Nav2 reported the goal finished":
+        after a hot-swap the goal-finished history belongs to a plan that no
+        longer exists, whereas position is always current.
+        """
+        if self.current_xy is None:
+            return False
+        target = self.regions.get(self.target_region)
+        if target is None:
+            return False
+        return math.hypot(self.current_xy[0] - target[0],
+                          self.current_xy[1] - target[1]) <= self.goal_arrival_radius_m
+
+    def region_of_waypoint(self, waypoint_idx):
+        """Graph region of the waypoint the robot was heading for."""
+        if waypoint_idx is None or not self.active_waypoints:
+            return None
+        idx = max(0, min(int(waypoint_idx), len(self.active_waypoints) - 1))
+        region, _ = self.nearest_region(self.active_waypoints[idx])
+        return region
+
+    def current_plan_leg(self):
+        """``(from_region, to_region)`` of the move being executed, for prose."""
+        actions = self.active_plan_actions or []
+        moves = [a for a in actions if a.name.startswith("move")]
+        idx = (self._last_feedback_waypoint or 0) + self._waypoints_offset
+        if not moves or idx >= len(moves):
+            return None, None
+        args = moves[idx].args
+        return (args[-2] if len(args) >= 2 else None), args[-1]
+
+    def escalate_symbolic_replan(
+        self,
+        plan_report,
+        trigger,
+        monitor_result=None,
+        failed_region=None,
+        force=False,
+    ):
+        """Hold the robot and ask the host service for a new symbolic plan.
+
+        Returns ``plan_report`` unchanged in every path: the new plan arrives
+        asynchronously and is applied later by :meth:`symbolic_replan_tick`, so
+        callers must not expect a swapped plan on return.
+        """
+        if not self.enable_symbolic_replan:
+            return plan_report
+
+        # Once the robot is parked at the mission target there is nothing left
+        # to replan. Without this, a pedestrian wandering past the stationary
+        # robot trips ped_approach_rate and the replanner dutifully produces a
+        # route OUT of the goal region and back -- observed as
+        # (move r8 r6) (move r6 r8), 198s after arrival, inflating both
+        # path_length_m and duration_s for a mission that had already succeeded.
+        if self.at_target_region():
+            self.get_logger().info(
+                f"Symbolic replan not escalated: already at target {self.target_region}"
+            )
+            return plan_report
+
+        now_sim = self.sim_time_now()
+        allowed, why_not = self.symbolic.can_escalate(
+            now_sim,
+            self.max_symbolic_replans,
+            self.symbolic_replan_cooldown_s,
+            self.mission_deliberation_budget_s,
+        )
+        # force bypasses the budget but never the state machine: a second
+        # concurrent request would race the first one's plan swap.
+        if force and not allowed and self.symbolic.state == symbolic_replan.IDLE:
+            self.get_logger().warn(
+                f"Overriding replan budget for {trigger} ({why_not})"
+            )
+            allowed, why_not = True, ""
+        if not allowed:
+            self.get_logger().info(f"Symbolic replan not escalated: {why_not}")
+            # Log the give-up ONCE per reason. This runs on every monitor tick
+            # (~7 Hz via the track and nav2-plan callbacks), and record_json_event
+            # rewrites the whole JSON log on each call -- unguarded it produced
+            # hundreds of identical events and a multi-megabyte log per run.
+            if "budget exhausted" in why_not and why_not not in self._giveup_reasons_logged:
+                self._giveup_reasons_logged.add(why_not)
+                self.record_json_event("symbolic_replan_giveup", {"reason": why_not})
+            return plan_report
+
+        obstacle_region = None
+        if monitor_result is not None and monitor_result.closest_obstacle_xy is not None:
+            obstacle_region, _ = self.nearest_region(monitor_result.closest_obstacle_xy)
+
+        blocked = derive_blocked_regions(
+            trigger,
+            current_region=self.current_region,
+            target_region=self.target_region,
+            obstacle_region=obstacle_region,
+            failed_region=failed_region,
+        )
+        self.symbolic.blocked_regions.update(blocked)
+
+        from_region, to_region = self.current_plan_leg()
+        detail = {
+            "from_region": from_region,
+            "to_region": to_region,
+            "blocked_regions": sorted(self.symbolic.blocked_regions),
+            "reactive_attempts": self.nav2_replan_count,
+            "stuck_window_s": self.stuck_window_s,
+        }
+        if monitor_result is not None:
+            detail["closest_obstacle"] = monitor_result.closest_obstacle
+        if trigger == "stl_shield" and self.last_shield_result is not None:
+            detail["violated_conjunct"] = self.last_shield_result.worst_conjunct
+            detail["robustness"] = self.last_shield_result.robustness
+
+        self.symbolic.count += 1
+        self.symbolic.last_escalation_sim_s = now_sim
+        self.record_json_event(
+            "symbolic_replan_escalated",
+            {
+                "trigger": trigger,
+                "attempt": self.symbolic.count,
+                "max": self.max_symbolic_replans,
+                "blocked_regions": sorted(self.symbolic.blocked_regions),
+                "detail": {k: _finite_or_none(v) if isinstance(v, float) else v
+                           for k, v in detail.items()},
+            },
+        )
+
+        self.enter_hold(trigger)
+
+        payload = self.build_replan_request(trigger, detail)
+        self._replan_started_wall = time.monotonic()
+        if not self.replan_client.request_async(payload, self.symbolic_replan_deadline_s):
+            self.get_logger().error("Replan client was busy; aborting escalation")
+            self.record_json_event(
+                "symbolic_replan_service_error", {"error": "client busy"}
+            )
+            self.abandon_replan("client busy")
+            return plan_report
+
+        self.record_json_event(
+            "symbolic_replan_requested",
+            {
+                "url": self.replan_service_url,
+                "planner_mode": self.planner_mode,
+                "deadline_s": self.symbolic_replan_deadline_s,
+                "trigger": trigger,
+                "reason_text": payload["reason"]["human_text"],
+            },
+        )
+        self.get_logger().warn(
+            f"Symbolic replan {self.symbolic.count}/{self.max_symbolic_replans} "
+            f"requested ({trigger}); holding"
+        )
+        return plan_report
+
+    def build_replan_request(self, trigger, detail):
+        """Assemble the JSON request for the host service."""
+        actions = self.active_plan_actions or []
+        executed_idx = (self._last_feedback_waypoint or 0) + self._waypoints_offset
+        moves = [a for a in actions if a.name.startswith("move")]
+        return {
+            "mission_id": self.mission_id,
+            "robot": self.robot_name,
+            "current_region": self.current_region,
+            "current_xy": list(self.current_xy) if self.current_xy else None,
+            "goal": {"target_region": self.target_region},
+            # The tour problem's goal is all-(visited), which the service keeps
+            # verbatim because every conjunct is executable. For the approach
+            # that is wrong: the tour is already done and the only thing left
+            # is to reach the object's region, so narrow the goal explicitly.
+            # None lets the service decide from the goal, as before.
+            "preserve_goal": False if self.find_phase == "approach" else None,
+            "executed_plan": [a.text() for a in moves[:executed_idx]],
+            "remaining_plan": [a.text() for a in moves[executed_idx:]],
+            "blocked_regions": sorted(self.symbolic.blocked_regions),
+            "planner_mode": self.planner_mode,
+            "deadline_s": self.symbolic_replan_deadline_s,
+            "reason": {
+                "trigger": trigger,
+                "robustness": _finite_or_none(detail.get("robustness")),
+                "violated_conjunct": detail.get("violated_conjunct"),
+                "closest_obstacle": detail.get("closest_obstacle"),
+                "failed_region": detail.get("to_region"),
+                "reactive_attempts": detail.get("reactive_attempts"),
+                # The prose the LLM actually reads, via OpenEvolve's artifacts
+                # feedback channel. This is what makes the replan informed
+                # rather than just re-run.
+                "human_text": build_reason_text(trigger, detail),
+            },
+        }
+
+    # ------------------------------------------------------------------
+    # holding
+    # ------------------------------------------------------------------
+    def enter_hold(self, trigger):
+        """Stop the robot in place while the planner deliberates.
+
+        The Gazebo clock is deliberately left running: sim time keeps advancing,
+        pedestrians keep walking, and the deliberation shows up honestly in
+        ``duration_s``. Station-keeping is also the socially correct response to
+        a shield violation -- the trigger there is that someone is too close.
+        """
+        self.symbolic.state = symbolic_replan.HOLDING
+        self.symbolic.resume_idx = self._last_feedback_waypoint or 0
+        self.symbolic.hold_started_sim_s = self.sim_time_now()
+        self.record_json_event(
+            "robot_hold_started",
+            {"trigger": trigger, "resume_idx": self.symbolic.resume_idx},
+        )
+        if not self.hold_on_replan:
+            return
+        self.cancel_active_nav2_goal()
+        if self.hold_timer is None:
+            self.hold_timer = self.create_timer(0.1, self.publish_hold_stop)
+
+    def publish_hold_stop(self):
+        """Zero-velocity heartbeat while held.
+
+        Nav2's controller is cancelled so nothing else is commanding the base;
+        this kills residual drift and makes "deliberately stopped" legible in a
+        bag rather than looking like a hang.
+        """
+        if self.symbolic.state != symbolic_replan.HOLDING:
+            return
+        self.cmd_vel_pub.publish(Twist())
+
+    def exit_hold(self):
+        held_s = 0.0
+        if self.symbolic.hold_started_sim_s is not None:
+            held_s = self.sim_time_now() - self.symbolic.hold_started_sim_s
+            self.symbolic.held_sim_s += held_s
+        self.symbolic.hold_started_sim_s = None
+        if self.hold_timer is not None:
+            self.hold_timer.cancel()
+            self.hold_timer = None
+        self.record_json_event("robot_hold_ended", {"held_s": held_s})
+        return held_s
+
+    # ------------------------------------------------------------------
+    # result handling
+    # ------------------------------------------------------------------
+    def symbolic_replan_tick(self):
+        """Drain the replan worker's queue and apply results.
+
+        Runs on the executor thread, so it is the only place plan bookkeeping
+        is mutated.
+        """
+        if self.get_parameter("force_symbolic_replan").value:
+            self.set_parameters(
+                [rclpy.parameter.Parameter("force_symbolic_replan",
+                                           rclpy.Parameter.Type.BOOL, False)]
+            )
+            self.get_logger().warn("force_symbolic_replan set; escalating on demand")
+            self.escalate_symbolic_replan(self.active_plan_report, trigger="forced")
+
+        result = self.replan_client.poll()
+        if result is None:
+            return
+
+        if self._replan_started_wall is not None:
+            self.symbolic.deliberation_wall_s += time.monotonic() - self._replan_started_wall
+            self._replan_started_wall = None
+
+        self.record_json_event(
+            "symbolic_replan_received",
+            {
+                "status": result.get("status"),
+                "planner": result.get("planner"),
+                "valid": result.get("valid"),
+                "elapsed_s": result.get("elapsed_s"),
+                "plan": result.get("plan", []),
+            },
+        )
+
+        if result.get("status") == "timeout" and not result.usable:
+            self.record_json_event(
+                "symbolic_replan_timeout",
+                {"deadline_s": self.symbolic_replan_deadline_s},
+            )
+            self.abandon_replan("deadline expired with no valid plan")
+            return
+        if not result.usable:
+            self.abandon_replan(
+                f"service returned no usable plan ({result.get('status')}: "
+                f"{result.get('error')})"
+            )
+            return
+
+        self.symbolic.state = symbolic_replan.APPLYING
+        if not self.apply_symbolic_replan(result["plan"]):
+            self.abandon_replan("returned plan was rejected locally")
+
+    def abandon_replan(self, reason):
+        """Give up on this replan and resume the previous route.
+
+        The robot must never be left planless: whatever went wrong upstream,
+        the old waypoint suffix is still a route it was already following.
+        """
+        self.get_logger().warn(f"Symbolic replan abandoned: {reason}")
+        self.exit_hold()
+        self.symbolic.state = symbolic_replan.IDLE
+        if self.active_waypoints:
+            self.resend_waypoint_suffix(self.symbolic.resume_idx)
+
+    def apply_symbolic_replan(self, plan_lines):
+        """Validate, lower and hot-swap a new symbolic plan. True if applied."""
+        actions = self.parse_plan_text("\n".join(plan_lines))
+        if not actions:
+            self.record_json_event("symbolic_replan_rejected", {"errors": ["empty plan"]})
+            return False
+
+        executable, dropped = filter_executable_actions(actions)
+        for action in dropped:
+            self.record_json_event(
+                "plan_action_unexecutable",
+                {"action": action.text(), "reason": "no executor for this action type"},
+            )
+        if not plan_reaches_target(executable, self.target_region):
+            self.record_json_event(
+                "symbolic_replan_rejected",
+                {"errors": [f"move chain does not reach {self.target_region}"]},
+            )
+            return False
+
+        # Align BEFORE validating. The service plans from the region the robot
+        # was in when it escalated, but an EvoPlan replan takes 60-100s and the
+        # robot's snapped region can differ by the time the plan lands -- that
+        # is exactly what align_plan_start_with_current_region exists to
+        # reconcile. Validating the raw plan first rejected VAL-valid plans on
+        # "missing preconditions [('at', 'jackal_1', 'r5')]" before alignment
+        # could fix them, which killed both replans of the first evoplan trial.
+        aligned = self.align_plan_start_with_current_region(executable)
+
+        # Second gate, in-container and dependency-free, on whatever the LLM
+        # produced. require_goal is False because the service may legitimately
+        # return a plan for a sub-goal.
+        try:
+            # parse_domain takes a PATH and reads it itself (pipeline.py:146).
+            # Passing text raised OSError("File name too long"), which the
+            # except below swallowed as "validation errored, accepting plan" --
+            # so this gate silently passed every replanned plan.
+            domain = parse_domain(self.domain_file)
+            validation = validate_plan(domain, self.make_problem_from_graph(), aligned,
+                                       require_goal=False)
+            if not validation.ok:
+                self.record_json_event(
+                    "symbolic_replan_rejected",
+                    {"errors": list(validation.errors),
+                     "aligned_plan": [a.text() for a in aligned],
+                     "current_region": self.current_region},
+                )
+                self.get_logger().warn(
+                    f"Returned plan failed local validation after alignment "
+                    f"(robot at {self.current_region}): {validation.errors}"
+                )
+                return False
+        except Exception as exc:  # noqa: BLE001 - never crash the executor on a bad plan
+            self.get_logger().warn(f"Local validation errored, accepting plan: {exc}")
+        waypoints = self.plan_to_nav2_goals(aligned)
+        if not waypoints:
+            self.record_json_event(
+                "symbolic_replan_rejected", {"errors": ["plan lowered to zero waypoints"]}
+            )
+            return False
+
+        # --- bookkeeping reset ---------------------------------------
+        # This is a WHOLE NEW plan, not a suffix of the old one, so every index
+        # into the old plan must be dropped. feedback_callback computes
+        # `global_idx = completed + self._waypoints_offset` and looks it up in
+        # active_plan_actions; a stale offset here is bounds-guarded so it will
+        # not crash, but it silently mislabels or skips the [PLAN STEP DONE]
+        # lines, which is worse -- it looks like it is working.
+        self.active_plan_actions = aligned
+        self.active_plan_report = {
+            "ok": True,
+            "plan": [a.text() for a in aligned],
+            "plan_actions": aligned,
+            "source": "symbolic_replan",
+        }
+        self.active_waypoints = waypoints
+        self._waypoints_offset = 0
+        self._last_feedback_waypoint = None
+        self.last_monitor_signature = None
+        self.last_nav2_path = None
+        # A new symbolic plan earns a fresh reactive budget; max_symbolic_replans
+        # is what bounds the overall loop.
+        self.nav2_replan_count = 0
+        self.clear_costmap_edit_if_active("applying a new symbolic plan")
+        self.shield.reset()
+        self.shield_violation_active = False
+        self.shield_violation_since = None
+        self._stuck_anchor = None
+
+        held_s = self.exit_hold()
+        self.publish_waypoints_path(waypoints)
+        self.send_waypoints(waypoints)
+        self.symbolic.state = symbolic_replan.IDLE
+        self.record_json_event(
+            "symbolic_replan_applied",
+            {
+                "plan": [a.text() for a in aligned],
+                "nav2_goals": [{"x": x, "y": y} for x, y in waypoints],
+                "dropped_actions": [a.text() for a in dropped],
+                "held_s": held_s,
+                "waypoints_offset_reset": True,
+            },
+        )
+        self.get_logger().warn(
+            f"Symbolic replan applied after {held_s:.1f} s hold: "
+            + " -> ".join(a.text() for a in aligned)
+        )
+        return True
+
+    def resend_waypoint_suffix(self, start_idx):
+        """Re-send the tail of the current route from ``start_idx``.
+
+        Shared by the Tier-1 reactive replan and the Tier-2 abandon path so the
+        two cannot drift on the ``_waypoints_offset`` arithmetic.
+        """
+        start = max(0, int(start_idx or 0))
+        remaining = self.active_waypoints[start:] or self.active_waypoints
+        self._waypoints_offset += start
+        self.active_waypoints = remaining
+        self._last_feedback_waypoint = None
+        self.publish_waypoints_path(remaining)
+        self.send_waypoints(remaining)
+        return remaining
+
+    # ------------------------------------------------------------------
+    # stuck detection
+    # ------------------------------------------------------------------
+    def stuck_check_tick(self):
+        """Escalate when Nav2 is grinding without aborting.
+
+        Nav2 frequently does not abort a goal it cannot achieve -- it just keeps
+        trying. Without this, the only failure signal would be the mission
+        timing out.
+        """
+        if self.symbolic.state != symbolic_replan.IDLE:
+            return
+        if self.active_goal_handle is None or self.current_xy is None:
+            self._stuck_anchor = None
+            return
+
+        now_sim = self.sim_time_now()
+        if self._stuck_anchor is None:
+            self._stuck_anchor = (self.current_xy[0], self.current_xy[1], now_sim,
+                                  self._last_feedback_waypoint)
+            return
+
+        ax, ay, at, awp = self._stuck_anchor
+        if self._last_feedback_waypoint != awp:
+            self._stuck_anchor = None  # progress: a waypoint completed
+            return
+        if now_sim - at < self.stuck_window_s:
+            return
+
+        moved = math.hypot(self.current_xy[0] - ax, self.current_xy[1] - ay)
+        if moved >= self.stuck_min_displacement_m:
+            self._stuck_anchor = None
+            return
+
+        failed_region = self.region_of_waypoint(self._last_feedback_waypoint)
+        self.get_logger().warn(
+            f"Stuck: moved {moved:.2f} m in {now_sim - at:.0f} s heading for "
+            f"{failed_region or 'an unknown region'}"
+        )
+        self.record_json_event(
+            "nav2_stuck_detected",
+            {
+                "window_s": now_sim - at,
+                "displacement_m": moved,
+                "waypoint_idx": self._last_feedback_waypoint,
+                "region": failed_region,
+            },
+        )
+        self._stuck_anchor = None
+        self.escalate_symbolic_replan(
+            self.active_plan_report, trigger="nav2_stuck", failed_region=failed_region
+        )
+
+    def plan_exhaustion_tick(self):
+        """Declare the run over once there is nothing left to drive.
+
+        The executor can finish its plan without finishing the MISSION -- a
+        replan narrowed to ``(visited <target>)`` drops the rest of the tour, so
+        mission_complete stays False forever while the robot sits at the goal.
+        Nothing else resolves that: scand_metrics gates its early stop on
+        mission_complete, so the trial idled to its timeout (observed: 11
+        minutes parked 0.21 m from the target).
+
+        Terminal means: plan finished, no replan in flight or possible, and the
+        grace period elapsed. Whether it is a SUCCESS is left to
+        mission_complete -- this only stops the hang.
+        """
+        if self.plan_exhausted or self._plan_finished_sim_s is None:
+            return
+        if self.symbolic.state != symbolic_replan.IDLE or self.replan_in_progress:
+            return  # a replan may yet extend the mission
+        if self.active_goal_handle is not None:
+            return  # still driving
+        # The tour is done -- now go find the object. This must run before the
+        # grace check, or a run with end_on_replans_exhausted would terminate
+        # the mission at exactly the moment the approach becomes possible.
+        if self.find_phase == "search":
+            if self.begin_object_approach():
+                return          # approach plan in flight; not exhausted
+            if self.find_phase == "done":
+                self.update_mission_completion()
+
+        grace = self.plan_exhaustion_grace_s
+        if self.end_on_replans_exhausted and self.symbolic.count >= self.max_symbolic_replans:
+            grace = 0.0   # no replan can rescue this run; do not wait for one
+        if (self.sim_time_now() - self._plan_finished_sim_s) < grace:
+            return
+
+        self.plan_exhausted = True
+        remaining = self.regions_remaining()
+        self.record_json_event("plan_exhausted", {
+            "mission_complete": self.mission_complete,
+            "plan_exhausted": self.plan_exhausted,
+            "regions_remaining": remaining,
+            "at_target": self.at_target_region(),
+        })
+        if self.mission_complete:
+            self.get_logger().info("[PLAN EXHAUSTED] mission complete; nothing left to drive")
+        else:
+            self.get_logger().warn(
+                f"[PLAN EXHAUSTED] plan finished but the mission is NOT complete -- "
+                f"{len(remaining)} region(s) never visited: {remaining}. "
+                f"A replan narrowed to the target region drops the rest of the mission."
+            )
+
+    def mission_timeout_tick(self):
+        """Hard cap on mission duration, in sim time."""
+        if self.mission_timeout_s <= 0 or self.plan_exhausted:
+            return
+        elapsed = self.sim_time_now() - (self.started_at.nanoseconds / 1e9)
+        if elapsed < self.mission_timeout_s:
+            return
+        self.plan_exhausted = True
+        self.get_logger().error(
+            f"[MISSION TIMEOUT] {elapsed:.0f}s exceeded the {self.mission_timeout_s:.0f}s cap; "
+            f"regions never visited: {self.regions_remaining()}"
+        )
+        self.record_json_event("mission_timeout", {
+            "elapsed_s": elapsed, "cap_s": self.mission_timeout_s,
+            "regions_remaining": self.regions_remaining()})
+
+    def publish_evoplan_status(self):
+        """1 Hz status blob that scand_metrics folds into its results JSON."""
+        self.status_pub.publish(String(data=json.dumps({
+            "state": self.symbolic.state,
+            "symbolic_replans": self.symbolic.count,
+            "deliberation_s_wall": self.symbolic.deliberation_wall_s,
+            "held_s": self.symbolic.held_sim_s,
+            "shield_vetoes": self.shield_veto_count,
+            "blocked_regions": sorted(self.symbolic.blocked_regions),
+            # scand_metrics gates success on this instead of position alone.
+            "mission_complete": self.mission_complete,
+            # ...and gates TERMINATION on this one. Omitting it made
+            # scand_metrics read None -- falsy -- so a plan that finished
+            # short of the mission never stopped the run: the executor logged
+            # [PLAN EXHAUSTED] and the trial then idled until its timeout
+            # (observed once at 13.4 hours with the whole sim still up).
+            "plan_exhausted": self.plan_exhausted,
+            # Find-an-object missions: which phase, and what the search found.
+            "find_phase": self.find_phase,
+            "find_object_class": self.find_object_class,
+            "find_object_region": self.find_object_region,
+            "find_object_evidence": self.find_object_evidence,
+            "target_region": self.target_region,
+            "regions_required": len(set(self.mission_required_regions)),
+            "regions_visited": len(self.mission_visited_regions),
+            "regions_remaining": self.regions_remaining(),
+            # Closest the robot ever got to each region, so "0 visited" can be
+            # told apart from "never drove there" without a rerun.
+            "region_closest_m": {k: round(v, 2)
+                                 for k, v in sorted(self._region_closest.items())},
+        })))
+
     def nearest_region(self, xy):
         x, y = xy
         best_region = None
@@ -630,6 +1688,20 @@ class PpddlNav2StlSat(Node):
             self.active_plan_report = plan_report
             self.active_plan_actions = plan_report["plan_actions"]
             self.active_waypoints = waypoints
+            # Freeze what the MISSION requires, before any replan can shorten it.
+            # Success is measured against this, never against the plan currently
+            # loaded: a replan that narrows to "(visited <target>)" would
+            # otherwise complete itself in one move. factory_mission_01 revisits
+            # R8 at step 2 of 28, so a position-only success test scored a
+            # two-action run as 100%.
+            self.mission_required_regions = [
+                a.args[-1].lower() for a in plan_report["plan_actions"]
+                if a.name.startswith("move")
+            ]
+            self.get_logger().info(
+                f"Mission requires visiting {len(set(self.mission_required_regions))} "
+                f"distinct regions across {len(self.mission_required_regions)} moves"
+            )
 
             self.get_logger().info("PDDL plan: " + " -> ".join(plan_report["plan"]))
             self.get_logger().info(
@@ -1025,11 +2097,18 @@ class PpddlNav2StlSat(Node):
         if self.replan_in_progress:
             return plan_report
         if self.nav2_replan_count >= self.max_nav2_replans:
+            # Tier 1 is out of options. Rather than give up and keep driving the
+            # route that has already failed three times, hand up to the
+            # symbolic layer, which can route around the region entirely.
             self.get_logger().warn(
                 f"STL feedback Nav2 replan limit reached ({self.max_nav2_replans}); "
-                "keeping current Nav2 goal"
+                "escalating to a symbolic replan"
             )
-            return plan_report
+            return self.escalate_symbolic_replan(
+                plan_report,
+                trigger="reactive_budget_exhausted",
+                monitor_result=monitor_result,
+            )
 
         now = self.get_clock().now()
         if self.last_stl_replan_time is not None:
@@ -1073,12 +2152,9 @@ class PpddlNav2StlSat(Node):
                 time.sleep(self.costmap_edit_replan_delay_s)
             self.cancel_active_nav2_goal()
             remaining_start = self._last_feedback_waypoint or 0
-            remaining_waypoints = self.active_waypoints[remaining_start:] or self.active_waypoints
-            self._waypoints_offset += remaining_start
-            self.active_waypoints = remaining_waypoints
-            self.publish_waypoints_path(remaining_waypoints)
-            self.send_waypoints(remaining_waypoints)
-            self._last_feedback_waypoint = None  # reset for new goal's feedback stream
+            # Shared with the Tier-2 abandon path so the offset arithmetic
+            # cannot drift between the two.
+            remaining_waypoints = self.resend_waypoint_suffix(remaining_start)
             self.record_json_event(
                 "nav2_replan_sent",
                 {
@@ -1434,17 +2510,53 @@ class PpddlNav2StlSat(Node):
         self.waypoints_pub.publish(self.last_waypoints_path)
 
     def send_waypoints(self, waypoints):
+        # New route: the robot has something to drive again.
+        self._plan_finished_sim_s = None
+        # Kept so a rejected goal can be re-sent verbatim.
+        self._pending_waypoints = list(waypoints)
         goal_msg = FollowWaypoints.Goal()
         goal_msg.poses = self.build_poses(waypoints)
         future = self.client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
         future.add_done_callback(self.goal_response_callback)
 
+    def retry_rejected_goal(self):
+        """Re-send the last waypoints after Nav2 refused them."""
+        if self._goal_retry_timer is not None:
+            self._goal_retry_timer.cancel()
+            self._goal_retry_timer = None
+        if self.active_goal_handle is not None or self._pending_waypoints is None:
+            return          # something else already got a goal through
+        self.get_logger().info(
+            f"Re-sending waypoint goal "
+            f"(attempt {self._goal_reject_retries}/{self.goal_reject_max_retries})"
+        )
+        self.send_waypoints(self._pending_waypoints)
+
     def goal_response_callback(self, future):
         goal_handle = future.result()
         if not goal_handle.accepted:
-            self.get_logger().error("Nav2 waypoint goal rejected")
-            self.record_json_event("nav2_goal_rejected")
+            # Almost always Nav2 not finished activating. Retrying costs a few
+            # seconds; not retrying costs the entire run.
+            if self._goal_reject_retries < self.goal_reject_max_retries:
+                self._goal_reject_retries += 1
+                self.get_logger().warn(
+                    f"Nav2 waypoint goal rejected; retrying in "
+                    f"{self.goal_reject_retry_s:.1f}s "
+                    f"({self._goal_reject_retries}/{self.goal_reject_max_retries}) "
+                    f"-- waypoint_follower is most likely not active yet"
+                )
+                self._goal_retry_timer = self.create_timer(
+                    self.goal_reject_retry_s, self.retry_rejected_goal
+                )
+                return
+            self.get_logger().error(
+                f"Nav2 waypoint goal rejected {self._goal_reject_retries} times; "
+                f"giving up. The mission cannot start."
+            )
+            self.record_json_event("nav2_goal_rejected", {
+                "retries": self._goal_reject_retries, "terminal": True})
             return
+        self._goal_reject_retries = 0
         self.active_goal_handle = goal_handle
         self.get_logger().info("Nav2 waypoint goal accepted")
         self.record_json_event("nav2_goal_accepted")
@@ -1490,16 +2602,60 @@ class PpddlNav2StlSat(Node):
         self._last_feedback_waypoint = idx
 
     def result_callback(self, future):
-        result = future.result().result
-        if result.missed_waypoints:
-            self.get_logger().warn(f"Missed waypoints: {result.missed_waypoints}")
-            self.record_json_event(
-                "nav2_goal_finished",
-                {"missed_waypoints": list(result.missed_waypoints)},
+        outcome = future.result()
+        status = getattr(outcome, "status", GoalStatus.STATUS_SUCCEEDED)
+        result = outcome.result
+        self.active_goal_handle = None
+
+        if status == GoalStatus.STATUS_CANCELED:
+            # Distinguish our own cancel from an external one. Tier 1 and the
+            # hold both cancel deliberately; treating those as failures would
+            # escalate on every replan and loop forever.
+            ours = self.replan_in_progress or self.symbolic.state != symbolic_replan.IDLE
+            self.record_json_event("nav2_goal_canceled", {"self_initiated": ours})
+            if ours:
+                self.get_logger().info("Nav2 goal canceled by us; no escalation")
+                return
+            self.get_logger().warn("Nav2 goal canceled externally; escalating")
+            self.escalate_symbolic_replan(
+                self.active_plan_report, trigger="nav2_goal_aborted"
             )
+            return
+
+        if status == GoalStatus.STATUS_ABORTED:
+            failed_region = self.region_of_waypoint(self._last_feedback_waypoint)
+            self.get_logger().warn(
+                f"Nav2 aborted the waypoint goal near {failed_region or 'an unknown region'}"
+            )
+            self.record_json_event(
+                "nav2_goal_aborted",
+                {
+                    "status": int(status),
+                    "waypoint_idx": self._last_feedback_waypoint,
+                    "region": failed_region,
+                },
+            )
+            self.escalate_symbolic_replan(
+                self.active_plan_report,
+                trigger="nav2_goal_aborted",
+                failed_region=failed_region,
+            )
+            return
+
+        missed = list(getattr(result, "missed_waypoints", []) or [])
+        if missed:
+            self.get_logger().warn(f"Missed waypoints: {missed}")
+            self.record_json_event("nav2_goal_finished", {"missed_waypoints": missed})
         else:
             self.get_logger().info("All PPDDL Nav2 STL-SAT waypoints completed successfully")
             self.record_json_event("nav2_goal_finished", {"missed_waypoints": []})
+        # The robot has nothing left to drive. Whether that means SUCCESS is a
+        # separate question -- a replan narrowed to (visited <target>) finishes
+        # its plan without visiting the regions the mission requires. Mark the
+        # plan exhausted and let plan_exhaustion_tick decide, so the run cannot
+        # simply hang: a completed-but-incomplete mission previously idled 11
+        # minutes to the trial timeout with the robot parked at its goal.
+        self._plan_finished_sim_s = self.sim_time_now()
 
 
 def main(args=None):

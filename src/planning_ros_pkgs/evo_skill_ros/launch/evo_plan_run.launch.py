@@ -143,6 +143,35 @@ def generate_launch_description():
             "eventual_goal_check_distance": LaunchConfiguration("eventual_goal_check_distance"),
             "require_map": LaunchConfiguration("require_map"),
             "costmap_edit_max_radius": LaunchConfiguration("costmap_edit_max_radius"),
+            # --- Phi_mob shield (Tier 0) ---
+            "enable_phi_mob_shield": LaunchConfiguration("enable_phi_mob_shield"),
+            "shield_horizon_s": LaunchConfiguration("shield_horizon_s"),
+            "shield_violation_persist_s": LaunchConfiguration("shield_violation_persist_s"),
+            # --- online symbolic replan (Tier 2) ---
+            "enable_symbolic_replan": LaunchConfiguration("enable_symbolic_replan"),
+            "replan_service_url": LaunchConfiguration("replan_service_url"),
+            "symbolic_replan_deadline_s": LaunchConfiguration("symbolic_replan_deadline_s"),
+            "max_symbolic_replans": LaunchConfiguration("max_symbolic_replans"),
+            "symbolic_replan_cooldown_s": LaunchConfiguration("symbolic_replan_cooldown_s"),
+            "mission_deliberation_budget_s": LaunchConfiguration("mission_deliberation_budget_s"),
+            "mission_id": LaunchConfiguration("mission_id"),
+            "planner_mode": LaunchConfiguration("planner_mode"),
+            "stuck_window_s": LaunchConfiguration("stuck_window_s"),
+            "stuck_min_displacement_m": LaunchConfiguration("stuck_min_displacement_m"),
+            "hold_on_replan": LaunchConfiguration("hold_on_replan"),
+            # --- run termination ---
+            "mission_timeout_s": LaunchConfiguration("mission_timeout_s"),
+            "plan_exhaustion_grace_s": LaunchConfiguration("plan_exhaustion_grace_s"),
+            "end_on_replans_exhausted": LaunchConfiguration("end_on_replans_exhausted"),
+            # --- find-an-object missions ---
+            # Defaults to the same file the observation logger writes, so the
+            # two cannot drift apart and silently search an empty log.
+            "find_object_class": ParameterValue(
+                LaunchConfiguration("find_object_class"), value_type=str),
+            "find_object_obs_log": ParameterValue(
+                LaunchConfiguration("obs_log_file"), value_type=str),
+            "find_object_min_hits": LaunchConfiguration("find_object_min_hits"),
+            "find_object_min_score": LaunchConfiguration("find_object_min_score"),
         }],
     )
 
@@ -169,9 +198,14 @@ def generate_launch_description():
             "--world",       LaunchConfiguration("metrics_world"),
             "--duration",    LaunchConfiguration("metrics_duration"),
             "--stop-on-success", LaunchConfiguration("metrics_stop_on_success"),
+            "--stop-on-collision", LaunchConfiguration("metrics_stop_on_collision"),
             "--goal-topic",  LaunchConfiguration("metrics_goal_topic"),
             "--actors-sdf",  LaunchConfiguration("metrics_actors_sdf"),
             "--json-out",    LaunchConfiguration("metrics_json_out"),
+            "--trace-out",   LaunchConfiguration("metrics_trace_out"),
+            # Folds the planner's replan/deliberation/veto counters into the
+            # same results JSON the tables are built from.
+            "--evoplan-status-topic", [LaunchConfiguration("namespace"), "/evoplan/status"],
         ],
     )
 
@@ -317,6 +351,53 @@ def generate_launch_description():
             description="Path where scand_metrics writes the JSON summary at exit.",
         ),
         DeclareLaunchArgument(
+            "metrics_trace_out",
+            default_value="",
+            description="Path where scand_metrics appends a per-tick JSONL trace (sim time, "
+                        "robot pose/speed, every human's ground-truth position + distance). "
+                        "Empty disables it. Enables offline proxemic recomputation with "
+                        "per-human exclusion windows (filter_trace_metrics.py).",
+        ),
+        DeclareLaunchArgument(
+            "mission_timeout_s",
+            default_value="1800.0",
+            description="Hard cap on mission duration in SIM seconds; 0 disables. "
+                        "Scale it with max_vel_x -- halving the controller's linear "
+                        "speed roughly doubles how long a region tour takes.",
+        ),
+        DeclareLaunchArgument(
+            "plan_exhaustion_grace_s",
+            default_value="10.0",
+            description="Wait after the plan finishes before declaring the run over, "
+                        "in case a replan is still coming. 0 removes it entirely.",
+        ),
+        DeclareLaunchArgument(
+            "end_on_replans_exhausted",
+            default_value="false",
+            description="End the run as soon as the symbolic replan budget is spent and "
+                        "the plan has finished, instead of waiting out the grace period.",
+        ),
+        DeclareLaunchArgument(
+            "find_object_class",
+            default_value="",
+            description="YOLO class to find. Non-empty runs the mission in two phases: "
+                        "complete the region tour while the observation logger records "
+                        "what is seen where, then look this class up in that log and "
+                        "replan an approach to the region that held it. Requires "
+                        "enable_observation_log:=true. Empty disables it.",
+        ),
+        DeclareLaunchArgument(
+            "find_object_min_hits",
+            default_value="3",
+            description="Detections of find_object_class in one region before it counts "
+                        "as really there. Guards against spurious single-frame labels.",
+        ),
+        DeclareLaunchArgument(
+            "find_object_min_score",
+            default_value="0.5",
+            description="Detection confidence floor for find_object_class evidence.",
+        ),
+        DeclareLaunchArgument(
             "enable_observation_log",
             default_value="false",
             description="Log robot pose + detected object bboxes/map positions for plan-vs-perception desync.",
@@ -364,6 +445,101 @@ def generate_launch_description():
             default_value="6.0",
             description=("Max distance to a graph region centroid for attribution. Regions are "
                          "points, not polygons, so without this everything snaps to something."),
+        ),
+        # ---------------------------------------------------------------
+        # Phi_mob runtime shield (Tier 0) and the online symbolic replan
+        # (Tier 2). Both default OFF: with these false the node behaves
+        # exactly as it did before the EvoPlan merge, so an existing
+        # experiment reproduces byte-for-byte.
+        # ---------------------------------------------------------------
+        DeclareLaunchArgument(
+            "metrics_stop_on_collision",
+            default_value="true",
+            description=("End the trial the moment the robot collides with a human and report "
+                         "succ=no. Driving on past a collision accumulates proxemic and envelope "
+                         "statistics for a run whose outcome is already decided."),
+        ),
+        DeclareLaunchArgument(
+            "enable_phi_mob_shield",
+            default_value="false",
+            description=("Monitor the mined social-compliance envelope (Phi_mob) online "
+                         "from odometry and human tracks. Reports robustness and counts "
+                         "vetoes; only escalates when enable_symbolic_replan is also true."),
+        ),
+        DeclareLaunchArgument(
+            "shield_horizon_s",
+            default_value="3.0",
+            description="Sliding window, in SIM seconds, that shield robustness minimises over.",
+        ),
+        DeclareLaunchArgument(
+            "shield_violation_persist_s",
+            default_value="1.0",
+            description=("Sim seconds a violation must persist before it escalates. Without "
+                         "this debounce a single YOLO false positive costs a full "
+                         "deliberation stall."),
+        ),
+        DeclareLaunchArgument(
+            "enable_symbolic_replan",
+            default_value="false",
+            description=("Escalate to the host EvoPlan service for a new symbolic plan when "
+                         "the reactive layer cannot cope. Requires the replan service to be "
+                         "running (pipeline/replan_service.sh start)."),
+        ),
+        DeclareLaunchArgument(
+            "replan_service_url",
+            default_value="http://127.0.0.1:8077",
+            description=("Host replan service. Reachable on localhost because "
+                         "docker-compose.yml runs this container on network_mode: host."),
+        ),
+        DeclareLaunchArgument(
+            "symbolic_replan_deadline_s",
+            default_value="45.0",
+            description=("WALL seconds to wait for a plan before resuming the old route. "
+                         "Wall, not sim: the host service is wall-clock."),
+        ),
+        DeclareLaunchArgument(
+            "max_symbolic_replans",
+            default_value="2",
+            description="Mission-lifetime cap on symbolic replans; bounds the tier loop.",
+        ),
+        DeclareLaunchArgument(
+            "symbolic_replan_cooldown_s",
+            default_value="30.0",
+            description="Minimum SIM seconds between symbolic replans.",
+        ),
+        DeclareLaunchArgument(
+            "mission_deliberation_budget_s",
+            default_value="120.0",
+            description="Total WALL seconds a mission may spend deliberating, across all replans.",
+        ),
+        DeclareLaunchArgument(
+            "mission_id",
+            default_value="factory_mission_01",
+            description=("Selects the base problem in evolve_stl_pddl/jackal/in/. Must match "
+                         "the plan_file, or the replan solves a different mission."),
+        ),
+        DeclareLaunchArgument(
+            "planner_mode",
+            default_value="evoplan",
+            description=("fd_only (fast baseline / ablation arm), fd_first (FD then EvoPlan), "
+                         "or evoplan."),
+        ),
+        DeclareLaunchArgument(
+            "stuck_window_s",
+            default_value="20.0",
+            description=("Sim seconds of no progress before declaring the robot stuck. Nav2 "
+                         "often does not abort a goal it cannot reach -- it just grinds."),
+        ),
+        DeclareLaunchArgument(
+            "stuck_min_displacement_m",
+            default_value="0.3",
+            description="Movement within stuck_window_s below which the robot counts as stuck.",
+        ),
+        DeclareLaunchArgument(
+            "hold_on_replan",
+            default_value="true",
+            description=("Stop the robot while the planner deliberates. The Gazebo clock keeps "
+                         "running, so the deliberation cost lands honestly in duration_s."),
         ),
         tracker_node,
         evo_plan_deploy_node,

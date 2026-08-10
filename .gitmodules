@@ -11,3 +11,6 @@
 [submodule "src/planning_ros_pkgs/evo_skill"]
 	path = src/planning_ros_pkgs/evo_skill
 	url = git@github.com:saminmoosavi/evo_skill_ros.git
+[submodule "evolve_stl_pddl"]
+	path = evolve_stl_pddl
+	url = https://github.com/Nbhavyasai/evolve-stl-pddl.git

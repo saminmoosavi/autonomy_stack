@@ -57,8 +57,12 @@ PLAN=${PLAN:-$WS/src/planning_ros_pkgs/evo_skill_ros/config/plan.txt}
 # as run_ablation.sh:62-64. A hardcoded default drifts from the plan: this was
 # R10 while the packaged plan.txt ends at R11.
 if [ -z "${TARGET:-}" ]; then
-  TARGET=$(grep -oE '\(move +[[:alnum:]_]+ +R[0-9]+ +R[0-9]+\)' "$PLAN" 2>/dev/null \
-           | tail -1 | grep -oE 'R[0-9]+' | tail -1)
+  # Case-INSENSITIVE: the hand-written mission plans use "R5", but Fast Downward
+  # emits lowercase "r5", so an FD-generated plan (e.g. the region-coverage
+  # tour) matched nothing and died with "no (move ...) action" despite being a
+  # perfectly good plan. The executor lowercases region names anyway.
+  TARGET=$(grep -oEi '\(move +[[:alnum:]_]+ +r[0-9]+ +r[0-9]+\)' "$PLAN" 2>/dev/null \
+           | tail -1 | grep -oEi 'r[0-9]+' | tail -1)
   [ -n "$TARGET" ] || { echo "[run_sim] ERROR: no (move ...) action in $PLAN"; exit 1; }
   echo "[run_sim] target region derived from $(basename "$PLAN"): $TARGET"
 fi
@@ -163,12 +167,103 @@ if ! wait_for "${SPAWN_TIMEOUT:-180}" "robot ($NS) to spawn in Gazebo" robot_spa
   exit 1
 fi
 
-# 2) Nav2 + SLAM -------------------------------------------------------------
-ros2 launch clearpath_nav2_demos nav2.launch.py \
-  use_sim_time:=true setup_path:="$HOME/clearpath/" > "$LOGDIR/nav2.log" 2>&1 &
-PIDS+=($!)
-ros2 launch clearpath_nav2_demos slam.launch.py \
+# 2) Nav2 + localization ------------------------------------------------------
+# nav2_custom.launch.py, not clearpath_nav2_demos/nav2.launch.py: it loads the
+# tuned j100_nav2.yaml. This is what density_sweep.py:510 launches, i.e. the
+# configuration every result in results/ was produced with.
+launch_nav2() {
+  # Rotate the log instead of appending to it. nav2_active() decides readiness
+  # by grepping this file for "Creating bond timer", so an appended log lets a
+  # marker from a PREVIOUS attempt -- or, worse, a previous RUN that reused this
+  # log directory -- satisfy the check instantly. Observed: the grep matched a
+  # line written 8 minutes earlier by an unrelated run, run_sim.sh declared Nav2
+  # up, the executor launched and published its waypoints 5.7 s BEFORE
+  # waypoint_follower activated, the FollowWaypoints goal was rejected, and the
+  # robot never moved while every other part of the stack looked healthy.
+  # Rotating rather than truncating keeps the failed attempt for post-mortem.
+  if [ -s "$LOGDIR/nav2.log" ]; then
+    mv "$LOGDIR/nav2.log" "$LOGDIR/nav2.log.$(date +%s)" 2>/dev/null || true
+  fi
+  : > "$LOGDIR/nav2.log"
+  ros2 launch "$WS/nav2_custom.launch.py" \
+    use_sim_time:=true setup_path:="$HOME/clearpath/" >> "$LOGDIR/nav2.log" 2>&1 &
+  NAV2_PID=$!
+  PIDS+=("$NAV2_PID")
+}
+# Kill a half-activated Nav2 hard: SIGTERM on the launch pid leaves the servers
+# behind, and a second lifecycle_manager talking to orphaned servers never bonds.
+# Same node list density_sweep.py:512-520 pkills.
+kill_nav2() {
+  kill -TERM "$NAV2_PID" 2>/dev/null || true
+  for pat in nav2_custom.launch nav2_bringup bt_navigator planner_server \
+             controller_server waypoint_follower behavior_server \
+             smoother_server velocity_smoother lifecycle_manager_navigation; do
+    # NOTE: lifecycle_manager_navigation, NOT bare "lifecycle_manager".
+    # pkill -f matches substrings, so the bare name also killed
+    # lifecycle_manager_LOCALIZATION -- taking down map_server and AMCL with
+    # it. Attempt 1 would fail on the ordinary bond flake, this retry would
+    # then destroy localization, and every later attempt was doomed:
+    #   "Can't update static costmap layer, no map received"
+    #   "Timed out waiting for transform from base_link to map"
+    # i.e. the retry made the failure permanent instead of recovering from it.
+    pkill -9 -f "$pat" 2>/dev/null || true
+  done
+  sleep 3
+}
+launch_nav2
+# AMCL against the prebuilt map, NOT slam_toolbox. This matches process.md:29
+# and density_sweep.py:443 (the path run_ablation.sh drives, and the only one
+# actually exercised). With slam.launch.py, slam_toolbox comes up but never
+# publishes a map->odom transform here, so the global costmap fails with
+# 'Invalid frame ID "map" passed to canTransform' and Nav2 never reaches
+# active -- surfacing as a bringup timeout with no obvious cause.
+# Set LOCALIZATION_MAP to use a different map (e.g. the real lab).
+LOCALIZATION_MAP=${LOCALIZATION_MAP:-$WS/factory_sim_map.yaml}
+if [ ! -f "$LOCALIZATION_MAP" ]; then
+  echo "[run_sim] ERROR: localization map not found: $LOCALIZATION_MAP" >&2
+  exit 1
+fi
+echo "[run_sim] localizing against $LOCALIZATION_MAP (AMCL, not SLAM)"
+ros2 launch clearpath_nav2_demos localization.launch.py \
+  map:="$LOCALIZATION_MAP" \
   use_sim_time:=true setup_path:="$HOME/clearpath/" > "$LOGDIR/slam.log" 2>&1 &
+PIDS+=($!)
+
+# AMCL publishes no map->odom transform until it is seeded with a pose, so
+# without this Nav2 stalls exactly as it does under SLAM. Wait for AMCL to ask
+# for one, then seed it at the spawn point (density_sweep.py:471-490).
+publish_initial_pose() {
+  local cov="0.25,0,0,0,0,0, 0,0.25,0,0,0,0, 0,0,0,0,0,0, \
+0,0,0,0,0,0, 0,0,0,0,0,0, 0,0,0,0,0,0.0685"
+  timeout 20 ros2 topic pub --once "$NS/initialpose" \
+    geometry_msgs/msg/PoseWithCovarianceStamped \
+    "{header: {frame_id: 'map'}, pose: {pose: {position: {x: $SPAWN_X, y: $SPAWN_Y, z: 0.0}, \
+orientation: {x: 0.0, y: 0.0, z: 0.0, w: 1.0}}, covariance: [$cov]}}" >/dev/null 2>&1
+}
+(
+  # AMCL logs this once it is active and still unlocalized.
+  for _ in $(seq 1 60); do
+    grep -q "Please set the initial pose" "$LOGDIR/slam.log" 2>/dev/null && break
+    sleep 1
+  done
+  # Publish until AMCL confirms with initialPoseReceived, not just once.
+  # `ros2 topic pub --once` returns as soon as it has sent, which is routinely
+  # before discovery has connected it to AMCL's subscription -- the send
+  # "succeeds" and the message goes nowhere. density_sweep.py:503 verifies the
+  # same way and treats a missing confirmation as a setup failure.
+  for attempt in $(seq 1 10); do
+    publish_initial_pose
+    for _ in $(seq 1 6); do
+      if grep -q "initialPoseReceived" "$LOGDIR/slam.log" 2>/dev/null; then
+        echo "[run_sim] AMCL accepted initial pose at ($SPAWN_X, $SPAWN_Y) (map->odom TF valid)"
+        exit 0
+      fi
+      sleep 1
+    done
+    echo "[run_sim] AMCL has not confirmed the initial pose; retrying ($attempt/10)"
+  done
+  echo "[run_sim] WARNING: AMCL never confirmed an initial pose -- Nav2 will not activate." >&2
+) &
 PIDS+=($!)
 
 # 3) Scan source: SLAM/Nav2 subscribe to lidar2d_0/scan. How that gets fed
@@ -191,11 +286,45 @@ else
 fi
 
 # 4) Wait for Nav2 to finish lifecycle activation ----------------------------
-if ! wait_for "${NAV2_TIMEOUT:-180}" "Nav2 to activate (waypoint_follower)" \
-  bash -c "[ \"\$(timeout 8 ros2 lifecycle get ${NS}/waypoint_follower 2>/dev/null)\" = 'active [3]' ]"; then
-  echo "[run_sim] ERROR: Nav2 did not activate. Check $LOGDIR/nav2.log and $LOGDIR/slam.log"
+# Detect activation from nav2.log, not `ros2 lifecycle get`. The lifecycle CLI
+# needs its own DDS discovery round trip and does not reliably answer inside the
+# container -- it kept timing out while nav2.log plainly showed every server
+# bonded, so a fully-active Nav2 read as a bringup failure. The bond timer is
+# logged by lifecycle_manager_navigation only after ALL nav nodes have bonded,
+# which is exactly the condition we want; density_sweep.py:537 uses the same
+# marker (PAT_NAV2_BONDED).
+nav2_active() {
+  grep -q "Creating bond timer" "$LOGDIR/nav2.log" 2>/dev/null && return 0
+  # Fallback for anyone running with a pre-existing Nav2 that logs elsewhere.
+  [ "$(timeout 8 ros2 lifecycle get "${NS}/waypoint_follower" 2>/dev/null)" = 'active [3]' ]
+}
+# Retry Nav2, don't just time out. Its lifecycle activation has a well-known
+# race where the change_state RESPONSE is dropped by DDS -- the server logs
+# "failed to send response to .../change_state (timeout)" having actually
+# configured fine, and lifecycle_manager then waits forever for a transition
+# that already happened, so nothing ever bonds. It is intermittent and clears on
+# a clean relaunch; density_sweep.py:70 calls it "the Nav2 bond flake" and
+# allows NAV2_RETRIES=3. Without this a trial fails on a coin flip.
+NAV2_RETRIES=${NAV2_RETRIES:-3}
+NAV2_OK=0
+for nav2_try in $(seq 1 "$NAV2_RETRIES"); do
+  if wait_for "${NAV2_TIMEOUT:-180}" "Nav2 to activate (attempt $nav2_try/$NAV2_RETRIES)" nav2_active; then
+    NAV2_OK=1; break
+  fi
+  if grep -q "failed to send response.*change_state" "$LOGDIR/nav2.log" 2>/dev/null; then
+    echo "[run_sim] Nav2 hit the change_state bond flake; relaunching."
+  else
+    echo "[run_sim] Nav2 did not activate; relaunching."
+  fi
+  [ "$nav2_try" -lt "$NAV2_RETRIES" ] || break
+  kill_nav2
+  launch_nav2
+done
+if [ "$NAV2_OK" != "1" ]; then
+  echo "[run_sim] ERROR: Nav2 did not activate after $NAV2_RETRIES attempts."
+  echo "[run_sim] Check $LOGDIR/nav2.log and $LOGDIR/slam.log"
   echo "[run_sim] Common causes: scan relay not feeding ${NS}/sensors/lidar2d_0/scan (no map),"
-  echo "[run_sim] or DDS dropping traffic (ensure ROS_LOCALHOST_ONLY=1 everywhere)."
+  echo "[run_sim] AMCL never seeded (no map->odom TF), or DDS dropping traffic."
   exit 1
 fi
 
@@ -211,6 +340,60 @@ else
   # allowlist must be omitted entirely and left to the launch default ("" = all).
   [ -n "${OBS_LOG_CLASSES:-}" ] && EVO_ARGS+=("obs_log_classes:=${OBS_LOG_CLASSES}")
   [ -n "${OBS_EXCLUDE_FILE:-}" ] && EVO_ARGS+=("obs_exclude_file:=${OBS_EXCLUDE_FILE}")
+  # Run-termination knobs. Unset leaves the launch defaults (1800s / 10s / off).
+  [ -n "${MISSION_TIMEOUT_S:-}" ] && EVO_ARGS+=("mission_timeout_s:=${MISSION_TIMEOUT_S}")
+  [ -n "${PLAN_EXHAUSTION_GRACE_S:-}" ] && EVO_ARGS+=("plan_exhaustion_grace_s:=${PLAN_EXHAUSTION_GRACE_S}")
+  [ -n "${END_ON_REPLANS_EXHAUSTED:-}" ] && EVO_ARGS+=("end_on_replans_exhausted:=${END_ON_REPLANS_EXHAUSTED}")
+  # FIND_OBJECT: two-phase mission (tour, then approach whatever region the
+  # observation log says holds this class). Needs OBS_LOG=true to have a log
+  # to search, and the class must be in YOLO_CLASSES to ever be detected.
+  if [ -n "${FIND_OBJECT:-}" ]; then
+    EVO_ARGS+=("find_object_class:=${FIND_OBJECT}")
+    [ -n "${FIND_OBJECT_MIN_HITS:-}" ] && EVO_ARGS+=("find_object_min_hits:=${FIND_OBJECT_MIN_HITS}")
+    [ -n "${FIND_OBJECT_MIN_SCORE:-}" ] && EVO_ARGS+=("find_object_min_score:=${FIND_OBJECT_MIN_SCORE}")
+    # OBS_LOG arrives as either a boolean word or 1/0 -- run_trial.sh passes the
+    # numeric form and ros2 launch's IfCondition accepts both, so this guard has
+    # to as well or it rejects a perfectly valid run.
+    case "$(printf '%s' "${OBS_LOG}" | tr '[:upper:]' '[:lower:]')" in
+      1|true|yes|on) ;;
+      *) echo "[run_sim] ERROR: FIND_OBJECT=${FIND_OBJECT} needs OBS_LOG enabled (got '${OBS_LOG}'); nothing would be logged to search" >&2
+         exit 1 ;;
+    esac
+    case ",${YOLO_CLASSES:-}," in
+      *",${FIND_OBJECT},"*) ;;
+      *) echo "[run_sim] WARNING: '${FIND_OBJECT}' is not in YOLO_CLASSES='${YOLO_CLASSES:-}'; it can never be detected" >&2 ;;
+    esac
+  fi
+
+  # --- Phi_mob shield + online symbolic replan ------------------------------
+  # SHIELD=1 turns on Phi_mob monitoring (reporting only).
+  # SYMBOLIC_REPLAN=1 additionally lets it escalate to the host replan service.
+  [ "${SHIELD:-0}" = "1" ] && EVO_ARGS+=("enable_phi_mob_shield:=true")
+  if [ "${SYMBOLIC_REPLAN:-0}" = "1" ]; then
+    REPLAN_URL="${REPLAN_SERVICE_URL:-http://127.0.0.1:${REPLAN_PORT:-8077}}"
+    # The service runs on the HOST; this container reaches it on localhost
+    # because docker-compose.yml sets network_mode: host.
+    if wait_for 20 "replan service at $REPLAN_URL" curl -sf "$REPLAN_URL/health"; then
+      # mission_id selects the base PDDL problem, and must match the plan being
+      # executed or the replan solves a different mission. Derived from the plan
+      # filename, the same way TARGET is derived from its last (move ...).
+      MISSION_ID="${MISSION_ID:-$(basename "$PLAN" .txt)}"
+      EVO_ARGS+=("enable_phi_mob_shield:=true")
+      EVO_ARGS+=("enable_symbolic_replan:=true")
+      EVO_ARGS+=("replan_service_url:=$REPLAN_URL")
+      EVO_ARGS+=("mission_id:=$MISSION_ID")
+      EVO_ARGS+=("planner_mode:=${PLANNER_MODE:-evoplan}")
+      EVO_ARGS+=("max_symbolic_replans:=${MAX_SYMBOLIC_REPLANS:-2}")
+      EVO_ARGS+=("symbolic_replan_deadline_s:=${SYMBOLIC_DEADLINE:-45.0}")
+      echo "[run_sim] symbolic replan ON (mission=$MISSION_ID mode=${PLANNER_MODE:-evoplan})"
+    else
+      # Deliberately not fatal. Aborting a 20-minute sim bringup because a host
+      # helper is down is the wrong trade -- run without Tier 2 and say so.
+      echo "[run_sim] WARNING replan service unreachable at $REPLAN_URL;" \
+           "continuing with symbolic replan DISABLED" >&2
+      EVO_ARGS+=("enable_symbolic_replan:=false")
+    fi
+  fi
   ros2 launch evo_skill_ros evo_plan_run.launch.py \
     namespace:="$NS" robot_name:=jackal_1 target_region:="$TARGET" \
     graph_file:="$EVO_CFG/graph.json" \
@@ -256,24 +439,60 @@ fi
 # observation log without changing detection, use config/exclude.json instead.
 YOLO_CLASSES="${YOLO_CLASSES:-person,chair,table,shelf,column,box,pallet}"
 YOLO_DEVICE="${YOLO_DEVICE:-cuda:0}"
+# yolo-world.launch.py defaults to yolov8s-worldv2.pt -- the SMALLEST World
+# checkpoint. A run that drove to within 1.42 m of a confirmed-spawned
+# testobj_bookshelf_r5 logged 83 'chair' and 1 'person' (both COCO-core) and
+# ZERO 'bookshelf' at any score, which is what open-vocab underfitting looks
+# like at the 's' scale. Medium is the next step up.
+#
+# This MUST stay a *-worldv2 (or other open-vocab) checkpoint. yolo_node.py:148
+# creates the set_classes service only `if isinstance(self.yolo, YOLOWorld)`, so
+# a plain yolov8m.pt silently ignores YOLO_CLASSES, runs COCO's 80 classes --
+# which contain no 'bookshelf' -- and makes find-object missions unsatisfiable.
+YOLO_MODEL="${YOLO_MODEL:-yolov8m-worldv2.pt}"
+case "$YOLO_MODEL" in
+  *world*|*yoloe*) ;;
+  *) echo "[run_sim] WARNING: YOLO_MODEL='$YOLO_MODEL' is not an open-vocabulary" \
+          "checkpoint; set_classes will not exist and YOLO_CLASSES will be IGNORED" >&2 ;;
+esac
 set_classes_bg() {   # <yolo_namespace> <log_file>  (prompt yolo-world with the target classes)
   local yns="$1" log="$2"
   (
-    if wait_for "${YOLO_TIMEOUT:-90}" "/${yns}/set_classes service" \
-        bash -c "timeout 6 ros2 service list 2>/dev/null | grep -q /${yns}/set_classes"; then
-      # The set_classes response is frequently lost over DDS even though the node
-      # received and applied the classes, so don't trust the call's exit code --
-      # confirm via the yolo node's log ("Setting classes" / "New classes").
-      timeout 15 ros2 service call "/${yns}/set_classes" yolo_msgs/srv/SetClasses \
-        "{classes: [${YOLO_CLASSES}]}" >/dev/null 2>&1 || true
-      sleep 2
-      if grep -qaE "Setting classes|New classes" "$log" 2>/dev/null; then
-        echo "[run_sim] ${yns} classes set: [${YOLO_CLASSES}]"
-      else
-        echo "[run_sim] WARNING: ${yns} classes not confirmed; check $log"
+    # Call the service directly instead of first waiting for it to appear in
+    # `ros2 service list`. Listing enumerates the ENTIRE DDS graph, which with
+    # Gazebo + Nav2 + 4 YOLO stacks + trackers + metrics takes longer than the
+    # 6s the old probe allowed -- so the probe timed out, found nothing, and
+    # after 90s reported "/yolo_N/set_classes never appeared" while the service
+    # was in fact advertised the whole time (verified: model_type=World and
+    # /set_classes present). yolo-world detects NOTHING until prompted, so this
+    # silently left every camera running the default COCO vocabulary: the
+    # backpack in the objects world came back labelled "suitcase", and
+    # shelf/box/pallet were never detectable at all.
+    #
+    # `ros2 service call` blocks until that one service resolves, which needs
+    # only its own discovery, not the whole graph.
+    local deadline=$(( SECONDS + ${YOLO_TIMEOUT:-90} ))
+    local ok=0
+    while [ $SECONDS -lt $deadline ]; do
+      if timeout 20 ros2 service call "/${yns}/set_classes" yolo_msgs/srv/SetClasses \
+           "{classes: [${YOLO_CLASSES}]}" >/dev/null 2>&1; then
+        ok=1; break
       fi
+      # The response is frequently lost over DDS even though the node applied
+      # the classes, so treat the node's own log as the source of truth.
+      if grep -qaE "Setting classes|New classes" "$log" 2>/dev/null; then
+        ok=1; break
+      fi
+      sleep 3
+    done
+    sleep 2
+    if grep -qaE "Setting classes|New classes" "$log" 2>/dev/null; then
+      echo "[run_sim] ${yns} classes set: [${YOLO_CLASSES}]"
+    elif [ "$ok" = 1 ]; then
+      echo "[run_sim] ${yns} set_classes call returned but the node did not log it; check $log"
     else
-      echo "[run_sim] WARNING: /${yns}/set_classes never appeared."
+      echo "[run_sim] WARNING: ${yns} set_classes never succeeded -- detector is running" \
+           "its DEFAULT vocabulary, not [${YOLO_CLASSES}]. check $log"
     fi
   ) &
   PIDS+=($!)
@@ -284,6 +503,7 @@ elif [ "${MULTICAM:-0}" = "1" ]; then
   echo "[run_sim] MULTICAM=1 -> YOLO + tracker on camera_0..3 (~360 deg). Heavy GPU load."
   for i in 0 1 2 3; do
     ros2 launch yolo_bringup yolo-world.launch.py \
+      model:="$YOLO_MODEL" \
       input_image_topic:="${NS}/sensors/camera_${i}/color/image" namespace:="yolo_${i}" \
       > "$LOGDIR/yolo_${i}.log" 2>&1 &
     PIDS+=($!)
@@ -303,6 +523,7 @@ elif [ "${MULTICAM:-0}" = "1" ]; then
   echo "[run_sim] MULTICAM: 4 YOLO + 4 trackers (cam0 via evo) -> ${NS}/tracks."
 else
   ros2 launch yolo_bringup yolo-world.launch.py \
+    model:="$YOLO_MODEL" \
     input_image_topic:="${NS}/sensors/camera_0/color/image" \
     > "$LOGDIR/yolo.log" 2>&1 &
   PIDS+=($!)
@@ -312,5 +533,30 @@ fi
 
 echo "[run_sim] pipeline is UP. Logs: $LOGDIR/{sim,nav2,slam,relay,evo,yolo}.log"
 echo "[run_sim] verify motion:  ign model -m ${NS#/}/robot -p   (run twice)"
-echo "[run_sim] Ctrl-C to tear everything down."
-wait
+
+# When metrics are collecting with early-stop armed, scand_metrics decides when
+# the mission is over: it stops on arrival-and-settled, or on a collision, and
+# writes its JSON on the way out. Exit with it instead of blocking on `wait`,
+# which held the whole pipeline up until the caller's timeout -- observed idling
+# ~9 minutes after a mission that finished in 31 seconds. Batch runs pay that
+# per trial.
+if [ "${METRICS:-false}" = "true" ] && [ "${UNTIL_SUCCESS:-false}" != "false" ]; then
+  METRICS_OUT="${METRICS_JSON_OUT:-$WS/scand_metrics_out.json}"
+  echo "[run_sim] running until the mission ends (watching $METRICS_OUT); Ctrl-C to stop early."
+  # scand_metrics is launched by evo_plan_run.launch.py, so we cannot wait on
+  # its PID; watch for the results file it writes on clean exit.
+  START_MTIME=$(stat -c %Y "$METRICS_OUT" 2>/dev/null || echo 0)
+  while :; do
+    NOW_MTIME=$(stat -c %Y "$METRICS_OUT" 2>/dev/null || echo 0)
+    if [ "$NOW_MTIME" -gt "$START_MTIME" ]; then
+      echo "[run_sim] mission ended; metrics written to $METRICS_OUT"
+      break
+    fi
+    # If every background job has exited, there is nothing left to wait for.
+    kill -0 ${PIDS[0]} 2>/dev/null || { echo "[run_sim] pipeline exited"; break; }
+    sleep 2
+  done
+else
+  echo "[run_sim] Ctrl-C to tear everything down."
+  wait
+fi
