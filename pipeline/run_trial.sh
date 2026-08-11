@@ -17,7 +17,14 @@ set -euo pipefail
 # ------------------------------- WHAT TO RUN ---------------------------------
 MISSION="${MISSION:-factory_mission_08}"   # factory_mission_01 .. _10
 CROWD="${CROWD:-30}"                       # 0 10 20 30 40 50 100, or "" for warehouse_people
-PLANNER_MODE="${PLANNER_MODE:-fd_first}"    # fd_only | fd_first | evoplan
+# fd_only     Fast Downward alone, no LLM, no token spend.
+# fd_first    FD, and EvoPlan only if FD's plan fails VAL.
+# evoplan     FD FIRST (as a solvability guard, a fallback plan and the
+#             length reference EvoPlan is scored against), then evolve.
+# evoplan_only  FD is never consulted. The LLM is the only planner, so there is
+#             no fallback if it returns nothing -- which is the point when the
+#             comparison being run is "what can EvoPlan do on its own".
+PLANNER_MODE="${PLANNER_MODE:-fd_first}"    # fd_only | fd_first | evoplan | evoplan_only
 
 # --------------------------------- THE LLM -----------------------------------
 # Only consulted when PLANNER_MODE reaches EvoPlan. fd_only never calls out.
@@ -36,6 +43,35 @@ SYMBOLIC_REPLAN="${SYMBOLIC_REPLAN:-1}"    # 1 = Tier 2 on (implies the shield)
 SHIELD="${SHIELD:-1}"                      # Phi_mob monitoring; 1 = on
 MAX_SYMBOLIC_REPLANS="${MAX_SYMBOLIC_REPLANS:-2}"
 SYMBOLIC_DEADLINE="${SYMBOLIC_DEADLINE:-45.0}"   # WALL seconds per replan
+# 45 s is sized for the modes that keep a Fast Downward plan in hand: EvoPlan
+# overrunning it costs nothing there, because the FD plan is what gets driven.
+# evoplan_only has no such floor. OpenEvolve needs roughly 15-25 s per
+# iteration (an LLM round trip plus a VAL evaluation) and the config runs 6, so
+# 45 s expires mid-run and the service returns an EMPTY plan -- observed twice
+# in one trial, both replans reporting "evoplan produced no plan (timeout)"
+# after exactly 45.0 s, leaving the robot to abandon the replan and carry on
+# with a route that had just been aborted.
+if [ "$PLANNER_MODE" = "evoplan_only" ] && [ "${SYMBOLIC_DEADLINE%.*}" -lt 120 ]; then
+  echo "[trial] PLANNER_MODE=evoplan_only has no Fast Downward fallback and" \
+       "${SYMBOLIC_DEADLINE}s is not enough for 6 OpenEvolve iterations -- raising to 150.0"
+  echo "[trial]   (set SYMBOLIC_DEADLINE explicitly to something >= 120 to silence this)"
+  SYMBOLIC_DEADLINE=150.0
+fi
+# Whole-mission deliberation budget, against which every replan's WALL time is
+# charged. It must exceed the per-replan deadline or the first replan spends the
+# lot and every later escalation is refused with "mission deliberation budget
+# exhausted" -- which is not a graceful degradation: a Nav2 abort then has no
+# replan available, the executor is left with no active goal, and the run idles
+# to its timeout. Nobody hit this while the default deadline was 45 s (2 x 45 <
+# 120); raising it for evoplan_only walks straight into it.
+#
+# Sized as deadline x replans so the budget is exactly what the other two knobs
+# imply, with the 120 s default as a floor so no run gets a SMALLER budget than
+# it had before.
+if [ -z "${MISSION_DELIBERATION_BUDGET_S:-}" ]; then
+  MISSION_DELIBERATION_BUDGET_S="$(awk -v d="$SYMBOLIC_DEADLINE" -v n="$MAX_SYMBOLIC_REPLANS" \
+    'BEGIN { b = d * n; if (b < 120) b = 120; printf "%.1f", b }')"
+fi
 REPLAN_PORT="${REPLAN_PORT:-8077}"
 
 # ROS 2 parameters are strictly typed. evo_plan_deploy declares these as DOUBLE,
@@ -51,6 +87,7 @@ SYMBOLIC_DEADLINE="$(as_float "$SYMBOLIC_DEADLINE")"
 # bringup still reported "pipeline is UP" because the other nodes were fine.
 [ -n "${MISSION_TIMEOUT_S:-}" ] && MISSION_TIMEOUT_S="$(as_float "$MISSION_TIMEOUT_S")"
 [ -n "${PLAN_EXHAUSTION_GRACE_S:-}" ] && PLAN_EXHAUSTION_GRACE_S="$(as_float "$PLAN_EXHAUSTION_GRACE_S")"
+MISSION_DELIBERATION_BUDGET_S="$(as_float "$MISSION_DELIBERATION_BUDGET_S")"
 
 # ---------------------------------- THE SIM ----------------------------------
 NS="${NS:-/j100_0000}"
@@ -69,6 +106,24 @@ FIND_OBJECT_MIN_SCORE="$(as_float "${FIND_OBJECT_MIN_SCORE:-0.5}")"   # DOUBLE p
 if [ -n "$FIND_OBJECT" ] && [ "$OBS_LOG" != "1" ]; then
   echo "[trial] FIND_OBJECT=$FIND_OBJECT -- forcing OBS_LOG=1"
   OBS_LOG=1
+fi
+# INSPECT_OBJECTS turns the run into an OPEN-WORLD find-and-inspect mission:
+# survey the regions, cluster what perception saw into individual objects --
+# however many there turn out to be -- then drive to each one, face it and hold
+# still for INSPECT_DWELL_S. Comma-separated classes, all of which should be in
+# YOLO_CLASSES. Use with MISSION=factory_survey_01, whose problem declares no
+# objects at all; they are spliced in as they are discovered.
+INSPECT_OBJECTS="${INSPECT_OBJECTS:-}"
+INSPECT_DWELL_S="$(as_float "${INSPECT_DWELL_S:-5.0}")"                # DOUBLE param
+INSPECT_STANDOFF_M="$(as_float "${INSPECT_STANDOFF_M:-0.0}")"          # DOUBLE param
+INSPECT_CLUSTER_RADIUS_M="$(as_float "${INSPECT_CLUSTER_RADIUS_M:-5.0}")"  # DOUBLE param
+INSPECT_MAX_OBJECTS="${INSPECT_MAX_OBJECTS:-12}"                       # INTEGER param
+if [ -n "$INSPECT_OBJECTS" ] && [ "$OBS_LOG" != "1" ]; then
+  echo "[trial] INSPECT_OBJECTS=$INSPECT_OBJECTS -- forcing OBS_LOG=1"
+  OBS_LOG=1
+fi
+if [ -n "$INSPECT_OBJECTS" ] && [ -n "$FIND_OBJECT" ]; then
+  die "FIND_OBJECT and INSPECT_OBJECTS are different missions (approach one known object vs inspect every object found); set one"
 fi
 # X display Gazebo/RViz render on. A LOCAL display starts with ':'; anything
 # else ("localhost:10.0") is an ssh -X/-Y forwarded display, which the container
@@ -164,7 +219,9 @@ cat <<EOF
 
   mission     : $MISSION   (target region: $TARGET)
   world       : $WORLD_NAME
-  obs log     : $([ "$OBS_LOG" = 1 ] && echo ON || echo off)
+  obs log     : $([ "$OBS_LOG" = 1 ] && echo ON || echo off)$([ -n "$FIND_OBJECT" ] && echo "
+  find object : $FIND_OBJECT")$([ -n "$INSPECT_OBJECTS" ] && echo "
+  inspect     : $INSPECT_OBJECTS   (${INSPECT_DWELL_S}s dwell, max $INSPECT_MAX_OBJECTS objects)")
   planner     : $PLANNER_MODE$([ "$PLANNER_MODE" != fd_only ] && echo "   model: $EVOPLAN_MODEL")
   tier 2      : $([ "$SYMBOLIC_REPLAN" = 1 ] && echo "ON  (max $MAX_SYMBOLIC_REPLANS replans, ${SYMBOLIC_DEADLINE}s deadline)" || echo off)
   shield      : $([ "$SHIELD" = 1 ] && echo ON || echo off)
@@ -358,11 +415,17 @@ timeout -k 30 "$TRIAL_TIMEOUT" docker exec \
   -e "OBS_LOG_FILE=$WS_IN_CONTAINER/$RESULTS_DIR/${MISSION}_p${CROWD}_${PLANNER_MODE}_${TAG}_observations.jsonl" \
   -e "OBS_BELIEF_FILE=$WS_IN_CONTAINER/$RESULTS_DIR/${MISSION}_p${CROWD}_${PLANNER_MODE}_${TAG}_belief.json" \
   -e "MISSION_TIMEOUT_S=${MISSION_TIMEOUT_S:-}" \
+  -e "MISSION_DELIBERATION_BUDGET_S=$MISSION_DELIBERATION_BUDGET_S" \
   -e "PLAN_EXHAUSTION_GRACE_S=${PLAN_EXHAUSTION_GRACE_S:-}" \
   -e "END_ON_REPLANS_EXHAUSTED=${END_ON_REPLANS_EXHAUSTED:-}" \
   -e "FIND_OBJECT=$FIND_OBJECT" \
   -e "FIND_OBJECT_MIN_HITS=$FIND_OBJECT_MIN_HITS" \
   -e "FIND_OBJECT_MIN_SCORE=$FIND_OBJECT_MIN_SCORE" \
+  -e "INSPECT_OBJECTS=$INSPECT_OBJECTS" \
+  -e "INSPECT_DWELL_S=$INSPECT_DWELL_S" \
+  -e "INSPECT_STANDOFF_M=$INSPECT_STANDOFF_M" \
+  -e "INSPECT_CLUSTER_RADIUS_M=$INSPECT_CLUSTER_RADIUS_M" \
+  -e "INSPECT_MAX_OBJECTS=$INSPECT_MAX_OBJECTS" \
   -e "ROS_LOCALHOST_ONLY=1" \
   "${PASSTHROUGH_ENV[@]}" \
   "$CONT" bash -lc "cd $WS_IN_CONTAINER && ./run_sim.sh"

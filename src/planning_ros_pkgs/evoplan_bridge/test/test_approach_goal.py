@@ -26,6 +26,7 @@ import pytest
 REPO = Path(__file__).resolve().parents[4]
 sys.path.insert(0, str(REPO / "pipeline" / "evoplan_bridge_host"))
 
+from evoplan_bridge import symbolic_replan  # noqa: E402
 from problem_builder import (  # noqa: E402
     EXECUTABLE_GOAL_PREDICATES,
     build_runtime_problem,
@@ -179,16 +180,18 @@ class TestPredicateSet:
     """Guards the constant against a predicate the robot cannot actually deliver.
 
     "Executable" means: a plan achieving this goal drives the robot to where
-    the goal wants it. Two ways to qualify. Most predicates qualify directly --
-    `move` asserts them, and `move` is the only action with an executor. The
-    rest qualify because the actions that assert them are pure bookkeeping that
-    filter_executable_actions drops, so the goal is still discharged by the
-    move chain and nothing is silently skipped.
+    the goal wants it. Three ways to qualify. Most predicates qualify directly
+    -- `move` asserts them, and `move` was long the only action with an
+    executor. Some qualify because the actions that assert them are pure
+    bookkeeping that filter_executable_actions drops, so the goal is still
+    discharged by the move chain and nothing is silently skipped. The last
+    group qualifies most strongly of all: a non-move action the executor
+    genuinely performs.
 
-    A predicate satisfying neither must NOT be listed: goals are narrowed when
-    they are deemed non-executable, and wrongly calling one executable means a
-    plan ending at a dropoff the robot cannot perform is accepted as reaching
-    the mission endpoint.
+    A predicate satisfying none of the three must NOT be listed: goals are
+    narrowed when they are deemed non-executable, and wrongly calling one
+    executable means a plan ending at a dropoff the robot cannot perform is
+    accepted as reaching the mission endpoint.
     """
 
     #: Asserted only by actions with no executor, which are dropped before
@@ -196,13 +199,43 @@ class TestPredicateSet:
     #: reaching it still means the robot drove there.
     BOOKKEEPING_ONLY = {"reached"}
 
+    #: Asserted by a non-move action the executor DOES perform, mapped to the
+    #: action that performs it. plan_to_nav2_goals lowers `inspect-object` to a
+    #: goal pose facing the object plus a stationary dwell, so a plan achieving
+    #: (inspected-object ?t) has the robot drive there AND hold a view of it.
+    DRIVEN_BY_ACTION = {"inspected-object": "inspect-object"}
+
     def test_move_achieves_every_directly_executable_predicate(self):
         effect = re.search(r":action move.*?:effect(.*?)\n  \)",
                            DOMAIN.read_text(), re.S).group(1)
-        for pred in EXECUTABLE_GOAL_PREDICATES - self.BOOKKEEPING_ONLY:
+        direct = (EXECUTABLE_GOAL_PREDICATES - self.BOOKKEEPING_ONLY
+                  - set(self.DRIVEN_BY_ACTION))
+        for pred in direct:
             assert re.search(rf"\({pred}\s", effect), (
                 f"'{pred}' is listed executable but move does not assert it"
             )
+
+    @pytest.mark.parametrize("pred,action", sorted(DRIVEN_BY_ACTION.items()))
+    def test_driven_predicates_are_asserted_by_an_executed_action(self, pred, action):
+        """The exemption holds only while the executor still lowers the action.
+
+        Two halves, and both matter: the domain must have `action` assert
+        `pred`, and symbolic_replan must still count `action` as executable. If
+        the executor ever stops driving it, the predicate becomes bookkeeping
+        that no longer drives the robot anywhere, and listing it executable
+        would mean a goal built from it is accepted while nothing happens.
+        """
+        domain = DOMAIN.read_text()
+        body = re.search(rf":action {re.escape(action)}(.*?)(?=\n  \(:action|\n\)$)",
+                         domain, re.S)
+        assert body, f"the domain has no ({action} ...)"
+        assert re.search(rf":effect.*?\({pred}\s", body.group(1), re.S), (
+            f"({pred} ...) is not asserted by {action}"
+        )
+        assert action.startswith(symbolic_replan.EXECUTABLE_ACTION_PREFIXES), (
+            f"{action} is no longer lowered by the executor, so ({pred} ...) "
+            f"cannot be treated as executable"
+        )
 
     @pytest.mark.parametrize("pred", sorted(BOOKKEEPING_ONLY))
     def test_bookkeeping_predicates_are_dropped_not_driven(self, pred):

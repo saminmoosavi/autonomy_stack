@@ -78,80 +78,27 @@
     <!-- Searchable object near region R1 (centroid -12.29 -12.29), offset 1.6 m +y -->
     <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Construction Cone</uri><name>cone_r1</name><pose>-12.29 -10.69 0 0 0 0</pose></include>
 
-    <!-- Second searchable object, near region R3 (centroid 2.75 -13.17), the
-         same 1.6 m +y offset the cone uses: far enough from the R3 waypoint
+    <!-- Second searchable object, near region R3 (centroid 2.75 -13.17), at
+         the same 1.6 m +y offset cone_r1 uses: far enough from the R3 waypoint
          that the robot does not park on it, close enough to snap to R3 rather
-         than a neighbour. Nearest other region is R2 at 7.42 m, so the region
+         than a neighbour. Nearest other region is R2 at 7.42 m, so region
          attribution is unambiguous even with a loose region_snap_max_m of 6.0.
-         Clear of shelf_big_1 (6.5 -13) and shelf_big_2 (-1.5 -13).
 
-         Built from primitives rather than <include>d: Fuel has no skateboard
-         model (searched skateboard/skate/board/longboard, only board GAMES),
-         and an unresolvable URI makes Ignition stall the whole world load.
-         Static so it cannot be nudged out of its region by the robot or roll
-         on those cylinder wheels.
+         A SECOND CONE, not a second object class. This world exists to test an
+         open-world find-and-inspect mission ("inspect every cone", with the
+         number of cones unknown), and that question is only meaningful when
+         more than one instance of ONE class is out there. Two cones in two
+         regions is the minimum that distinguishes "found the cone" from "found
+         all the cones", which is the distinction the mission turns on.
 
-         Detection caveat: this is a deck on four wheels, not a photoreal
-         skateboard. YOLO-World is open-vocabulary and CLIP-based, so it may or
-         may not label it "skateboard", check observations.jsonl for the
-         class it actually emits before relying on FIND_OBJECT="skateboard". -->
-    <model name='skateboard_r3'>
-      <static>true</static>
-      <pose>2.75 -11.57 0 0 0 0</pose>
-      <link name='deck'>
-        <pose>0 0 0.09 0 0 0</pose>
-        <visual name='v'>
-          <geometry><box><size>0.80 0.22 0.02</size></box></geometry>
-          <material>
-            <ambient>0.10 0.10 0.12 1</ambient>
-            <diffuse>0.15 0.15 0.18 1</diffuse>
-            <specular>0.30 0.30 0.30 1</specular>
-          </material>
-        </visual>
-        <collision name='c'>
-          <geometry><box><size>0.80 0.22 0.02</size></box></geometry>
-        </collision>
-      </link>
-      <link name='grip'>
-        <!-- A lighter top face: a uniformly dark slab reads as debris, and the
-             deck/grip contrast is most of what makes the shape legible. -->
-        <pose>0 0 0.101 0 0 0</pose>
-        <visual name='v'>
-          <geometry><box><size>0.76 0.20 0.004</size></box></geometry>
-          <material>
-            <ambient>0.55 0.14 0.10 1</ambient>
-            <diffuse>0.75 0.18 0.12 1</diffuse>
-          </material>
-        </visual>
-      </link>
-      <link name='wheel_fl'>
-        <pose>0.28 0.09 0.035 1.5708 0 0</pose>
-        <visual name='v'>
-          <geometry><cylinder><radius>0.035</radius><length>0.03</length></cylinder></geometry>
-          <material><ambient>0.85 0.80 0.20 1</ambient><diffuse>0.95 0.90 0.25 1</diffuse></material>
-        </visual>
-      </link>
-      <link name='wheel_fr'>
-        <pose>0.28 -0.09 0.035 1.5708 0 0</pose>
-        <visual name='v'>
-          <geometry><cylinder><radius>0.035</radius><length>0.03</length></cylinder></geometry>
-          <material><ambient>0.85 0.80 0.20 1</ambient><diffuse>0.95 0.90 0.25 1</diffuse></material>
-        </visual>
-      </link>
-      <link name='wheel_rl'>
-        <pose>-0.28 0.09 0.035 1.5708 0 0</pose>
-        <visual name='v'>
-          <geometry><cylinder><radius>0.035</radius><length>0.03</length></cylinder></geometry>
-          <material><ambient>0.85 0.80 0.20 1</ambient><diffuse>0.95 0.90 0.25 1</diffuse></material>
-        </visual>
-      </link>
-      <link name='wheel_rr'>
-        <pose>-0.28 -0.09 0.035 1.5708 0 0</pose>
-        <visual name='v'>
-          <geometry><cylinder><radius>0.035</radius><length>0.03</length></cylinder></geometry>
-          <material><ambient>0.85 0.80 0.20 1</ambient><diffuse>0.95 0.90 0.25 1</diffuse></material>
-        </visual>
-      </link>
-    </model>
+         It replaces a hand-built skateboard (a deck and four cylinders, since
+         Fuel has no skateboard model). That object belonged to a two-CLASS
+         mission and carried a real hazard for this one: YOLO-World is
+         open-vocabulary and CLIP-based, so whether it labelled the shape
+         "skateboard" was never guaranteed. A Construction Cone is the asset the
+         detector already recognises reliably at cone_r1 (32 detections, mean
+         score 0.78, in a live run), so the two instances are directly
+         comparable and neither one is a perception experiment. -->
+    <include><uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Construction Cone</uri><name>cone_r3</name><pose>2.75 -11.57 0 0 0 0</pose></include>
   </world>
 </sdf>

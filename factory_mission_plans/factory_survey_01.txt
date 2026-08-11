@@ -1,0 +1,15 @@
+; Survey plan for pipeline/missions/factory_survey_01.pddl, as produced by
+; Fast Downward (astar(lmcut())) against factory_jackal_domain.pddl.
+;
+; Coverage only, and unlike factory_tour_03.txt there is no trailing object
+; action to truncate: the survey problem is solvable exactly as written, and
+; what happens after it is not planned here at all. The inspections are
+; replanned at runtime once perception has said what there is to inspect --
+; the objects do not exist as PDDL symbols until then.
+;
+; TARGET is derived from the last (move ...) by run_sim.sh, so the robot's
+; nominal endpoint is r5; the inspection replan retargets it to wherever the
+; last object it inspects turns out to be.
+(move jackal_1 r5 r1)
+(move jackal_1 r1 r2)
+(move jackal_1 r2 r5)

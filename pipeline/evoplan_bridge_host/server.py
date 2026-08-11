@@ -166,9 +166,16 @@ class ReplanService:
         A request that does carry one is more current by construction -- it was
         built from observation memory at escalation time -- so this is only
         ever a fallback.
+
+        Open-world records (those with a ``name``, written by
+        ``_observe_inspection``) are excluded. They describe object INSTANCES,
+        several of which may share a class, and ``resolve_found_objects`` keys
+        by class -- so feeding them in would collapse four cones to one and
+        rewrite the goal as a single ``(reached ...)``. Those records reach the
+        problem through ``inspect_objects`` instead.
         """
         return [{"class": r["class"], "region": r["region"]}
-                for r in self._sightings_for(payload)] or None
+                for r in self._sightings_for(payload) if not r.get("name")] or None
 
     def _base_problem(self, payload: dict, mission_id: str) -> tuple[str, str]:
         """The problem a replan starts from: ``(text, provenance)``.
@@ -222,6 +229,13 @@ class ReplanService:
         obj = str(payload.get("class") or "").strip().lower()
         region = str(payload.get("region") or "").strip().lower()
         mission_id = payload.get("mission_id") or "factory_mission_01"
+        inspect_objects = payload.get("inspect_objects") or ()
+        if inspect_objects:
+            # Open-world report: the executor is not naming ONE class in ONE
+            # region, it is handing over its whole object registry. Rebuild the
+            # problem around all of it and skip the single-sighting bookkeeping
+            # below, which has no answer for "which of the four cones is this".
+            return self._observe_inspection(payload, tag, mission_id, inspect_objects)
         if not obj or not region:
             return {"ok": False, "error": "class and region are required"}
 
@@ -277,6 +291,59 @@ class ReplanService:
               + f" -> {written.name}", flush=True)
         return {"ok": True, "region": region, "changed": True,
                 "known_objects": [r["class"] for r in known],
+                "problem_file": str(written)}
+
+    def _observe_inspection(self, payload: dict, tag: str, mission_id: str,
+                            inspect_objects) -> dict:
+        """Write the survey problem with every discovered object spliced in.
+
+        The counterpart of :meth:`observe` for open-world missions, and it exists
+        for the same reason: the updated problem should be an artifact on disk at
+        the moment of discovery, not something that only ever materialises inside
+        a replan request. ``_base_problem`` then plans the next replan from this
+        file, so the objects survive even if a later request arrives without them.
+
+        Not idempotency-gated on "did the region change" the way ``observe`` is:
+        the interesting change here is the object COUNT, the executor only calls
+        this when its registry actually grew, and rewriting the same file with
+        the same content is free.
+        """
+        written = None
+        try:
+            problem = build_runtime_problem(
+                self.missions.problem_text(mission_id),
+                robot=payload.get("robot") or "jackal_1",
+                current_region=payload.get("current_region"),
+                blocked_regions=[],
+                visited_regions=payload.get("visited_regions") or [],
+                preserve_goal=None, inspect_objects=inspect_objects)
+            out_dir = REPO / "results" / "single_trials"
+            out_dir.mkdir(parents=True, exist_ok=True)
+            written = out_dir / f"{tag}_problem_object_found.pddl"
+            written.write_text(problem)
+            with self.lock:
+                # Keyed by (tag, name) rather than (tag, class): several objects
+                # of ONE class is the case this whole path exists for, and a
+                # class-keyed record would collapse them to the last one seen.
+                for instance in inspect_objects:
+                    name = str(instance.get("name") or "").lower()
+                    if not name:
+                        continue
+                    self.observations[(tag, name)] = {
+                        "class": instance.get("class") or name,
+                        "region": str(instance.get("region") or "").lower(),
+                        "mission_id": mission_id, "name": name,
+                        "at": time.time(), "problem_file": str(written),
+                    }
+        except Exception as exc:  # noqa: BLE001 - never fail the robot's report
+            print(f"[replan-service] WARNING could not write inspection problem: "
+                  f"{type(exc).__name__}: {exc}", flush=True)
+            return {"ok": True, "objects": len(inspect_objects), "problem_file": None}
+
+        print(f"[replan-service] inspection registry: {len(inspect_objects)} object(s) "
+              + ", ".join(f"{i.get('name')}@{i.get('region')}" for i in inspect_objects)
+              + f" -> {written.name}", flush=True)
+        return {"ok": True, "objects": len(inspect_objects),
                 "problem_file": str(written)}
 
     def submit(self, payload: dict) -> str:
@@ -373,6 +440,7 @@ class ReplanService:
                 "blocked_regions": job.payload.get("blocked_regions"),
                 "preserve_goal": job.payload.get("preserve_goal"),
                 "found_object": job.payload.get("found_object"),
+                "inspect_objects": job.payload.get("inspect_objects"),
                 "planner_mode": job.payload.get("planner_mode"),
                 "trigger": (job.payload.get("reason") or {}).get("trigger"),
             })
@@ -427,13 +495,19 @@ class ReplanService:
         # (at robot R) into (reached robot <object>) when the mission declares
         # a `target`; absent or unresolvable, the old behaviour stands.
         found_object = payload.get("found_object") or self._remembered_sighting(payload)
+        # [{"name": "traffic_cone_2", "region": "r3", "class": "traffic cone"}]
+        # for an open-world find-and-inspect mission, where the mission problem
+        # declares no targets at all and the executor's object registry is the
+        # authority on what exists. Takes precedence over found_object: it says
+        # strictly more, and the two describe the same discovery differently.
+        inspect_objects = payload.get("inspect_objects") or ()
 
         def make_problem(blocked_regions):
             return build_runtime_problem(
                 base_problem, robot=robot, current_region=current_region,
                 blocked_regions=blocked_regions, visited_regions=visited,
                 target_region=target_region, preserve_goal=preserve_goal,
-                found_object=found_object,
+                found_object=found_object, inspect_objects=inspect_objects,
             )
 
         problem_text = make_problem(blocked)

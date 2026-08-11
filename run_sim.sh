@@ -383,6 +383,33 @@ else
     esac
   fi
 
+  # INSPECT_OBJECTS: open-world find-and-inspect. Same observation log as
+  # FIND_OBJECT and the same two requirements -- a log to search and classes the
+  # detector can actually produce -- but a different mission: how many objects
+  # there are is the answer, not an assumption, and each one gets driven to and
+  # stared at for INSPECT_DWELL_S.
+  if [ -n "${INSPECT_OBJECTS:-}" ]; then
+    EVO_ARGS+=("inspect_object_classes:=${INSPECT_OBJECTS}")
+    [ -n "${INSPECT_DWELL_S:-}" ] && EVO_ARGS+=("inspect_dwell_s:=${INSPECT_DWELL_S}")
+    [ -n "${INSPECT_STANDOFF_M:-}" ] && EVO_ARGS+=("inspect_standoff_m:=${INSPECT_STANDOFF_M}")
+    [ -n "${INSPECT_CLUSTER_RADIUS_M:-}" ] && EVO_ARGS+=("inspect_cluster_radius_m:=${INSPECT_CLUSTER_RADIUS_M}")
+    [ -n "${INSPECT_MAX_OBJECTS:-}" ] && EVO_ARGS+=("inspect_max_objects:=${INSPECT_MAX_OBJECTS}")
+    case "$(printf '%s' "${OBS_LOG}" | tr '[:upper:]' '[:lower:]')" in
+      1|true|yes|on) ;;
+      *) echo "[run_sim] ERROR: INSPECT_OBJECTS=${INSPECT_OBJECTS} needs OBS_LOG enabled (got '${OBS_LOG}'); nothing would be logged to search" >&2
+         exit 1 ;;
+    esac
+    # Checked per class: one unlisted class in the middle of the list is
+    # invisible to the detector and would silently never be inspected.
+    IFS=',' read -ra _inspect_classes <<< "${INSPECT_OBJECTS}"
+    for _cls in "${_inspect_classes[@]}"; do
+      case ",${YOLO_CLASSES:-}," in
+        *",${_cls},"*) ;;
+        *) echo "[run_sim] WARNING: '${_cls}' is not in YOLO_CLASSES='${YOLO_CLASSES:-}'; it can never be detected" >&2 ;;
+      esac
+    done
+  fi
+
   # --- Phi_mob shield + online symbolic replan ------------------------------
   # SHIELD=1 turns on Phi_mob monitoring (reporting only).
   # SYMBOLIC_REPLAN=1 additionally lets it escalate to the host replan service.
@@ -403,6 +430,11 @@ else
       EVO_ARGS+=("planner_mode:=${PLANNER_MODE:-evoplan}")
       EVO_ARGS+=("max_symbolic_replans:=${MAX_SYMBOLIC_REPLANS:-2}")
       EVO_ARGS+=("symbolic_replan_deadline_s:=${SYMBOLIC_DEADLINE:-45.0}")
+      # Whole-mission wall budget for deliberation. Must exceed the per-replan
+      # deadline above, or the first replan spends it all and every later
+      # escalation is refused -- see run_trial.sh, which sizes it accordingly.
+      [ -n "${MISSION_DELIBERATION_BUDGET_S:-}" ] && \
+        EVO_ARGS+=("mission_deliberation_budget_s:=${MISSION_DELIBERATION_BUDGET_S}")
       echo "[run_sim] symbolic replan ON (mission=$MISSION_ID mode=${PLANNER_MODE:-evoplan})"
     else
       # Deliberately not fatal. Aborting a 20-minute sim bringup because a host

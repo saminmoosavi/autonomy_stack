@@ -17,8 +17,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from pddl_splice import (find_block, remove_init_fact, set_goal,
-                         set_robot_location, splice_init)
+from pddl_splice import (find_block, goal_conjuncts, remove_init_fact, set_goal,
+                         set_robot_location, splice_init, splice_objects)
 
 #: Goal predicates a plan can reach without the executor having to perform
 #: anything it cannot. `move`'s effect adds BOTH (at ?r ?to) and (visited ?to),
@@ -37,7 +37,15 @@ from pddl_splice import (find_block, remove_init_fact, set_goal,
 #: tours now conjoin (reached jackal_1 cone) with their coverage goal, and a
 #: goal deemed non-executable is NARROWED -- a mid-tour obstacle replan would
 #: have thrown the entire tour away and replaced it with a single move.
-EXECUTABLE_GOAL_PREDICATES = frozenset({"visited", "at", "reached"})
+#:
+#: `inspected-object` is here on the strongest basis of the four: the executor
+#: genuinely performs it. plan_to_nav2_goals lowers `inspect-object` to a Nav2
+#: goal pose facing the object plus a stationary dwell, so a plan achieving
+#: (inspected-object ?t) does exactly what the goal says. Leaving it out would
+#: mean any obstacle replan during an inspection run narrowed the goal to a
+#: single (at ...) and abandoned every object still uninspected.
+EXECUTABLE_GOAL_PREDICATES = frozenset({"visited", "at", "reached",
+                                        "inspected-object"})
 
 #: Object types in factory_jackal_domain.pddl that denote a navigable region.
 LOCATION_TYPES = frozenset({"location", "aisle", "shelf_zone", "loading_zone",
@@ -48,7 +56,7 @@ TARGET_TYPE = "target"
 
 __all__ = ["MissionLibrary", "build_runtime_problem", "regions_in_problem",
            "objects_in_problem", "targets_in_problem", "resolve_target_object",
-           "resolve_found_objects",
+           "resolve_found_objects", "splice_inspection_targets",
            "goal_is_executable", "EXECUTABLE_GOAL_PREDICATES",
            "LOCATION_TYPES", "TARGET_TYPE"]
 
@@ -171,6 +179,92 @@ def resolve_found_objects(problem_text: str, found_object, declared) -> list[tup
     return sorted(by_name.items())
 
 
+def splice_inspection_targets(problem_text: str, instances, declared=None) -> str:
+    """Declare discovered objects, place them, and require each be inspected.
+
+    This is the open-world half of the pipeline, and it inverts the usual
+    direction of a splice. Everywhere else the runtime tells the problem
+    something about objects the mission author already named. Here perception
+    decides what the objects ARE: a survey mission declares none, because how
+    many traffic cones are in the factory is precisely the question it was sent
+    to answer, and each instance perception clusters becomes a new
+    ``- target`` in ``(:objects ...)`` with its own ``(object-at ...)`` and its
+    own ``(inspected-object ...)`` goal conjunct.
+
+    ``instances`` are dicts with ``name`` (a PDDL-legal symbol, minted and kept
+    stable by the executor's object registry -- the planner must see the same
+    ``traffic_cone_2`` on every replan or it cannot tell an object it has
+    already inspected from a new one), ``region``, and ``inspected``.
+
+    ``inspected`` is what stops the robot re-doing finished work. The goal grows
+    an ``(inspected-object ?t)`` conjunct per object and never loses one, so a
+    problem that does not also assert the completed ones in ``:init`` is telling
+    the planner those goals are still open -- and a correct planner then plans
+    to satisfy them again. That is exactly what happened on a live run: a
+    six-action plan that re-inspected two finished cones and drove back across
+    the map to reach one of them, which then became the mission's target region
+    and left it reporting incomplete. Handing the same problem to Fast Downward
+    reproduced the plan, which is the proof it was never a planner defect;
+    asserting the two facts collapsed the plan from five actions to one.
+
+    The mission's own goal conjuncts SURVIVE. A find-and-inspect mission asks
+    for two things at once -- cover the regions, inspect what you find -- and a
+    replan issued while the survey is still unfinished must not silently drop
+    the coverage half. Appending is also what makes this idempotent across the
+    several replans one run performs: conjuncts are de-duplicated by text, so
+    re-splicing the same instance changes nothing.
+
+    An instance whose region the problem does not declare is dropped, for the
+    reason every other splice here drops one: an undeclared name aborts Fast
+    Downward's translator (exit 31) before search runs, losing the whole replan
+    rather than one object.
+    """
+    usable = []
+    seen = set()
+    for instance in instances or ():
+        name = str((instance or {}).get("name") or "").strip().lower()
+        region = str((instance or {}).get("region") or "").strip().lower()
+        if not name or not region or name in seen:
+            continue
+        if declared is not None and region not in declared:
+            continue
+        seen.add(name)
+        usable.append((name, region, bool((instance or {}).get("inspected"))))
+    if not usable:
+        return problem_text
+    usable.sort()
+
+    text = problem_text
+    already = objects_in_problem(text)
+    text = splice_objects(text, [(name, TARGET_TYPE) for name, _, _ in usable
+                                 if name not in already])
+    regions = regions_in_problem(text)
+    facts = []
+    for name, region, inspected in usable:
+        text = remove_init_fact(text, "location-unknown", name)
+        # Idempotent: a re-splice after the object was re-localised must replace
+        # its position, not assert a second one alongside the first.
+        for known in sorted(regions | {region}):
+            text = remove_init_fact(text, "object-at", name, known)
+        # Retract before re-asserting for the same reason. Removing it
+        # unconditionally also means the fact tracks the executor's registry
+        # rather than accumulating: this splice runs on a base problem that may
+        # already carry it from an earlier replan.
+        text = remove_init_fact(text, "inspected-object", name)
+        facts.append(f"(object-at {name} {region})")
+        if inspected:
+            facts.append(f"(inspected-object {name})")
+    text = splice_init(text, facts)
+
+    goals = list(goal_conjuncts(text))
+    for name, _, _ in usable:
+        conjunct = f"(inspected-object {name})"
+        if conjunct not in goals:
+            goals.append(conjunct)
+    return set_goal(text, goals[0] if len(goals) == 1
+                    else "(and " + " ".join(goals) + ")")
+
+
 def build_runtime_problem(
     base_problem_text: str,
     robot: str,
@@ -180,6 +274,7 @@ def build_runtime_problem(
     target_region: str | None = None,
     preserve_goal: bool | None = None,
     found_object: dict | None = None,
+    inspect_objects=(),
 ) -> str:
     """Return the mission problem updated with runtime facts.
 
@@ -210,6 +305,12 @@ def build_runtime_problem(
     cone)`` retracted -- and the goal becomes ``(reached jackal_1 cone)``. The
     planner then derives r1 for itself.
 
+    ``inspect_objects`` is the open-world case and takes precedence over both:
+    the mission declares no targets at all, and every object perception
+    clustered arrives here as ``{"name": "traffic_cone_2", "region": "r3"}`` to
+    be declared, placed and added to the goal. See
+    :func:`splice_inspection_targets`.
+
     That is not cosmetic. With ``(at jackal_1 r1)`` the region was computed in
     Python and the PDDL was told only where to end up: the problem handed to
     the LLM contained no evidence that an object existed, so nothing it read
@@ -226,7 +327,14 @@ def build_runtime_problem(
 
     resolved = resolve_found_objects(base_problem_text, found_object, declared)
 
-    if resolved and not preserve_goal:
+    if inspect_objects:
+        # Runs regardless of preserve_goal, and before the branches below --
+        # it is the only path that ADDS to the goal rather than replacing it,
+        # so "keep the authored goal" and "also inspect what was found" are not
+        # in conflict. Handing the same problem back through here re-splices the
+        # same conjuncts, which is a no-op by construction.
+        text = splice_inspection_targets(text, inspect_objects, declared)
+    elif resolved and not preserve_goal:
         facts = []
         for object_name, object_region in resolved:
             # Order matters only for readability: retract before asserting so

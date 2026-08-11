@@ -2,16 +2,16 @@
   "node": "scand_metrics",
   "robot": "j100_0000/robot",
   "world": "warehouse",
-  "duration_s": 359.502,
-  "ticks": 2703,
-  "path_length_m": 63.919,
+  "duration_s": 325.602,
+  "ticks": 3187,
+  "path_length_m": 107.92,
   "collisions": 0,
   "success": false,
-  "path_progress_pct": 80.55,
+  "path_progress_pct": 100.0,
   "path_arc_m": 0.0,
-  "path_total_m": 80.186,
-  "route_completed_m": 64.592,
-  "path_leg_total_m": 15.594,
+  "path_total_m": 41.35,
+  "route_completed_m": 41.055,
+  "path_leg_total_m": 0.295,
   "intim_pct": 0.0,
   "pers_pct": 0.0,
   "social_pct": 0.0,
@@ -25,25 +25,25 @@
       "compliant_pct": 100.0
     },
     "yaw_rate": {
-      "extreme": 1.2303,
+      "extreme": 1.0014,
       "bound": "<=",
       "threshold": 3.293,
       "compliant_pct": 100.0
     },
     "accel": {
-      "extreme": 2.6669,
+      "extreme": 2.4728,
       "bound": "<=",
       "threshold": 3.213,
       "compliant_pct": 100.0
     },
     "jerk": {
-      "extreme": 25.315,
+      "extreme": 20.9873,
       "bound": "<=",
       "threshold": 5.862,
-      "compliant_pct": 89.64
+      "compliant_pct": 99.06
     },
     "lat_accel": {
-      "extreme": 0.3862,
+      "extreme": 0.3859,
       "bound": "<=",
       "threshold": 2.228,
       "compliant_pct": 100.0
@@ -67,52 +67,84 @@
       "compliant_pct": 100.0
     }
   },
-  "symbolic_replans": 3,
-  "deliberation_time_s": 174.079,
-  "held_time_s": 174.184,
-  "moving_time_s": 185.318,
+  "symbolic_replans": 1,
+  "deliberation_time_s": 150.081,
+  "held_time_s": 150.202,
+  "moving_time_s": 175.4,
   "shield_vetoes": 0,
   "mission_complete": false,
   "plan_exhausted": true,
   "regions_required": 5,
-  "regions_visited": 4,
-  "regions_remaining": [
-    "r4"
-  ],
+  "regions_visited": 5,
+  "regions_remaining": [],
   "evoplan": {
     "state": "idle",
-    "symbolic_replans": 3,
-    "deliberation_s_wall": 174.0785285020247,
-    "held_s": 174.18428564071655,
+    "symbolic_replans": 1,
+    "deliberation_s_wall": 150.08146379201207,
+    "held_s": 150.2017970085144,
     "shield_vetoes": 0,
-    "blocked_regions": [
-      "r3"
-    ],
+    "blocked_regions": [],
     "mission_complete": false,
     "plan_exhausted": true,
-    "find_phase": "approach",
-    "find_object_class": "traffic cone",
-    "find_object_region": "r1",
-    "find_object_evidence": {
-      "region": "r1",
-      "hits": 37,
-      "mean_score": 0.768,
-      "xy": [
-        -12.23,
-        -10.46
+    "find_phase": "disabled",
+    "find_object_class": "",
+    "find_object_region": null,
+    "find_object_evidence": null,
+    "inspect_phase": "inspect",
+    "inspect_classes": [
+      "traffic cone"
+    ],
+    "inspect_dwell_s": 5.0,
+    "inspection": {
+      "total": 2,
+      "inspected": 0,
+      "pending": [
+        "traffic_cone_1",
+        "traffic_cone_2"
+      ],
+      "by_class": {
+        "traffic cone": 2
+      },
+      "objects": [
+        {
+          "name": "traffic_cone_1",
+          "class": "traffic cone",
+          "xy": [
+            -12.11,
+            -10.67
+          ],
+          "region": "r1",
+          "hits": 37,
+          "mean_score": 0.773,
+          "inspected": false,
+          "inspected_at": null
+        },
+        {
+          "name": "traffic_cone_2",
+          "class": "traffic cone",
+          "xy": [
+            2.71,
+            -11.33
+          ],
+          "region": "r3",
+          "hits": 37,
+          "mean_score": 0.679,
+          "inspected": false,
+          "inspected_at": null
+        }
       ]
     },
+    "inspecting": null,
     "target_region": "r1",
     "regions_required": 5,
-    "regions_visited": 4,
-    "regions_remaining": [
-      "r4"
-    ],
+    "regions_visited": 5,
+    "regions_remaining": [],
     "region_closest_m": {
-      "r1": 0.3,
-      "r2": 2.38,
-      "r3": 0.29,
-      "r5": 2.45
+      "r1": 0.33,
+      "r2": 0.29,
+      "r3": 0.24,
+      "r4": 0.24,
+      "r5": 0.31
     }
   }
 }

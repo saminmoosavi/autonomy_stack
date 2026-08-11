@@ -42,7 +42,13 @@ from evo_skill_ros.pddl_stl.pipeline import (
     validate_plan,
 )
 from evoplan_bridge import symbolic_replan
-from evoplan_bridge.observation_memory import load_observations, locate_object
+from evoplan_bridge.inspection import inspection_pose, segment_end, yaw_error
+from evoplan_bridge.object_registry import ObjectRegistry
+from evoplan_bridge.observation_memory import (
+    cluster_detections,
+    load_observations,
+    locate_object,
+)
 from evoplan_bridge.phi_mob_shield import PhiMobShield
 from evoplan_bridge.replan_artifacts import next_index, safe_tag, write_artifacts
 from evoplan_bridge.replan_client import ReplanClient
@@ -346,6 +352,126 @@ class PpddlNav2StlSat(Node):
         #: detections produces one report rather than one per poll.
         self._reported_object_region = None
 
+        # --- find-and-INSPECT missions (open world) ------------------------
+        # A different shape of mission from find_object_class above, not a
+        # variant of it. There the mission names ONE object known to exist and
+        # asks where it is; here it names one or more CLASSES and asks how many
+        # there are, where each is, and requires the robot to stop and look at
+        # every one. The quantity is the unknown, so no PDDL problem can declare
+        # the objects up front -- the executor mints them from perception and
+        # splices them into the problem as they turn up.
+        #
+        # Comma-separated because a mission may hunt several classes at once
+        # ("traffic cone,chair"), which the single-object path cannot express.
+        # Empty disables all of it.
+        self.inspect_object_classes = [
+            part.strip().lower()
+            for part in str(
+                self.declare_parameter("inspect_object_classes", "").value or ""
+            ).split(",")
+            if part.strip()
+        ]
+        # How long the robot holds still, facing an object, for the inspection
+        # to count. The mission's unit of work: 5 s is long enough that a human
+        # watching the run can see it happen and long enough for a stationary
+        # camera to accumulate frames, and short enough that ten objects do not
+        # exhaust the trial timeout.
+        self.inspect_dwell_s = float(
+            self.declare_parameter("inspect_dwell_s", 5.0).value
+        )
+        # Detections closer than this are treated as ONE object. 5 m rather than
+        # the sensor-noise figure it started at: depth projection scattered one
+        # cone into two clusters 2.5 m apart and the robot inspected the phantom.
+        # See observation_memory.DEFAULT_LINK_RADIUS_M for the trade this makes.
+        self.inspect_cluster_radius_m = float(
+            self.declare_parameter("inspect_cluster_radius_m", 5.0).value
+        )
+        # How far a cluster centroid may move between polls and still be the
+        # same object. Tracks the link radius; see object_registry.
+        self.inspect_merge_radius_m = float(
+            self.declare_parameter("inspect_merge_radius_m", 5.0).value
+        )
+        # Stand-off from the object along the line from its region's centroid.
+        # 0.0 means "drive to the region centroid and turn to face the object",
+        # which is the specified behaviour and the safe one: region centroids
+        # are known-drivable waypoints, whereas a computed stand-off pose can
+        # land inside the very obstacle being inspected. Raise it only for a
+        # mission where the objects are far from their region's centre.
+        self.inspect_standoff_m = float(
+            self.declare_parameter("inspect_standoff_m", 0.0).value
+        )
+        # Yaw error above which the dwell rotates in place before it starts
+        # counting. Nav2's own goal checker already aligns the robot to the
+        # inspect pose, so this is a correction, not the primary mechanism --
+        # but "facing the object" is the requirement, and a goal checker
+        # tolerance this node does not own is not something to rely on.
+        self.inspect_face_tolerance_rad = float(
+            self.declare_parameter("inspect_face_tolerance_rad", 0.15).value
+        )
+        self.inspect_face_speed = float(
+            self.declare_parameter("inspect_face_speed", 0.5).value
+        )
+        # Bound on the turn-to-face, so a bad yaw estimate cannot spin the robot
+        # for the rest of the mission.
+        self.inspect_face_timeout_s = float(
+            self.declare_parameter("inspect_face_timeout_s", 8.0).value
+        )
+        # Evidence thresholds for admitting an object to the registry. Default
+        # to the find-object ones so the two paths cannot silently disagree
+        # about what counts as seen.
+        self.inspect_min_hits = int(
+            self.declare_parameter("inspect_min_hits", self.find_object_min_hits).value
+        )
+        self.inspect_min_score = float(
+            self.declare_parameter("inspect_min_score", self.find_object_min_score).value
+        )
+        # A cap on how much the mission can grow. Each object adds a goal
+        # conjunct and a leg of driving; an unbounded registry fed by a
+        # mis-tuned detector turns a five-minute trial into an endless one.
+        self.inspect_max_objects = int(
+            self.declare_parameter("inspect_max_objects", 12).value
+        )
+        # Sim seconds to wait before re-asking for an inspection plan after a
+        # round failed. Long enough that a 1 Hz tick cannot spam the service,
+        # short enough to fit several attempts inside a mission.
+        self.inspect_round_retry_s = float(
+            self.declare_parameter("inspect_round_retry_s", 15.0).value
+        )
+        # How many inspection rounds may be attempted in total. Bounds the retry
+        # loop: an object the planner simply cannot reach must not keep the run
+        # alive forever. Rounds that SUCCEED consume one each too, which is
+        # right -- each is a real deliberation with a real cost.
+        self.inspect_max_rounds = int(
+            self.declare_parameter("inspect_max_rounds", 6).value
+        )
+        #: "disabled" | "survey" | "inspect" | "done" | "not_planned"
+        #: "done" means everything found was inspected; "not_planned" means the
+        #: round budget ran out with objects still pending. The two are very
+        #: different results and must not both read as "finished".
+        self.inspect_phase = "survey" if self.inspect_object_classes else "disabled"
+        self.object_registry = (
+            ObjectRegistry(merge_radius_m=self.inspect_merge_radius_m)
+            if self.inspect_object_classes else None
+        )
+        #: Set while the robot is standing still looking at an object.
+        self._dwell = None
+        self._dwell_timer = None
+        #: Objects reported to the replan service, so a poll that discovers
+        #: nothing new sends nothing.
+        self._reported_object_names = set()
+        #: True while an inspection round's replan is IN FLIGHT, so the 1 Hz
+        #: exhaustion tick does not stack a second request on the first. It is
+        #: cleared on failure as well as on success -- see
+        #: inspection_retry_possible for why that distinction cost a whole run.
+        self._inspection_replan_pending = False
+        #: Sim-time of the last inspection round escalation, and how many have
+        #: been attempted. A failed round is retried after a cooldown rather
+        #: than either re-requested every tick or abandoned forever.
+        self._last_inspection_round_sim_s = None
+        self._inspection_round_attempts = 0
+        #: "symbolic replan is off" is a permanent condition, so say it once.
+        self._inspection_unplannable_logged = False
+
         self.cmd_vel_topic = self.declare_parameter(
             "cmd_vel_topic", f"{self.ns}/cmd_vel"
         ).value
@@ -366,6 +492,7 @@ class PpddlNav2StlSat(Node):
             raise ValueError(f"target_region '{self.target_region}' is not in {self.graph_file}")
 
         self.current_xy = None
+        self.current_yaw = None
         self.current_region = None
         self.map_msg = None
         self.tracked_objects = {}
@@ -375,6 +502,21 @@ class PpddlNav2StlSat(Node):
         self.active_plan_report = None
         self.active_plan_actions = None
         self.active_waypoints = None
+        #: One entry per waypoint in ``active_waypoints``, describing what the
+        #: robot is meant to DO on arrival. ``None`` for a plain move; a dict
+        #: ``{"object", "class", "xy", "region"}`` for an inspection, which is
+        #: what turns a waypoint into a facing pose plus a dwell. Kept parallel
+        #: rather than folded into the waypoint tuple because every existing
+        #: consumer -- the RViz path, the STL monitor, the reactive replan --
+        #: unpacks waypoints as ``(x, y)``; ``set_route``/``slice_route`` are
+        #: the only places allowed to touch the two lists, so they cannot drift.
+        self.waypoint_tasks = []
+        #: The action behind each waypoint of the CURRENT route, never sliced;
+        #: index it with ``waypoint index + _waypoints_offset``.
+        self.route_actions = []
+        #: Length of the goal currently with Nav2, which is a leading SEGMENT of
+        #: the route when the plan contains inspections. See ``route_segment``.
+        self._segment_len = 0
         self.last_monitor_signature = None
         self.sent_goal = False
         self.active_goal_handle = None
@@ -452,6 +594,32 @@ class PpddlNav2StlSat(Node):
         if self.find_object_class:
             self.object_watch_timer = self.create_timer(
                 self.find_object_poll_s, self.object_watch_tick)
+        if self.inspect_object_classes:
+            # Same cadence as the single-object watch and for the same reason:
+            # discoveries must reach the problem while the survey is still
+            # being driven, not once it has run out.
+            self.inspection_watch_timer = self.create_timer(
+                self.find_object_poll_s, self.inspection_watch_tick)
+            self.get_logger().info(
+                f"Find-and-inspect mission: classes={self.inspect_object_classes}, "
+                f"dwell={self.inspect_dwell_s:.1f}s, standoff={self.inspect_standoff_m:.2f}m, "
+                f"observations={self.find_object_obs_log!r}"
+            )
+            # Said now rather than twenty minutes from now, when the survey ends
+            # and there is nothing that can plan the inspections.
+            if not self.enable_symbolic_replan:
+                self.get_logger().error(
+                    "inspect_object_classes is set but enable_symbolic_replan is "
+                    "false. The objects do not exist as PDDL symbols until they "
+                    "are discovered, so the inspections can only be REPLANNED -- "
+                    "this run will survey and then stop."
+                )
+            if not self.find_object_obs_log:
+                self.get_logger().error(
+                    "inspect_object_classes is set but find_object_obs_log is "
+                    "empty; there is no observation log to search and nothing "
+                    "will ever be discovered."
+                )
         self.mission_timeout_timer = self.create_timer(2.0, self.mission_timeout_tick)
 
         self.get_logger().info(
@@ -763,6 +931,10 @@ class PpddlNav2StlSat(Node):
 
     def update_current_pose(self, x, y, yaw=None):
         self.current_xy = (float(x), float(y))
+        # Kept, not just forwarded to the shield: the inspection dwell turns the
+        # robot to face its object and needs to know which way it is pointing.
+        if yaw is not None:
+            self.current_yaw = float(yaw)
         self.current_region, distance = self.nearest_region(self.current_xy)
         self.get_logger().debug(
             f"Current pose ({x:.2f}, {y:.2f}) snapped to {self.current_region} at distance {distance:.2f}"
@@ -981,6 +1153,12 @@ class PpddlNav2StlSat(Node):
         # final waypoint would latch mission_complete and the object would
         # never be looked up.
         if self.find_phase == "search":
+            return
+        # Nor is an open-world mission over while an object is still waiting to
+        # be looked at -- or while the survey that finds them is still running.
+        # "done" is set by begin_inspection_round, which is the only thing that
+        # can distinguish "nothing left to inspect" from "nothing found yet".
+        if self.inspect_phase in ("survey", "inspect"):
             return
         if self.find_phase == "approach":
             if not self.at_target_region():
@@ -1257,6 +1435,182 @@ class PpddlNav2StlSat(Node):
         )
         return self.symbolic.state != symbolic_replan.IDLE
 
+    # ==================================================================
+    # open-world find-and-inspect
+    # ==================================================================
+    def inspection_watch_tick(self):
+        """Re-cluster perception into objects and fold them into the registry.
+
+        The counterpart of ``object_watch_tick`` for a mission whose object set
+        is unknown, and it differs in what it produces: not "which region holds
+        the cone" but "here are the four things worth inspecting and where each
+        one is". Runs on a timer through the whole mission, not just the survey
+        -- an object first seen while driving to inspect another one is a real
+        discovery, and the mission is not over until a poll adds nothing.
+
+        Discoveries do NOT interrupt what the robot is doing. A replan is asked
+        for only once the current plan has run out (``begin_inspection_round``),
+        for the reason the survey exists at all: stopping at the first sighting
+        would leave regions unsearched.
+        """
+        if self.inspect_phase in ("disabled", "done"):
+            return
+        try:
+            records = load_observations(self.find_object_obs_log)
+            clusters = cluster_detections(
+                records, classes=self.inspect_object_classes,
+                min_score=self.inspect_min_score, min_hits=self.inspect_min_hits,
+                link_radius_m=self.inspect_cluster_radius_m, regions=self.regions)
+        except Exception as exc:  # noqa: BLE001 - a bad log line must not stop the drive
+            self.get_logger().warn(f"inspection watch failed to read observations: {exc}")
+            return
+
+        if len(self.object_registry) >= self.inspect_max_objects:
+            clusters = []       # the registry is full; see inspect_max_objects
+        discovered = self.object_registry.update(clusters, now=self.sim_time_now())
+        if not discovered:
+            return
+        for target in discovered:
+            self.get_logger().warn(
+                f"[OBJECT DISCOVERED] {target.name} ({target.class_name}) in "
+                f"{target.region} at {target.xy} -- {target.hits} detections, "
+                f"mean score {target.mean_score}"
+            )
+        self.record_json_event("inspection_objects_discovered", {
+            "new": [t.as_dict() for t in discovered],
+            "registry": self.object_registry.summary(),
+            "phase": self.inspect_phase,
+        })
+        # Tell the service, so the problem naming these objects exists on disk
+        # from the moment of discovery rather than only inside the next replan.
+        names = {t.name for t in self.object_registry.all()}
+        if self.replan_client is not None and names != self._reported_object_names:
+            self._reported_object_names = names
+            self.replan_client.report_observation({
+                "tag": self.trial_tag,
+                "mission_id": self.mission_id,
+                "robot": self.robot_name,
+                "current_region": self.current_region,
+                "visited_regions": sorted(self.mission_visited_regions),
+                "inspect_objects": self.object_registry.instances(),
+            })
+
+    def begin_inspection_round(self):
+        """Plan the next batch of inspections. True if a replan is in flight.
+
+        Called when the plan runs out, which happens at least twice in a normal
+        run: once when the survey ends, and once after each round of
+        inspections in case the driving revealed more objects. Both are the same
+        question -- is anything still uninspected? -- so they are the same code
+        path rather than a survey-specific transition and an inspection-specific
+        one.
+
+        Returns False when there is nothing left to inspect, which is what ends
+        the mission. With an unknown quantity of objects there is no certificate
+        that all of them were found; "the last poll of perception discovered
+        nothing new and everything known has been inspected" is the strongest
+        available statement, and it is what this returns False on.
+        """
+        pending = self.object_registry.pending() if self.object_registry else []
+        if not pending:
+            if self.inspect_phase != "done":
+                self.inspect_phase = "done"
+                summary = self.object_registry.summary() if self.object_registry else {}
+                done = self.object_registry.all() if self.object_registry else []
+                self.get_logger().warn(
+                    f"[INSPECTION COMPLETE] {summary.get('inspected', 0)} object(s) "
+                    "inspected: " + ", ".join(f"{t.name}@{t.region}" for t in done)
+                    if done else
+                    "[INSPECTION COMPLETE] the survey finished and no object of "
+                    f"{self.inspect_object_classes} was ever found to inspect"
+                )
+                self.record_json_event("inspection_complete", {"registry": summary})
+                self.update_mission_completion()
+            return False
+
+        if not self.enable_symbolic_replan:
+            # The inspections are planned, not scripted -- the objects did not
+            # exist when the mission plan was written. Without Tier 2 there is
+            # nothing to plan them, and the run would otherwise end quietly
+            # with the survey done and every object untouched.
+            # Its own flag, not the in-flight latch: this is "say it once",
+            # and overloading the latch for it would be a second meaning for a
+            # field whose single meaning is the point of the fix above.
+            if not self._inspection_unplannable_logged:
+                self._inspection_unplannable_logged = True
+                self.get_logger().error(
+                    f"[INSPECTION] {len(pending)} object(s) found but symbolic "
+                    f"replan is DISABLED, so no plan can be produced for them. "
+                    f"Run with SYMBOLIC_REPLAN=1."
+                )
+                self.record_json_event("inspection_unplannable", {
+                    "reason": "symbolic replan disabled",
+                    "pending": [t.as_dict() for t in pending],
+                })
+            return False
+        if self._inspection_replan_pending:
+            return False        # a round is already in flight
+        now = self.sim_time_now()
+        if (self._last_inspection_round_sim_s is not None
+                and now - self._last_inspection_round_sim_s < self.inspect_round_retry_s):
+            return False        # cooling down after a failed round
+        if self._inspection_round_attempts >= self.inspect_max_rounds:
+            if self.inspect_phase != "not_planned":
+                self.inspect_phase = "not_planned"
+                self.get_logger().error(
+                    f"[INSPECTION] gave up after {self._inspection_round_attempts} "
+                    f"rounds with {len(pending)} object(s) still uninspected: "
+                    + ", ".join(f"{t.name}@{t.region}" for t in pending)
+                )
+                self.record_json_event("inspection_rounds_exhausted", {
+                    "attempts": self._inspection_round_attempts,
+                    "pending": [t.as_dict() for t in pending],
+                })
+            return False
+        self.inspect_phase = "inspect"
+        self._inspection_replan_pending = True
+        self._last_inspection_round_sim_s = now
+        self._inspection_round_attempts += 1
+        self.get_logger().warn(
+            f"[INSPECTION ROUND {self._inspection_round_attempts}/"
+            f"{self.inspect_max_rounds}] {len(pending)} object(s) to inspect: "
+            + ", ".join(f"{t.name}@{t.region}" for t in pending)
+        )
+        self.record_json_event("inspection_round_started", {
+            "pending": [t.as_dict() for t in pending],
+            "registry": self.object_registry.summary(),
+        })
+        # Point the mission at the first object waiting. The planner is free to
+        # take them in another order -- apply_symbolic_replan reads the real
+        # endpoint back off the plan it returns -- but leaving target_region on
+        # the survey's endpoint would leave the STL goal check, and anything
+        # else that asks where the robot is headed, describing a leg of the
+        # mission that is over.
+        self.target_region = pending[0].region
+        # force=True for the same reason the object approach uses it: the
+        # inspections ARE the mission, so refusing to plan them because the
+        # survey spent the replan budget on obstacles would fail the run for an
+        # unrelated reason.
+        self.escalate_symbolic_replan(
+            self.active_plan_report, trigger="inspection_round", force=True)
+        return self.symbolic.state != symbolic_replan.IDLE
+
+    def inspection_retry_possible(self):
+        """True when another inspection round is still owed to the mission.
+
+        Distinguishes "waiting to try again" from "finished". The exhaustion
+        check treats the two identically otherwise, and would end the run during
+        a retry cooldown -- which is how a single timed-out replan came to
+        finish a mission with every discovered object still uninspected.
+        """
+        if self.inspect_phase not in ("survey", "inspect"):
+            return False
+        if not self.enable_symbolic_replan or self.object_registry is None:
+            return False
+        if not self.object_registry.pending():
+            return False
+        return self._inspection_round_attempts < self.inspect_max_rounds
+
     def at_target_region(self):
         """True when the robot is parked at the mission target.
 
@@ -1281,14 +1635,25 @@ class PpddlNav2StlSat(Node):
         return region
 
     def current_plan_leg(self):
-        """``(from_region, to_region)`` of the move being executed, for prose."""
-        actions = self.active_plan_actions or []
-        moves = [a for a in actions if a.name.startswith("move")]
+        """``(from_region, to_region)`` of the step being executed, for prose.
+
+        Indexed against the ROUTE, not against a filtered list of moves: an
+        inspection is a step of the route too, and counting only moves would
+        report the wrong leg for the rest of the plan once one is passed. An
+        inspection has no from-region -- its second argument is the object --
+        so that half comes back None.
+        """
+        route = self.route_actions or []
         idx = (self._last_feedback_waypoint or 0) + self._waypoints_offset
-        if not moves or idx >= len(moves):
+        if not route or idx >= len(route) or route[idx] is None:
             return None, None
-        args = moves[idx].args
-        return (args[-2] if len(args) >= 2 else None), args[-1]
+        action = route[idx]
+        args = action.args
+        if not args:
+            return None, None
+        from_region = (args[-2] if len(args) >= 2 and action.name.startswith("move")
+                       else None)
+        return from_region, args[-1]
 
     def escalate_symbolic_replan(
         self,
@@ -1313,7 +1678,13 @@ class PpddlNav2StlSat(Node):
         # route OUT of the goal region and back -- observed as
         # (move r8 r6) (move r6 r8), 198s after arrival, inflating both
         # path_length_m and duration_s for a mission that had already succeeded.
-        if self.at_target_region():
+        #
+        # `force` overrides it, and must: an inspection round is escalated
+        # exactly when the survey has finished and the robot is parked at its
+        # target, so this guard would refuse the one replan the mission depends
+        # on. The reasoning above is about REACTIVE triggers -- a pedestrian
+        # near a robot that has already arrived -- and those never force.
+        if self.at_target_region() and not force:
             self.get_logger().info(
                 f"Symbolic replan not escalated: already at target {self.target_region}"
             )
@@ -1370,6 +1741,8 @@ class PpddlNav2StlSat(Node):
         if trigger == "stl_shield" and self.last_shield_result is not None:
             detail["violated_conjunct"] = self.last_shield_result.worst_conjunct
             detail["robustness"] = self.last_shield_result.robustness
+        if trigger in symbolic_replan.DISCOVERY_TRIGGERS and self.object_registry:
+            detail["found_objects"] = len(self.object_registry)
 
         self.symbolic.count += 1
         self.symbolic.last_escalation_sim_s = now_sim
@@ -1415,9 +1788,37 @@ class PpddlNav2StlSat(Node):
 
     def build_replan_request(self, trigger, detail):
         """Assemble the JSON request for the host service."""
-        actions = self.active_plan_actions or []
         executed_idx = (self._last_feedback_waypoint or 0) + self._waypoints_offset
-        moves = [a for a in actions if a.name.startswith("move")]
+        # The route's own actions, in route order, so the split is between what
+        # the robot HAS driven and what it has not. Indexing a filtered list of
+        # moves was equivalent only while moves were the sole lowered action;
+        # an interleaved inspect-object shifts every index past it.
+        route = [a for a in (self.route_actions or []) if a is not None]
+        if not route:
+            route = [a for a in (self.active_plan_actions or [])
+                     if a.name.startswith("move")]
+        executed = [a.text() for a in route[:executed_idx]]
+        remaining = [a.text() for a in route[executed_idx:]]
+        if trigger == "inspection_round" and not remaining:
+            # `remaining_plan` is the seed EvoPlan repairs, and an inspection
+            # round is escalated precisely when the plan has been driven to the
+            # end -- so the seed would be empty and the LLM would be
+            # synthesising from scratch rather than repairing. In evoplan_only
+            # there is not even an FD plan to fall back on.
+            #
+            # So seed it with the work the mission is asking for: one
+            # inspect-object per object still pending. This is deliberately NOT
+            # a valid plan -- it has no moves, so every action's (at ?r ?l) is
+            # unmet -- and that is the mechanism, not a defect. VAL replies
+            # "unsatisfied precondition (at jackal_1 r1)" for each one, EvoPlan
+            # surfaces that as the artifact the next iteration reads, and
+            # inserting the moves between them is exactly the repair this
+            # pipeline is good at.
+            remaining = [
+                f"(inspect-object {self.robot_name} {target.name} {target.region})"
+                for target in (self.object_registry.pending()
+                               if self.object_registry else [])
+            ]
         return {
             "mission_id": self.mission_id,
             # Which trial this replan belongs to; the service names its
@@ -1445,8 +1846,17 @@ class PpddlNav2StlSat(Node):
                 if self.find_phase == "approach" and self.find_object_region
                 else None
             ),
-            "executed_plan": [a.text() for a in moves[:executed_idx]],
-            "remaining_plan": [a.text() for a in moves[executed_idx:]],
+            # Every object this mission knows about, inspected or not, with the
+            # PDDL name the executor minted for it. The service declares each as
+            # a `- target`, places it with (object-at ...) and adds
+            # (inspected-object ...) to the goal -- which is how a problem that
+            # declared no objects at all comes to state an open-world mission.
+            # Already-inspected objects stay in the list: dropping one would
+            # delete the fact that explains the goal conjunct it satisfies.
+            "inspect_objects": (self.object_registry.instances()
+                                if self.object_registry else None),
+            "executed_plan": executed,
+            "remaining_plan": remaining,
             "blocked_regions": sorted(self.symbolic.blocked_regions),
             "planner_mode": self.planner_mode,
             "deadline_s": self.symbolic_replan_deadline_s,
@@ -1476,6 +1886,10 @@ class PpddlNav2StlSat(Node):
         a shield violation -- the trigger there is that someone is too close.
         """
         self.symbolic.state = symbolic_replan.HOLDING
+        # An inspection interrupted by deliberation does not count. Cancel it
+        # before the hold takes over the base, so the two are not both
+        # publishing cmd_vel.
+        self.cancel_inspect_dwell(f"held for a symbolic replan ({trigger})")
         self.symbolic.resume_idx = self._last_feedback_waypoint or 0
         self.symbolic.hold_started_sim_s = self.sim_time_now()
         self.record_json_event(
@@ -1574,6 +1988,15 @@ class PpddlNav2StlSat(Node):
         self.get_logger().warn(f"Symbolic replan abandoned: {reason}")
         self.exit_hold()
         self.symbolic.state = symbolic_replan.IDLE
+        # Release the inspection round with it. This flag means "a round is in
+        # flight", and after an abandon none is -- but it used to be cleared
+        # ONLY on success, so a single failed round ended the inspections for
+        # the rest of the mission. A live run discovered both objects, lost one
+        # replan to a timeout, and finished having inspected neither, with its
+        # replan budget still unspent and nothing left that would ask again.
+        # The cooldown in begin_inspection_round is what now stops the retry
+        # becoming a per-tick request.
+        self._inspection_replan_pending = False
         if self.active_waypoints:
             self.resend_waypoint_suffix(self.symbolic.resume_idx)
 
@@ -1590,7 +2013,28 @@ class PpddlNav2StlSat(Node):
                 "plan_action_unexecutable",
                 {"action": action.text(), "reason": "no executor for this action type"},
             )
-        if not plan_reaches_target(executable, self.target_region):
+        if self.inspect_phase == "inspect":
+            # An inspection plan has no target region agreed in advance: it ends
+            # wherever the last object it inspects happens to be, and which
+            # objects it takes in what order is the planner's decision. So the
+            # endpoint is READ OFF the plan rather than checked against a
+            # constant -- and read off it here, before anything downstream
+            # (mission completion, the STL goal check) asks where the robot is
+            # supposed to end up.
+            end_region = symbolic_replan.plan_end_region(executable)
+            if end_region is None or end_region not in self.regions:
+                self.record_json_event(
+                    "symbolic_replan_rejected",
+                    {"errors": [f"inspection plan ends at unknown region {end_region!r}"]},
+                )
+                return False
+            if end_region != self.target_region:
+                self.get_logger().info(
+                    f"[INSPECTION] plan ends at {end_region}; retargeting from "
+                    f"{self.target_region}"
+                )
+                self.target_region = end_region
+        elif not plan_reaches_target(executable, self.target_region):
             self.record_json_event(
                 "symbolic_replan_rejected",
                 {"errors": [f"move chain does not reach {self.target_region}"]},
@@ -1631,7 +2075,7 @@ class PpddlNav2StlSat(Node):
                 return False
         except Exception as exc:  # noqa: BLE001 - never crash the executor on a bad plan
             self.get_logger().warn(f"Local validation errored, accepting plan: {exc}")
-        waypoints = self.plan_to_nav2_goals(aligned)
+        waypoints, tasks = self.plan_to_nav2_goals(aligned)
         if not waypoints:
             self.record_json_event(
                 "symbolic_replan_rejected", {"errors": ["plan lowered to zero waypoints"]}
@@ -1652,14 +2096,22 @@ class PpddlNav2StlSat(Node):
             "plan_actions": aligned,
             "source": "symbolic_replan",
         }
-        self.active_waypoints = waypoints
+        self.set_route(waypoints, tasks)
         self._waypoints_offset = 0
         self._last_feedback_waypoint = None
+        # A dwell belongs to the route that scheduled it. The object it was
+        # aimed at stays uninspected and the new plan is free to include it
+        # again -- which it will, since the goal conjunct is still open.
+        self.cancel_inspect_dwell("a new symbolic plan replaced the route")
         self.last_monitor_signature = None
         self.last_nav2_path = None
         # A new symbolic plan earns a fresh reactive budget; max_symbolic_replans
         # is what bounds the overall loop.
         self.nav2_replan_count = 0
+        # The inspection round asked for got planned. Clearing the latch here
+        # rather than at request time is what lets the NEXT round be asked for
+        # while stopping a failed one from being re-asked on every tick.
+        self._inspection_replan_pending = False
         self.clear_costmap_edit_if_active("applying a new symbolic plan")
         self.shield.reset()
         self.shield_violation_active = False
@@ -1693,13 +2145,188 @@ class PpddlNav2StlSat(Node):
         two cannot drift on the ``_waypoints_offset`` arithmetic.
         """
         start = max(0, int(start_idx or 0))
-        remaining = self.active_waypoints[start:] or self.active_waypoints
+        if start >= len(self.active_waypoints or []):
+            start = 0                      # keep the whole route, as before
+        remaining = self.slice_route(start)
         self._waypoints_offset += start
-        self.active_waypoints = remaining
         self._last_feedback_waypoint = None
         self.publish_waypoints_path(remaining)
         self.send_waypoints(remaining)
         return remaining
+
+    def advance_route(self):
+        """Drive the next segment after one finished. Ends the plan if none.
+
+        The dwell's continuation, and the only other place a route advances
+        without a replan. Bookkeeping matches ``resend_waypoint_suffix`` exactly
+        -- consume from the front, add to ``_waypoints_offset`` -- so the two
+        cannot disagree about how far through the original route the robot is.
+        """
+        consumed = max(1, int(self._segment_len or 0))
+        remaining = self.slice_route(consumed)
+        self._waypoints_offset += consumed
+        self._last_feedback_waypoint = None
+        if not remaining:
+            # Nothing left to drive. Whether that is SUCCESS is decided by
+            # plan_exhaustion_tick, as for any completed route.
+            self._segment_len = 0
+            self._plan_finished_sim_s = self.sim_time_now()
+            return None
+        self.publish_waypoints_path(remaining)
+        self.send_waypoints(remaining)
+        return remaining
+
+    # ------------------------------------------------------------------
+    # inspection dwell
+    # ------------------------------------------------------------------
+    def begin_inspect_dwell(self, task):
+        """Hold still, facing the object, for ``inspect_dwell_s``.
+
+        This is the physical content of `inspect-object`: without it the action
+        would be the same zero-cost bookkeeping `approach` is, and a mission
+        that claims to have inspected six objects would have done nothing but
+        drive past them.
+
+        Time is measured in SIM seconds, like every other duration in this node.
+        Five wall seconds and five sim seconds are routinely different amounts
+        of Gazebo -- a crowded world with four YOLO instances runs well under
+        1.0x -- and the dwell has to be five seconds of the world the robot and
+        the camera are in.
+        """
+        self.cancel_inspect_dwell("superseded by a new inspection")
+        self._dwell = {
+            "task": task,
+            "started_sim_s": self.sim_time_now(),
+            "hold_started_sim_s": None,
+            "face_warned": False,
+        }
+        self.get_logger().info(
+            f"[INSPECTING] {task.get('object')} at {task.get('region')}: "
+            f"holding {self.inspect_dwell_s:.1f} s facing "
+            + (f"{task['object_xy']}" if task.get("object_xy") else "no known position")
+        )
+        self.record_json_event("inspect_started", {
+            "object": task.get("object"),
+            "class": task.get("class"),
+            "region": task.get("region"),
+            "object_xy": list(task["object_xy"]) if task.get("object_xy") else None,
+            "dwell_s": self.inspect_dwell_s,
+        })
+        # Created once and reset thereafter, never destroyed: the tick that
+        # finishes a dwell stops its own timer, and destroying a timer from
+        # inside its own callback is not something to rely on.
+        if self._dwell_timer is None:
+            self._dwell_timer = self.create_timer(0.1, self.inspect_dwell_tick)
+        else:
+            self._dwell_timer.reset()
+
+    def inspect_dwell_tick(self):
+        """Turn to face the object, then hold still until the dwell is served."""
+        if self._dwell is None:
+            return
+        task = self._dwell["task"]
+        now = self.sim_time_now()
+        if not self.face_object(task, now):
+            return          # still rotating; the hold has not started
+        if self._dwell["hold_started_sim_s"] is None:
+            self._dwell["hold_started_sim_s"] = now
+        # Keep commanding zero. Nav2 has finished with this goal and is not
+        # driving, but a stale controller command or a nudge from the sim would
+        # otherwise creep the robot through its own inspection. Published
+        # directly rather than through publish_hold_stop, which is gated on the
+        # replan hold state and would do nothing here.
+        self.cmd_vel_pub.publish(Twist())
+        if now - self._dwell["hold_started_sim_s"] < self.inspect_dwell_s:
+            return
+        self.finish_inspect_dwell()
+
+    def face_object(self, task, now):
+        """Rotate toward the object. True once aimed (or unable to aim).
+
+        Recomputed from the LIVE pose rather than reusing the yaw baked into
+        the goal pose: Nav2 stops within its goal tolerance, not on it, and a
+        heading computed for the region centroid is wrong by however far short
+        the robot came to rest. Half a metre of position error at three metres'
+        range is nearly ten degrees of pointing error.
+
+        Returns True when there is nothing to aim at -- no known object
+        position, or no yaw estimate -- so a degraded inspection still dwells
+        rather than blocking forever on a correction it cannot compute.
+        """
+        object_xy = task.get("object_xy")
+        if object_xy is None or self.current_yaw is None or self.current_xy is None:
+            return True
+        desired = math.atan2(object_xy[1] - self.current_xy[1],
+                             object_xy[0] - self.current_xy[0])
+        error = yaw_error(desired, self.current_yaw)
+        if abs(error) <= self.inspect_face_tolerance_rad:
+            return True
+        if now - self._dwell["started_sim_s"] > self.inspect_face_timeout_s:
+            if not self._dwell["face_warned"]:
+                self._dwell["face_warned"] = True
+                self.get_logger().warn(
+                    f"[INSPECT] gave up turning toward {task.get('object')} after "
+                    f"{self.inspect_face_timeout_s:.1f} s ({math.degrees(error):.0f} deg "
+                    f"off); dwelling anyway"
+                )
+                self.record_json_event("inspect_face_timeout", {
+                    "object": task.get("object"),
+                    "yaw_error_deg": round(math.degrees(error), 1),
+                })
+            return True
+        twist = Twist()
+        # Proportional, clamped, and slow: this is a final alignment of a
+        # stationary robot, not a manoeuvre.
+        twist.angular.z = max(-self.inspect_face_speed,
+                              min(self.inspect_face_speed, 1.5 * error))
+        self.cmd_vel_pub.publish(twist)
+        return False
+
+    def finish_inspect_dwell(self):
+        """Record the inspection and drive on."""
+        dwell = self._dwell
+        if dwell is None:
+            return
+        task = dwell["task"]
+        held_s = self.sim_time_now() - (dwell["hold_started_sim_s"] or dwell["started_sim_s"])
+        self.cancel_inspect_dwell(None)
+        name = task.get("object")
+        if self.object_registry is not None and name:
+            self.object_registry.mark_inspected(name, at=self.sim_time_now())
+        self.get_logger().warn(
+            f"[INSPECTED] {name} ({task.get('class') or 'unknown class'}) at "
+            f"{task.get('region')} after {held_s:.1f} s; "
+            f"{len(self.object_registry.pending()) if self.object_registry else 0} left"
+        )
+        self.record_json_event("inspect_completed", {
+            "object": name,
+            "class": task.get("class"),
+            "region": task.get("region"),
+            "held_s": round(held_s, 2),
+            "registry": self.object_registry.summary() if self.object_registry else None,
+        })
+        self.advance_route()
+
+    def cancel_inspect_dwell(self, reason):
+        """Abandon a dwell in progress. Safe to call when there is none.
+
+        Called whenever the route the dwell belongs to stops being the route:
+        a symbolic replan, a hold, a Tier-1 reroute. The object stays
+        UNINSPECTED, so the next plan will come back for it -- an interrupted
+        stare is not an inspection.
+        """
+        if self._dwell_timer is not None:
+            self._dwell_timer.cancel()
+        if self._dwell is None:
+            return
+        if reason:
+            task = self._dwell["task"]
+            self.get_logger().warn(
+                f"[INSPECT ABANDONED] {task.get('object')} at {task.get('region')}: {reason}"
+            )
+            self.record_json_event("inspect_abandoned", {
+                "object": task.get("object"), "reason": reason})
+        self._dwell = None
 
     # ------------------------------------------------------------------
     # stuck detection
@@ -1712,6 +2339,13 @@ class PpddlNav2StlSat(Node):
         timing out.
         """
         if self.symbolic.state != symbolic_replan.IDLE:
+            return
+        if self._dwell is not None:
+            # Standing still is the job right now. Without this the dwell and
+            # the turn-to-face count as zero displacement toward the stuck
+            # window and a long enough inspection would escalate a replan
+            # against a robot doing exactly what it was told.
+            self._stuck_anchor = None
             return
         if self.active_goal_handle is None or self.current_xy is None:
             self._stuck_anchor = None
@@ -1754,6 +2388,53 @@ class PpddlNav2StlSat(Node):
             self.active_plan_report, trigger="nav2_stuck", failed_region=failed_region
         )
 
+    def settle_if_nothing_running(self, reason):
+        """Hand control to ``plan_exhaustion_tick`` when nothing else can act.
+
+        An aborted Nav2 goal leaves the robot with no active goal. Normally a
+        replan follows and supplies a new route; when one CANNOT be escalated --
+        the deliberation budget is spent, the cooldown has not elapsed, Tier 2
+        is off -- nothing follows. ``_plan_finished_sim_s`` is only ever set by
+        a goal that SUCCEEDED, so the exhaustion path that decides whether the
+        run is over never runs either, and the executor sits with no goal, no
+        replan and no verdict until the mission timeout fires. Observed: a
+        survey aborted on its final leg, then 40 minutes of STL monitor ticks
+        against a stationary robot.
+
+        Marking the plan finished is the honest description of the situation --
+        there is no route left and nothing is going to produce one -- and it
+        routes the decision to the code written to make it. For a
+        find-and-inspect mission that is also a rescue: the inspection round is
+        reached from there and escalates with ``force=True``, so the objects
+        already discovered still get inspected even though the survey ended
+        badly.
+
+        Deliberately narrow. Every guard here names something that IS still
+        going to act, and in each of those cases this must do nothing.
+        """
+        if self.active_goal_handle is not None:
+            return                      # still driving
+        if self.replan_in_progress or self.symbolic.state != symbolic_replan.IDLE:
+            return                      # a replan is in flight or holding
+        if self._dwell is not None:
+            return                      # an inspection is being served
+        if self._plan_finished_sim_s is not None:
+            return                      # already settled
+        self.get_logger().warn(
+            f"[NO ROUTE] {reason}; nothing is left to drive. Letting the "
+            f"exhaustion check decide whether the mission is over."
+        )
+        self.record_json_event("route_settled_without_replan", {
+            "reason": reason,
+            "symbolic_replans": self.symbolic.count,
+            "deliberation_s": round(self.symbolic.deliberation_wall_s, 1),
+            "regions_remaining": self.regions_remaining(),
+            "inspect_phase": self.inspect_phase,
+            "inspection_pending": [t.name for t in self.object_registry.pending()]
+                                  if self.object_registry else [],
+        })
+        self._plan_finished_sim_s = self.sim_time_now()
+
     def plan_exhaustion_tick(self):
         """Declare the run over once there is nothing left to drive.
 
@@ -1782,6 +2463,21 @@ class PpddlNav2StlSat(Node):
                 return          # approach plan in flight; not exhausted
             if self.find_phase == "done":
                 self.update_mission_completion()
+
+        # Same shape for the open-world mission, and the same reason for
+        # running before the grace check: the survey ending is what makes the
+        # inspections plannable, and terminating the run at that moment would
+        # end it one step before the work.
+        if self.inspect_phase in ("survey", "inspect"):
+            if self.begin_inspection_round():
+                return          # inspection plan in flight; not exhausted
+            if self.inspection_retry_possible():
+                # A round failed and another is due once the cooldown elapses.
+                # Returning here is what keeps the run alive to make it: without
+                # it the grace period below would expire during the cooldown and
+                # mark the plan exhausted, ending the mission between two
+                # attempts rather than after the last one.
+                return
 
         grace = self.plan_exhaustion_grace_s
         if self.end_on_replans_exhausted and self.symbolic.count >= self.max_symbolic_replans:
@@ -1844,6 +2540,21 @@ class PpddlNav2StlSat(Node):
             "find_object_class": self.find_object_class,
             "find_object_region": self.find_object_region,
             "find_object_evidence": self.find_object_evidence,
+            # Find-and-inspect missions: how many objects turned up and how many
+            # have been looked at. The object count is a RESULT here, not a
+            # setting -- it is what the mission was sent to determine -- so it
+            # belongs in the status blob alongside the region counts.
+            "inspect_phase": self.inspect_phase,
+            "inspect_classes": self.inspect_object_classes,
+            "inspect_dwell_s": self.inspect_dwell_s,
+            "inspection": (self.object_registry.summary()
+                           if self.object_registry else None),
+            # Rounds attempted vs allowed. A run that ends with objects pending
+            # is either "the planner kept failing" or "it never tried", and
+            # only this tells them apart after the fact.
+            "inspect_rounds": self._inspection_round_attempts,
+            "inspect_max_rounds": self.inspect_max_rounds,
+            "inspecting": ((self._dwell or {}).get("task") or {}).get("object"),
             "target_region": self.target_region,
             "regions_required": len(set(self.mission_required_regions)),
             "regions_visited": len(self.mission_visited_regions),
@@ -1901,10 +2612,10 @@ class PpddlNav2StlSat(Node):
                 self.sent_goal = True
                 return
 
-            waypoints = self.plan_to_nav2_goals(plan_report["plan_actions"])
+            waypoints, tasks = self.plan_to_nav2_goals(plan_report["plan_actions"])
             self.active_plan_report = plan_report
             self.active_plan_actions = plan_report["plan_actions"]
-            self.active_waypoints = waypoints
+            self.set_route(waypoints, tasks)
             # Freeze what the MISSION requires, before any replan can shorten it.
             # Success is measured against this, never against the plan currently
             # loaded: a replan that narrows to "(visited <target>)" would
@@ -1964,6 +2675,17 @@ class PpddlNav2StlSat(Node):
                 facts.add(("connected", dst, src))
         if self.domain_name == "lens_lab":
             self.add_lens_lab_facts(objects, facts)
+
+        # Discovered objects, so a returned plan containing inspect-object can
+        # be validated at all. This problem is built from graph.json, which
+        # knows nothing about what perception found -- without these the
+        # in-container gate in apply_symbolic_replan would reject every
+        # inspection plan for "missing preconditions (object-at ...)", i.e. for
+        # naming the very objects the mission was sent to find.
+        for target in (self.object_registry.all() if self.object_registry else []):
+            if target.region in self.regions:
+                objects[target.name] = "target"
+                facts.add(("object-at", target.name, target.region))
 
         return ProblemState(
             objects=objects,
@@ -2153,9 +2875,41 @@ class PpddlNav2StlSat(Node):
         return plan
 
     def plan_to_nav2_goals(self, plan):
-        waypoints = []
+        """Lower a PDDL plan to ``(waypoints, tasks)``.
+
+        Two action types reach the robot. ``move`` becomes a waypoint at the
+        destination region's centroid, as it always has. ``inspect-object``
+        becomes a waypoint too -- at the region closest to the object, oriented
+        to face it, and marked with a task the arrival handler turns into a
+        stationary dwell. Everything else (pickup, dropoff, inspect-shelf,
+        approach) still lowers to nothing, because nothing on this robot
+        performs it.
+
+        ``tasks`` is index-parallel to ``waypoints``, one dict each, tagged
+        ``kind`` ``"move"`` or ``"inspect"`` and carrying the action it came
+        from. That last field is what lets progress logging, the current-leg
+        report and the replan request's executed/remaining split be stated in
+        terms of the route the robot is actually driving; they used to index a
+        filtered list of moves, which an interleaved inspection silently
+        knocks out of step.
+        """
+        waypoints, tasks = [], []
         for action in plan:
-            if not action.name.startswith("move") or len(action.args) < 3:
+            name = action.name.lower()
+            if name == "inspect-object":
+                task = self.inspection_waypoint(action)
+                if task is None:
+                    continue
+                # Appended WITHOUT the co-location check `append_waypoint`
+                # applies to moves. An inspection at the region the robot was
+                # just sent to is the normal case, not a duplicate: same
+                # position, different heading, and a dwell afterwards. Dropping
+                # it as a repeat would silently delete the inspection and leave
+                # a plan that drives the route and does none of the work.
+                waypoints.append(task["xy"])
+                tasks.append(dict(task, kind="inspect", action=action))
+                continue
+            if not name.startswith("move") or len(action.args) < 3:
                 continue
             goal_region = action.args[-1].lower()
             if goal_region not in self.regions:
@@ -2163,11 +2917,101 @@ class PpddlNav2StlSat(Node):
                     f"Skipping move action with unknown goal region '{goal_region}': {action.text()}"
                 )
                 continue
-            self.append_waypoint(waypoints, self.regions[goal_region])
+            if self.append_waypoint(waypoints, self.regions[goal_region]):
+                tasks.append({"kind": "move", "action": action,
+                              "region": goal_region})
 
         if not waypoints:
-            raise RuntimeError("PDDL plan did not contain move actions that map to graph regions")
-        return waypoints
+            raise RuntimeError(
+                "PDDL plan lowered to zero waypoints: no move or inspect-object "
+                "action named a region in graph.json")
+        return waypoints, tasks
+
+    def inspection_waypoint(self, action):
+        """Where to stand and which way to look, for one ``inspect-object``.
+
+        ``(inspect-object ?r ?t ?l)`` names the region, and the region is where
+        the robot goes: centroids are waypoints Nav2 is known to be able to
+        reach, whereas a pose computed near the object can land inside the
+        obstacle being inspected, or behind it. ``inspect_standoff_m`` moves the
+        pose off the centroid toward the object for missions where that is too
+        far away to see anything; it is 0 by default.
+
+        The heading is the part that has to come from perception: the PDDL says
+        nothing about where in the region the object sits, so the yaw is
+        computed from the registry's map position for it. With no registry entry
+        -- a plan naming an object this executor never discovered, which an LLM
+        replan can produce -- the robot still drives there and still dwells, but
+        with no facing to aim for. That is a degraded inspection, and it is
+        logged as one rather than skipped: standing in the right region for five
+        seconds is closer to the mission than refusing to go.
+        """
+        name = (action.args[1].lower() if len(action.args) >= 2 else "")
+        region = action.args[-1].lower() if action.args else ""
+        if region not in self.regions:
+            self.get_logger().warn(
+                f"Skipping inspect-object with unknown region '{region}': {action.text()}"
+            )
+            return None
+        target = self.object_registry.get(name) if self.object_registry else None
+        if target is None:
+            self.get_logger().warn(
+                f"[INSPECT] {name} is not in the object registry; standing at "
+                f"{region} with no facing"
+            )
+        object_xy = target.xy if target is not None else None
+        stand, yaw = inspection_pose(self.regions[region], object_xy,
+                                     self.inspect_standoff_m)
+        return {"object": name,
+                "class": target.class_name if target is not None else None,
+                "region": region, "xy": stand,
+                "object_xy": tuple(object_xy) if object_xy else None, "yaw": yaw}
+
+    def set_route(self, waypoints, tasks):
+        """Install a new route. The ONLY place the parallel lists are set.
+
+        Pads or trims ``tasks`` to match rather than trusting the caller: a
+        length mismatch would misattribute dwells to the wrong waypoints, which
+        is the sort of bug that looks like "the robot stopped in a strange
+        place" long after the cause.
+
+        ``route_actions`` is the whole route and is never sliced, unlike the
+        other two. It is indexed by ``waypoint index + _waypoints_offset``,
+        which is the existing convention for "where in the original route am
+        I" -- the offset accumulates precisely so that a suffix resend does not
+        lose the count.
+        """
+        self.active_waypoints = list(waypoints)
+        tasks = list(tasks or [])
+        if len(tasks) != len(self.active_waypoints):
+            tasks = (tasks + [None] * len(self.active_waypoints))[:len(self.active_waypoints)]
+        self.waypoint_tasks = tasks
+        self.route_actions = [(task or {}).get("action") for task in tasks]
+
+    def slice_route(self, start):
+        """Drop the first ``start`` waypoints, keeping the tasks aligned."""
+        start = max(0, int(start or 0))
+        self.active_waypoints = self.active_waypoints[start:]
+        self.waypoint_tasks = self.waypoint_tasks[start:]
+        return self.active_waypoints
+
+    def route_segment(self, waypoints):
+        """The leading run of ``waypoints`` that can be driven in one goal.
+
+        Nav2's ``FollowWaypoints`` drives a list straight through; the only
+        pause it offers is ``WaitAtWaypoint``, which is a global plugin
+        parameter and would stop the robot at EVERY waypoint for the same
+        duration. An inspection has to pause at one waypoint and not the
+        others, so the route is cut into segments ending at each inspection and
+        the dwell happens between goals, where this node is in control.
+
+        A segment therefore runs up to and including the first inspection
+        waypoint, or to the end of the route when there is none -- which is
+        every waypoint of a mission with no inspections, i.e. exactly the old
+        single-goal behaviour.
+        """
+        end = segment_end(self.waypoint_tasks[:len(waypoints)])
+        return list(waypoints if end is None else waypoints[:end + 1])
 
     def monitor_nav2_trajectory(self, path_points):
         obstacles = self.build_monitor_obstacles(path_points)
@@ -2726,9 +3570,16 @@ class PpddlNav2StlSat(Node):
         return math.hypot(px - closest_x, py - closest_y)
 
     def append_waypoint(self, waypoints, xy):
+        """Append unless it repeats the last point. True when it was appended.
+
+        The return value is what keeps ``waypoint_tasks`` aligned: a caller
+        must add a task entry if and only if a waypoint was actually added.
+        """
         point = (float(xy[0]), float(xy[1]))
         if not waypoints or math.hypot(point[0] - waypoints[-1][0], point[1] - waypoints[-1][1]) > 1e-6:
             waypoints.append(point)
+            return True
+        return False
 
     def make_pose(self, x, y, yaw):
         pose = PoseStamped()
@@ -2741,10 +3592,28 @@ class PpddlNav2StlSat(Node):
         pose.pose.orientation.w = math.cos(yaw / 2.0)
         return pose
 
-    def build_poses(self, waypoints):
+    def build_poses(self, waypoints, tasks=None):
+        """Poses for ``waypoints``, headings pointing along the route.
+
+        An inspection waypoint overrides that heading with one aimed at the
+        object, which is what makes Nav2 leave the robot facing what it is
+        about to look at instead of facing the next leg of the tour. The dwell
+        corrects any residual error afterwards, but arriving already aligned is
+        what keeps the correction to a nudge.
+
+        ``tasks`` defaults to the head of ``waypoint_tasks`` because every
+        caller passes either the whole route or a prefix of it -- the segment
+        being driven, or the remaining route for RViz. A suffix is taken by
+        ``slice_route``, which shifts both lists together.
+        """
+        if tasks is None:
+            tasks = self.waypoint_tasks[:len(waypoints)]
         poses = []
         for idx, (x, y) in enumerate(waypoints):
-            if idx < len(waypoints) - 1:
+            task = tasks[idx] if idx < len(tasks) else None
+            if task is not None and task.get("yaw") is not None:
+                yaw = float(task["yaw"])
+            elif idx < len(waypoints) - 1:
                 nx, ny = waypoints[idx + 1]
                 yaw = math.atan2(ny - y, nx - x)
             else:
@@ -2779,10 +3648,15 @@ class PpddlNav2StlSat(Node):
     def send_waypoints(self, waypoints):
         # New route: the robot has something to drive again.
         self._plan_finished_sim_s = None
+        # Only as far as the next inspection, if there is one before the end.
+        # Callers hand over the whole remaining route and do not need to know
+        # this happened -- `result_callback` drives the rest.
+        segment = self.route_segment(waypoints)
+        self._segment_len = len(segment)
         # Kept so a rejected goal can be re-sent verbatim.
-        self._pending_waypoints = list(waypoints)
+        self._pending_waypoints = list(segment)
         goal_msg = FollowWaypoints.Goal()
-        goal_msg.poses = self.build_poses(waypoints)
+        goal_msg.poses = self.build_poses(segment)
         future = self.client.send_goal_async(goal_msg, feedback_callback=self.feedback_callback)
         future.add_done_callback(self.goal_response_callback)
 
@@ -2855,16 +3729,17 @@ class PpddlNav2StlSat(Node):
         idx = feedback_msg.feedback.current_waypoint
         if self._last_feedback_waypoint is not None and idx > self._last_feedback_waypoint:
             completed = idx - 1
-            move_actions = [
-                a for a in (self.active_plan_actions or [])
-                if a.name.startswith("move")
-            ]
-            total = len(move_actions)
+            # Against the route, so the count is over everything the robot was
+            # asked to do rather than over its moves alone -- an inspection is a
+            # step, and one that takes five seconds of standing still is
+            # precisely the step worth seeing in a log.
+            route = self.route_actions or []
+            total = len(route)
             global_idx = completed + self._waypoints_offset
-            if global_idx < total:
+            if global_idx < total and route[global_idx] is not None:
                 self.get_logger().info(
                     f"[PLAN STEP DONE] ({global_idx + 1}/{total}) "
-                    f"{move_actions[global_idx].text()}"
+                    f"{route[global_idx].text()}"
                 )
         self._last_feedback_waypoint = idx
 
@@ -2907,6 +3782,9 @@ class PpddlNav2StlSat(Node):
                 trigger="nav2_goal_aborted",
                 failed_region=failed_region,
             )
+            self.settle_if_nothing_running(
+                f"Nav2 aborted near {failed_region or 'an unknown region'} and no "
+                f"replan could be escalated")
             return
 
         missed = list(getattr(result, "missed_waypoints", []) or [])
@@ -2916,6 +3794,20 @@ class PpddlNav2StlSat(Node):
         else:
             self.get_logger().info("All PPDDL Nav2 STL-SAT waypoints completed successfully")
             self.record_json_event("nav2_goal_finished", {"missed_waypoints": []})
+
+        # A segment that ends in an inspection has not finished the plan -- it
+        # has arrived at the thing to look at. Dwell, then drive the rest.
+        arrived = (self.waypoint_tasks[self._segment_len - 1]
+                   if 0 < self._segment_len <= len(self.waypoint_tasks) else None)
+        if (arrived or {}).get("kind") == "inspect":
+            self.begin_inspect_dwell(arrived)
+            return
+        if self._segment_len and self._segment_len < len(self.active_waypoints or []):
+            # Defensive: segments end at inspections, so a short one that is not
+            # an inspection means the route was re-cut underneath this callback.
+            # Carrying on beats stalling with waypoints left undriven.
+            self.advance_route()
+            return
         # The robot has nothing left to drive. Whether that means SUCCESS is a
         # separate question -- a replan narrowed to (visited <target>) finishes
         # its plan without visiting the regions the mission requires. Mark the

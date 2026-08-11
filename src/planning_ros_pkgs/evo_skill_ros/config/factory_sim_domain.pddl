@@ -95,6 +95,11 @@
     (visited ?l - location)
     (delivered ?b - box ?l - location)
     (reached ?r - robot ?t - target)
+    ;; One object has been looked at from close range. Distinct from
+    ;; (inspected ?s - shelf_zone), which is about a REGION and has no executor:
+    ;; this one is about a target the runtime discovered, and `inspect-object`
+    ;; below does lower to robot motion.
+    (inspected-object ?t - target)
   )
 
   ;; ------------------------------------------------------------
@@ -195,5 +200,37 @@
       (not (location-unknown ?t))
     )
     :effect (reached ?r ?t)
+  )
+
+  ;; ------------------------------------------------------------
+  ;; Inspect a discovered object from its own region.
+  ;;
+  ;; UNLIKE `approach`, this one HAS an executor. plan_to_nav2_goals lowers it
+  ;; to a Nav2 goal pose at ?l oriented at the object's map position, followed
+  ;; by a stationary dwell (inspect_dwell_s, 5 s) while the robot faces it. So
+  ;; an inspect-object in a plan costs real mission time and real motion, and
+  ;; the region it names is where the robot ends up.
+  ;;
+  ;; Preconditions are `approach`'s, deliberately: an object can only be
+  ;; inspected once the runtime has localised it, which is what retracts
+  ;; (location-unknown ?t) and asserts (object-at ?t ?l). The difference is the
+  ;; effect -- (reached ?r ?t) says "I got there", (inspected-object ?t) says
+  ;; "I got there AND held a view of it" -- and only the latter is what a
+  ;; find-and-inspect mission asks for.
+  ;;
+  ;; ?t is NOT declared by the mission problem in that style of mission. The
+  ;; quantity of objects is unknown until perception has run, so
+  ;; build_runtime_problem splices both the (:objects ...) declarations and the
+  ;; goal conjuncts as instances are discovered. See pipeline/missions/
+  ;; factory_survey_01.pddl.
+  ;; ------------------------------------------------------------
+  (:action inspect-object
+    :parameters (?r - robot ?t - target ?l - location)
+    :precondition (and
+      (at ?r ?l)
+      (object-at ?t ?l)
+      (not (location-unknown ?t))
+    )
+    :effect (inspected-object ?t)
   )
 )

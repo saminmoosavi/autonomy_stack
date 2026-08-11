@@ -38,6 +38,53 @@ def _import_run_evoplan():
     return run_evoplan
 
 
+def _best_from_checkpoints(rp, out_dir: Path) -> str:
+    """The newest checkpoint's best program, when there is no final best/.
+
+    OpenEvolve writes ``best/best_program.py`` only when a run FINISHES. Online
+    it usually does not: the robot is holding station, so the run is killed at
+    the deadline, and every program it evolved is then sitting in
+    ``checkpoints/checkpoint_N/best_program.py`` with nothing reading it.
+
+    "Best-so-far even on timeout" was always the intent of the caller, but it
+    was reading a path that only exists on the clean path, so a timeout threw
+    the work away. Invisible while Fast Downward supplied a fallback -- the FD
+    plan was returned and nobody asked what EvoPlan had produced. In
+    evoplan_only there is no fallback, and it turned a run that had evolved a
+    scoring plan into "evoplan produced no plan (timeout)": observed with four
+    checkpoints on disk, the newest holding a runtime-feasible plan that used
+    inspect-object correctly.
+
+    Newest first, then older ones, because a checkpoint is only written after a
+    successful iteration -- if the newest is unreadable (killed mid-write, which
+    the deadline makes likely), the one before it is still good. Returns "" when
+    there is nothing usable, and never raises: this is the salvage path, and it
+    must not turn a timeout into a crash.
+    """
+    checkpoints = []
+    try:
+        for path in (out_dir / "checkpoints").glob("checkpoint_*"):
+            suffix = path.name.rsplit("_", 1)[-1]
+            if suffix.isdigit():
+                checkpoints.append((int(suffix), path))
+    except OSError:
+        return ""
+    for _, path in sorted(checkpoints, reverse=True):
+        program = path / "best_program.py"
+        if not program.is_file():
+            continue
+        try:
+            plan_text = rp.extract_plan(program)
+        except Exception:  # noqa: BLE001 - a half-written checkpoint is expected
+            continue
+        if plan_text:
+            print(f"[replan-service] recovered the best program from "
+                  f"{path.name} (the run was cut short before it wrote best/)",
+                  flush=True)
+            return plan_text
+    return ""
+
+
 def run_evoplan_repair(job, domain_text, problem_text, payload, deadline_s,
                        fallback: PlanResult, args, effective_blocked=None,
                        relaxed=False) -> PlanResult:
@@ -48,19 +95,28 @@ def run_evoplan_repair(job, domain_text, problem_text, payload, deadline_s,
     OpenEvolve produced so far rather than nothing.
     """
     started = time.monotonic()
+    # What "falling back" actually means here. In fd_first/evoplan the fallback
+    # is a validated Fast Downward plan and the robot drives it. In
+    # evoplan_only FD was never consulted, so the fallback is an empty
+    # placeholder and there is nothing to drive -- saying "using FD result"
+    # there sends a reader looking for an FD failure that never happened.
+    # Phrased from what is actually in hand rather than from the mode, because
+    # an FD run that failed leaves the same empty fallback as one that never
+    # happened, and neither has a plan to offer.
+    fell_back = "using FD result" if fallback.plan else "no fallback plan available"
     openevolve_run = Path(args.openevolve_run)
     config = Path(args.evoplan_config)
     if not openevolve_run.is_file():
-        fallback.error = f"openevolve-run.py not found at {openevolve_run}; using FD result"
+        fallback.error = f"openevolve-run.py not found at {openevolve_run}; {fell_back}"
         return fallback
     if not config.is_file():
-        fallback.error = f"evoplan config not found at {config}; using FD result"
+        fallback.error = f"evoplan config not found at {config}; {fell_back}"
         return fallback
 
     try:
         rp = _import_run_evoplan()
     except ImportError as exc:
-        fallback.error = f"could not import run_evoplan ({exc}); using FD result"
+        fallback.error = f"could not import run_evoplan ({exc}); {fell_back}"
         return fallback
 
     work = Path(os.environ.get("EVOPLAN_WORK_DIR", "/tmp")) / f"evoplan_{job.id}"
@@ -120,15 +176,17 @@ def run_evoplan_repair(job, domain_text, problem_text, payload, deadline_s,
         timed_out = True
         tail = f"openevolve exceeded the {remaining:.0f}s online deadline"
     except Exception as exc:  # noqa: BLE001
-        fallback.error = f"openevolve failed ({exc}); using FD result"
+        fallback.error = f"openevolve failed ({exc}); {fell_back}"
         return fallback
 
     # Best-so-far even on timeout: partial credit beats stranding the robot.
     plan_text = rp.extract_plan(out_dir / "best" / "best_program.py")
     if not plan_text:
+        plan_text = _best_from_checkpoints(rp, out_dir)
+    if not plan_text:
         fallback.error = (
             f"evoplan produced no plan ({'timeout' if timed_out else 'no best program'}); "
-            "using FD result"
+            f"{fell_back}"
         )
         fallback.validator_output = tail
         return fallback

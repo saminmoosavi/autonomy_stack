@@ -38,8 +38,11 @@ __all__ = [
     "SymbolicReplanState",
     "derive_blocked_regions",
     "build_reason_text",
+    "DISCOVERY_TRIGGERS",
     "filter_executable_actions",
+    "EXECUTABLE_ACTION_PREFIXES",
     "plan_reaches_target",
+    "plan_end_region",
     "align_plan_start",
 ]
 
@@ -130,6 +133,12 @@ def derive_blocked_regions(
     return [candidate]
 
 
+#: Triggers that mean "the plan worked and the world turned out to be bigger",
+#: not "something went wrong". Both are escalations, but only one of them is a
+#: failure, and the prose handed to the LLM must not confuse the two.
+DISCOVERY_TRIGGERS = ("object_found", "inspection_round")
+
+
 def build_reason_text(trigger: str, detail: dict) -> str:
     """Compose the prose handed to the LLM as OpenEvolve feedback.
 
@@ -165,6 +174,21 @@ def build_reason_text(trigger: str, detail: dict) -> str:
             f"{attempts} reactive Nav2 replans {leg} all failed to find a "
             "socially acceptable route; local obstacle avoidance is not enough."
         )
+    elif trigger in DISCOVERY_TRIGGERS:
+        # NOT a failure, and saying so matters: this text is the LLM's account
+        # of why it is being asked to replan, and "execution failed" would send
+        # it looking for a fault in a plan that worked. The survey ran, and the
+        # problem it was planned from has since gained facts the original could
+        # not contain.
+        found = detail.get("found_objects")
+        parts.append(
+            "Execution succeeded: the survey completed and perception located "
+            + (f"{found} object(s)" if found else "the mission object")
+            + " that the original problem could not name. The problem now "
+            "declares them, states where each one is, and requires each to be "
+            "inspected. Plan from here -- nothing has failed."
+        )
+        return " ".join(parts)
     else:
         parts.append(f"Execution failed {leg} (trigger: {trigger}).")
 
@@ -188,14 +212,25 @@ def build_reason_text(trigger: str, detail: dict) -> str:
     return " ".join(parts)
 
 
-def filter_executable_actions(actions, executable_prefix="move"):
+#: Action name prefixes ``plan_to_nav2_goals`` lowers to robot motion.
+#: ``inspect-object`` earns its place here: it becomes a Nav2 goal pose facing
+#: the object plus a stationary dwell. ``pickup-box``, ``dropoff-box``,
+#: ``inspect-shelf`` and ``approach`` still have no executor -- ``approach`` by
+#: design, since the moves that reach the object are the whole of its content.
+EXECUTABLE_ACTION_PREFIXES = ("move", "inspect-object")
+
+
+def filter_executable_actions(actions, executable_prefix=EXECUTABLE_ACTION_PREFIXES):
     """Split actions into those the executor can drive and those it cannot.
 
-    ``plan_to_nav2_goals`` only lowers actions whose name starts with ``move``;
-    ``pickup-box``, ``dropoff-box`` and ``inspect-shelf`` have no executor yet.
-    Historically those were dropped silently. Returning them explicitly lets the
-    caller log a ``plan_action_unexecutable`` event per action, so a plan that
-    quietly does less than it claims is visible rather than mysterious.
+    Historically the non-executable ones were dropped silently. Returning them
+    explicitly lets the caller log a ``plan_action_unexecutable`` event per
+    action, so a plan that quietly does less than it claims is visible rather
+    than mysterious.
+
+    ``executable_prefix`` may be a string or a tuple of them -- ``str.startswith``
+    accepts either -- so a caller wanting the old move-only behaviour can still
+    pass ``"move"``.
 
     Returns ``(executable, dropped)``.
     """
@@ -251,6 +286,22 @@ def align_plan_start(plan, current_region, robot_name):
     adjusted = type(first)(first.name, (first.args[0], current_region, *first.args[2:]))
     return ([*head, adjusted, *plan[idx + 1:]],
             f"Using live robot region for first move: {first.text()} -> {adjusted.text()}")
+
+
+def plan_end_region(actions):
+    """Region the robot ends in after driving ``actions``, or None.
+
+    ``move`` and ``inspect-object`` both name their region last, and both leave
+    the robot standing in it, so the last executable action answers this
+    whichever kind it is. Used where the endpoint of a plan has to be known
+    before it is driven -- an open-world inspection plan has no target region
+    chosen in advance, it ends wherever the last object it inspects happens to
+    be.
+    """
+    executable = [a for a in actions if a.name.startswith(EXECUTABLE_ACTION_PREFIXES)]
+    if not executable or not executable[-1].args:
+        return None
+    return executable[-1].args[-1].lower()
 
 
 def plan_reaches_target(actions, target_region: str) -> bool:

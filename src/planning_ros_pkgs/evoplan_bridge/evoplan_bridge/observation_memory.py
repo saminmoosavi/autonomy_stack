@@ -32,16 +32,36 @@ __all__ = [
     "iter_detections",
     "observed_in_region",
     "locate_object",
+    "cluster_detections",
     "position_xy",
     "summarize_for_planner",
     "DEFAULT_MIN_SCORE",
     "DEFAULT_MIN_HITS",
+    "DEFAULT_LINK_RADIUS_M",
 ]
 
 #: Detection confidence below which a sighting is ignored.
 DEFAULT_MIN_SCORE = 0.5
 #: Detections of a class in a region needed before it counts as really there.
 DEFAULT_MIN_HITS = 3
+#: How far apart two detections of the same class can be and still be believed
+#: to be the same physical object.
+#:
+#: Was 1.5 m, sized for the jitter of repeated YOLO+depth fixes on one
+#: stationary object. A live run showed that estimate to be far too tight: one
+#: traffic cone produced two clusters 2.53 m apart -- a 6-hit group at
+#: (0.43, -12.32) alongside the real 63-hit group at (2.76, -11.33) -- so the
+#: robot minted a phantom `traffic_cone_3`, drove to it and held a 5 s
+#: inspection of empty floor. Depth projection at these ranges scatters
+#: detections much further than the sensor's own noise suggests.
+#:
+#: 5.0 m absorbs that scatter. The cost is explicit and worth stating: two
+#: genuinely distinct objects of the same class closer than 5 m are now ONE
+#: object, inspected once. In this factory the regions are 7-8 m apart and the
+#: searchable objects sit one per region, so nothing real is lost -- but a world
+#: that places two cones side by side needs this lowered, and the mission would
+#: silently under-count until it was.
+DEFAULT_LINK_RADIUS_M = 5.0
 
 
 def load_observations(path):
@@ -203,6 +223,94 @@ def locate_object(records, class_name, min_score=DEFAULT_MIN_SCORE,
     # Most-seen first; the planner should act on the strongest evidence.
     out.sort(key=lambda r: (-r["hits"], -r["mean_score"]))
     return out
+
+
+def cluster_detections(records, classes=None, min_score=DEFAULT_MIN_SCORE,
+                       min_hits=DEFAULT_MIN_HITS,
+                       link_radius_m=DEFAULT_LINK_RADIUS_M, regions=None,
+                       snap_max_m=6.0):
+    """Group detections into ONE ENTRY PER PHYSICAL OBJECT, strongest first.
+
+    :func:`locate_object` answers "which region holds a cone", which is all a
+    mission needs when it is hunting a single named object. A find-and-inspect
+    mission needs the question this function answers instead: *how many* cones
+    are there and where is each one. Two cones five metres apart in the same
+    region are one entry to ``locate_object`` -- with a centroid in the empty
+    space between them, which is worse than useless as a thing to drive to and
+    face -- and two entries here.
+
+    Clustering is single-pass and greedy: detections are walked in log order and
+    each joins the first cluster whose running centroid is within
+    ``link_radius_m``, or starts a new one. Not k-means, and deliberately not --
+    the number of clusters is the unknown being solved for, and the log order is
+    a genuine signal (consecutive frames of the same object arrive together), so
+    a greedy pass is both cheaper and more stable across the repeated calls this
+    is subjected to: it runs on a timer while the robot drives, and a clustering
+    that reshuffles identities between polls would rename objects mid-mission.
+
+    Returns ``[{class_name, xy, region, hits, mean_score}, ...]``. Clusters below
+    ``min_hits`` are dropped, exactly as ``locate_object`` drops thin evidence --
+    a live run produced spurious ``kite`` and ``teddy_bear`` labels, and here a
+    false positive costs a wasted drive plus a five-second stare at nothing.
+    Clusters whose centroid is further than ``snap_max_m`` from every region are
+    dropped too: with no region to name there is no ``(object-at ...)`` to
+    assert and nothing the planner could do with it.
+    """
+    wanted = {c.lower() for c in classes} if classes else None
+    clusters = []          # [{class_name, xs, ys, scores}]
+    for _, obj in iter_detections(records):
+        name = (obj.get("class_name") or "").lower()
+        if not name or (wanted is not None and name not in wanted):
+            continue
+        score = float(obj.get("score") or 0.0)
+        if score < min_score:
+            continue
+        xy = position_xy(obj)
+        if xy is None:
+            continue      # no position, so nothing to cluster it by
+        for cluster in clusters:
+            if cluster["class_name"] != name:
+                continue
+            cx = sum(cluster["xs"]) / len(cluster["xs"])
+            cy = sum(cluster["ys"]) / len(cluster["ys"])
+            if math.dist(xy, (cx, cy)) <= link_radius_m:
+                cluster["xs"].append(xy[0])
+                cluster["ys"].append(xy[1])
+                cluster["scores"].append(score)
+                break
+        else:
+            clusters.append({"class_name": name, "xs": [xy[0]], "ys": [xy[1]],
+                             "scores": [score]})
+
+    out = []
+    for cluster in clusters:
+        hits = len(cluster["xs"])
+        if hits < min_hits:
+            continue
+        cx = sum(cluster["xs"]) / hits
+        cy = sum(cluster["ys"]) / hits
+        region, distance = _nearest_region((cx, cy), regions)
+        if region is None or distance > snap_max_m:
+            continue
+        out.append({
+            "class_name": cluster["class_name"],
+            "xy": [round(cx, 2), round(cy, 2)],
+            "region": region,
+            "hits": hits,
+            "mean_score": round(sum(cluster["scores"]) / hits, 3),
+        })
+    out.sort(key=lambda r: (r["class_name"], -r["hits"], -r["mean_score"]))
+    return out
+
+
+def _nearest_region(xy, regions):
+    """``(name, distance)`` of the closest region centroid, or ``(None, inf)``."""
+    best, best_d = None, float("inf")
+    for name, coords in (regions or {}).items():
+        d = math.dist(xy, (coords[0], coords[1]))
+        if d < best_d:
+            best, best_d = name.lower(), d
+    return best, best_d
 
 
 def summarize_for_planner(records, classes=None, min_score=DEFAULT_MIN_SCORE,

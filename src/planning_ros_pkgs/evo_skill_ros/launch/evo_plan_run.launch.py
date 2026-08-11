@@ -193,6 +193,15 @@ def generate_launch_description():
                 LaunchConfiguration("obs_log_file"), value_type=str),
             "find_object_min_hits": LaunchConfiguration("find_object_min_hits"),
             "find_object_min_score": LaunchConfiguration("find_object_min_score"),
+            # --- find-and-inspect missions (open world) ---
+            # Shares find_object's observation log: same perception, different
+            # question asked of it.
+            "inspect_object_classes": ParameterValue(
+                LaunchConfiguration("inspect_object_classes"), value_type=str),
+            "inspect_dwell_s": LaunchConfiguration("inspect_dwell_s"),
+            "inspect_standoff_m": LaunchConfiguration("inspect_standoff_m"),
+            "inspect_cluster_radius_m": LaunchConfiguration("inspect_cluster_radius_m"),
+            "inspect_max_objects": LaunchConfiguration("inspect_max_objects"),
         }],
     )
 
@@ -443,6 +452,45 @@ def generate_launch_description():
             "find_object_min_score",
             default_value="0.5",
             description="Detection confidence floor for find_object_class evidence.",
+        ),
+        DeclareLaunchArgument(
+            "inspect_object_classes",
+            default_value="",
+            description="Comma-separated YOLO classes for an open-world find-and-"
+                        "inspect mission: survey the regions, cluster detections into "
+                        "individual objects, then drive to each and hold still facing "
+                        "it. Unlike find_object_class this does not assume how MANY "
+                        "objects exist -- that is the mission's output. Requires "
+                        "enable_observation_log:=true. Empty disables it.",
+        ),
+        DeclareLaunchArgument(
+            "inspect_dwell_s",
+            default_value="5.0",
+            description="Sim seconds the robot holds still, facing an object, for the "
+                        "inspection to count.",
+        ),
+        DeclareLaunchArgument(
+            "inspect_standoff_m",
+            default_value="0.0",
+            description="Metres to stop short of an object, measured from it along the "
+                        "line from its region's centroid. 0 stands at the centroid and "
+                        "turns to face the object, which is the safe default: centroids "
+                        "are known-drivable, computed stand-off poses need not be.",
+        ),
+        DeclareLaunchArgument(
+            "inspect_cluster_radius_m",
+            default_value="5.0",
+            description="Detections of one class within this distance are treated as "
+                        "the same physical object. Too small mints a phantom and the "
+                        "robot inspects empty floor (observed at 1.5 m); too large "
+                        "silently merges two real objects into one.",
+        ),
+        DeclareLaunchArgument(
+            "inspect_max_objects",
+            default_value="12",
+            description="Cap on the object registry. Each object adds a goal conjunct "
+                        "and a leg of driving, so a mis-tuned detector must not be able "
+                        "to grow the mission without bound.",
         ),
         DeclareLaunchArgument(
             "enable_observation_log",

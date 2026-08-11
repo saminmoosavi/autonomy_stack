@@ -20,8 +20,8 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["find_block", "splice_init", "set_goal", "set_robot_location",
-           "remove_init_fact"]
+__all__ = ["find_block", "splice_init", "splice_objects", "set_goal",
+           "set_robot_location", "remove_init_fact", "goal_conjuncts"]
 
 
 def _mask_comments(text: str) -> str:
@@ -73,6 +73,65 @@ def splice_init(problem_text: str, facts: list[str]) -> str:
     _, end = find_block(problem_text, "init")
     added = "".join(f"    {f}\n" for f in facts)
     return problem_text[:end].rstrip() + "\n" + added + "  " + problem_text[end:]
+
+
+def splice_objects(problem_text: str, declarations: list[tuple[str, str]]) -> str:
+    """Declare ``(name, type)`` pairs inside the problem's ``(:objects ...)``.
+
+    The one splice that adds to ``:objects`` rather than ``:init``, and it
+    exists for a mission style the rest of this module cannot express: "find and
+    inspect however many objects are out there". How many there are is not known
+    when the mission is authored -- that is the mission -- so the objects cannot
+    be declared up front, and a fact about an undeclared object is not a soft
+    error but a Fast Downward translator abort (exit 31) before search runs.
+
+    Declaring a name twice is a PDDL error, and callers here discover objects
+    incrementally and pass the whole set every time -- so filtering out what the
+    problem already declares is the caller's job (``build_runtime_problem`` has
+    ``objects_in_problem`` to hand). This function only writes.
+    """
+    if not declarations:
+        return problem_text
+    _, end = find_block(problem_text, "objects")
+    added = "".join(f"    {name} - {type_name}\n" for name, type_name in declarations)
+    return problem_text[:end].rstrip() + "\n" + added + "  " + problem_text[end:]
+
+
+def goal_conjuncts(problem_text: str) -> list[str]:
+    """The top-level conjuncts of ``(:goal ...)``, as source text.
+
+    A goal is either ``(and (a) (b))`` or a single bare fact, and both shapes
+    appear in the missions. Returning a list of strings rather than a parse lets
+    a caller ADD a requirement without discarding the ones the mission author
+    wrote -- which is the difference between "also inspect what you found" and
+    "forget the tour, just inspect".
+    """
+    start, end = find_block(problem_text, "goal")
+    scan = _mask_comments(problem_text)
+    body = scan[start + len("(:goal"):end]
+    # Offsets into `scan` index `problem_text` identically, so slices below are
+    # taken from the original text and keep their comments-free-but-real form.
+    offset = start + len("(:goal")
+    stripped = body.strip()
+    if stripped.lower().startswith("(and"):
+        inner_start = offset + body.index("(") + len("(and")
+        inner_end = offset + body.rindex(")")
+    else:
+        inner_start, inner_end = offset, end
+
+    out, depth, term_start = [], 0, None
+    for i in range(inner_start, inner_end):
+        ch = scan[i]
+        if ch == "(":
+            if depth == 0:
+                term_start = i
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0 and term_start is not None:
+                out.append(" ".join(problem_text[term_start:i + 1].split()))
+                term_start = None
+    return out
 
 
 def remove_init_fact(problem_text: str, predicate: str, *args: str) -> str:
