@@ -12,3 +12,6 @@
 (move jackal_1 r11 r12)
 (move jackal_1 r12 r13)
 (move jackal_1 r13 r14)
+(approach jackal_1 cone r14)
+(move jackal_1 r14 r13)
+(move jackal_1 r13 r12)

@@ -334,6 +334,24 @@ else
   # 5) evo_skill plan deploy -------------------------------------------------
   EVO_CFG="$(ros2 pkg prefix evo_skill_ros)/share/evo_skill_ros/config"
   EVO_ARGS=()
+  # Mission progress must be measured in the MAP frame, because graph.json
+  # region coordinates are map-frame. Passed explicitly rather than left to the
+  # launch default so the topic in use is visible in this log -- the previous
+  # default was {ns}/platform/odom, and nothing in the output said so while
+  # every region test quietly compared odom coordinates against map ones.
+  POSE_TOPIC="${POSE_TOPIC:-${NS}/amcl_pose}"
+  POSE_MSG_TYPE="${POSE_MSG_TYPE:-amcl}"
+  EVO_ARGS+=("pose_topic:=${POSE_TOPIC}" "pose_msg_type:=${POSE_MSG_TYPE}")
+  echo "[run_sim] mission pose source: ${POSE_TOPIC} (${POSE_MSG_TYPE}, map frame)"
+  # The trial's artifact stem, derived from LOGDIR (".../<stem>_logs") so it is
+  # exactly the prefix run_trial.sh already uses for _observations.jsonl and
+  # _belief.json -- no second naming convention to keep in sync. Forwarded to
+  # the replan service, which is host-side and outlives any one trial, so
+  # without it each run's archived replan problems would overwrite the last.
+  TRIAL_TAG="${TRIAL_TAG:-$(basename "${LOGDIR:-}" _logs)}"
+  case "$TRIAL_TAG" in ""|.|/) TRIAL_TAG="" ;; esac
+  [ -n "$TRIAL_TAG" ] && EVO_ARGS+=("trial_tag:=${TRIAL_TAG}")
+  echo "[run_sim] trial tag: ${TRIAL_TAG:-<none; replan artifacts keyed by job id>}"
   # MULTICAM: evo's built-in tracker covers camera_0 via yolo_0 (cams 1-3 below)
   [ "${MULTICAM:-0}" = "1" ] && EVO_ARGS+=("tracking_topic:=/yolo_0/tracking")
   # ros2 launch rejects a bare 'name:=' (malformed argument), so an empty class

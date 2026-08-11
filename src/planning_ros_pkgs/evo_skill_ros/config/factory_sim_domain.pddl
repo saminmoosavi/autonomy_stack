@@ -39,12 +39,14 @@
   ;;     loading_zone   — region where boxes can be picked up
   ;;     charging_zone  — region with a charging dock
   ;;   box       — pickupable payload
+  ;;   target    — an object the mission must FIND, then drive to
   ;; ------------------------------------------------------------
   (:types
     robot
     location
     aisle shelf_zone loading_zone charging_zone - location
     box
+    target
   )
 
   (:predicates
@@ -63,10 +65,36 @@
     ;; Object state
     (box-at ?b - box ?l - location)
 
+    ;; Find-an-object state.
+    ;;
+    ;; Classical planning cannot sense, so "where is the cone?" is not
+    ;; something a plan can discover -- it is something the RUNTIME discovers
+    ;; and the next problem states. (location-unknown ?t) is what a mission
+    ;; asserts before the tour, and it is `approach`'s negative precondition,
+    ;; so a phase-1 goal of (reached ?r ?t) has NO achiever and the problem is
+    ;; deliberately unsolvable.
+    ;;
+    ;; That is the intended shape, not an oversight. The mission goal states
+    ;; what the mission wants; the planner cannot fully deliver it; the caller
+    ;; takes the plan's executable PREFIX (plan_prefix.executable_prefix),
+    ;; which is the region survey -- drive that, see what perception found,
+    ;; then replan the approach against a real position. An earlier revision
+    ;; instead added a `search-for` action letting the planner ASSUME the
+    ;; discovery, which made the goal reachable and left nothing to truncate;
+    ;; it was removed in favour of this.
+    ;;
+    ;; When perception localises the object, build_runtime_problem retracts
+    ;; the flag and asserts (object-at ?t ?l), and only then is the approach
+    ;; plannable. The two facts are complementary by construction; nothing here
+    ;; enforces it, so nothing should ever assert both.
+    (location-unknown ?t - target)
+    (object-at ?t - target ?l - location)
+
     ;; Mission status (asserted by action effects)
     (inspected ?s - shelf_zone)
     (visited ?l - location)
     (delivered ?b - box ?l - location)
+    (reached ?r - robot ?t - target)
   )
 
   ;; ------------------------------------------------------------
@@ -146,5 +174,26 @@
     :parameters (?r - robot ?c - charging_zone)
     :precondition (at ?r ?c)
     :effect (visited ?c)
+  )
+
+  ;; ------------------------------------------------------------
+  ;; Stand at the object's region and declare it reached.
+  ;;
+  ;; Zero-cost in practice: the driving is done by the `move` chain that gets
+  ;; the robot to ?l, and the executor drops this action (only `move` lowers to
+  ;; a Nav2 goal). It exists so the approach goal can be stated as WHAT the
+  ;; mission wants -- (reached ?r ?t) -- instead of the region name the caller
+  ;; happened to compute. The planner then derives the region from
+  ;; (object-at ?t ?l), so the target lives in the problem's facts rather than
+  ;; in a `target_region` string the PDDL never sees.
+  ;; ------------------------------------------------------------
+  (:action approach
+    :parameters (?r - robot ?t - target ?l - location)
+    :precondition (and
+      (at ?r ?l)
+      (object-at ?t ?l)
+      (not (location-unknown ?t))
+    )
+    :effect (reached ?r ?t)
   )
 )

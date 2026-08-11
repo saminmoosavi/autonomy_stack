@@ -40,6 +40,7 @@ __all__ = [
     "build_reason_text",
     "filter_executable_actions",
     "plan_reaches_target",
+    "align_plan_start",
 ]
 
 IDLE = "idle"
@@ -202,6 +203,54 @@ def filter_executable_actions(actions, executable_prefix="move"):
     for action in actions:
         (executable if action.name.startswith(executable_prefix) else dropped).append(action)
     return executable, dropped
+
+
+MOVE_ACTIONS = frozenset({"move", "move-through-narrow-area"})
+
+
+def align_plan_start(plan, current_region, robot_name):
+    """Repair a plan whose first move starts from where the robot is not.
+
+    A planner works from the problem's ``(at ?r ?l)``, which can lag the robot
+    by a region -- most obviously right after a hot-swap. Driving the plan
+    verbatim then sends the first leg from a place the robot is not standing,
+    which shows up as a first move that doubles back across the map.
+
+    Anchored on the first MOVE rather than on ``plan[0]``. A plan may
+    legitimately open with an action the executor never drives: ``search-for``
+    records the planner's assumption about where an unlocated object is, and
+    nothing orders it after the driving. Keying on ``plan[0]`` made this repair
+    silently no-op in exactly that case. Actions before the first move are
+    carried through untouched, so the plan text stays faithful to what the
+    planner returned.
+
+    Returns ``(plan, note)``; ``note`` is a human-readable string when
+    something was changed, else ``None``. Returning it rather than logging
+    keeps this module free of ROS types.
+    """
+    if not plan or current_region is None:
+        return plan, None
+    idx = next((i for i, a in enumerate(plan)
+                if a.name in MOVE_ACTIONS and len(a.args) >= 3), None)
+    if idx is None:
+        return plan, None
+    first = plan[idx]
+    if first.args[0] != robot_name:
+        return plan, None
+
+    plan_from, plan_to = first.args[1], first.args[2]
+    if plan_from == current_region:
+        return plan, None
+    head = plan[:idx]
+    if plan_to == current_region:
+        return ([*head, *plan[idx + 1:]],
+                f"Skipping {first.text()} because robot is already in {current_region}")
+
+    # Same action class as the plan already uses, so this stays agnostic about
+    # which GroundAction type the caller parsed with.
+    adjusted = type(first)(first.name, (first.args[0], current_region, *first.args[2:]))
+    return ([*head, adjusted, *plan[idx + 1:]],
+            f"Using live robot region for first move: {first.text()} -> {adjusted.text()}")
 
 
 def plan_reaches_target(actions, target_region: str) -> bool:

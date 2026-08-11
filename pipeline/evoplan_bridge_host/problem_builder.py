@@ -17,19 +17,40 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from pddl_splice import find_block, set_goal, set_robot_location, splice_init
+from pddl_splice import (find_block, remove_init_fact, set_goal,
+                         set_robot_location, splice_init)
 
-#: Goal predicates the executor can actually discharge. `move`'s effect adds
-#: BOTH (at ?r ?to) and (visited ?to), and `move` is the only action with an
-#: executor -- so a goal built solely from these is directly achievable and
-#: must NOT be narrowed. No mission authors an (at ...) goal today; `at` is
-#: listed because it is the predicate narrowing now produces, so a narrowed
-#: problem fed back through here is recognised as already executable instead of
-#: being narrowed a second time.
-EXECUTABLE_GOAL_PREDICATES = frozenset({"visited", "at"})
+#: Goal predicates a plan can reach without the executor having to perform
+#: anything it cannot. `move`'s effect adds BOTH (at ?r ?to) and (visited ?to),
+#: and `move` is the only action with an executor -- so a goal built solely
+#: from these is directly achievable and must NOT be narrowed. No mission
+#: authors an (at ...) goal today; `at` is listed because it is the predicate
+#: narrowing produces, so a narrowed problem fed back through here is
+#: recognised as already executable instead of being narrowed a second time.
+#:
+#: `reached` is here on a weaker but sufficient basis: nothing the executor
+#: drives asserts it, but the only actions that DO -- `approach`, reachable
+#: only by moving to the object's region, and `search-for` -- are pure
+#: bookkeeping with no physical effect, and filter_executable_actions drops
+#: both. So a plan achieving (reached ?r ?t) still drives the robot exactly
+#: where the goal wants it. Omitting it was not an option: the find-object
+#: tours now conjoin (reached jackal_1 cone) with their coverage goal, and a
+#: goal deemed non-executable is NARROWED -- a mid-tour obstacle replan would
+#: have thrown the entire tour away and replaced it with a single move.
+EXECUTABLE_GOAL_PREDICATES = frozenset({"visited", "at", "reached"})
+
+#: Object types in factory_jackal_domain.pddl that denote a navigable region.
+LOCATION_TYPES = frozenset({"location", "aisle", "shelf_zone", "loading_zone",
+                            "charging_zone"})
+
+#: The domain type of a findable mission object.
+TARGET_TYPE = "target"
 
 __all__ = ["MissionLibrary", "build_runtime_problem", "regions_in_problem",
-           "goal_is_executable", "EXECUTABLE_GOAL_PREDICATES"]
+           "objects_in_problem", "targets_in_problem", "resolve_target_object",
+           "resolve_found_objects",
+           "goal_is_executable", "EXECUTABLE_GOAL_PREDICATES",
+           "LOCATION_TYPES", "TARGET_TYPE"]
 
 
 def goal_is_executable(problem_text: str) -> bool:
@@ -55,17 +76,99 @@ def goal_is_executable(problem_text: str) -> bool:
     return bool(preds) and preds <= EXECUTABLE_GOAL_PREDICATES
 
 
-def regions_in_problem(problem_text: str) -> set[str]:
-    """Location names declared in the problem's ``(:objects ...)`` block."""
+def objects_in_problem(problem_text: str) -> dict[str, str]:
+    """Map every declared object name (lowercased) to its declared type.
+
+    Comments are stripped first: the mission files carry prose containing
+    hyphens and type words, and ``(:objects ...)`` is parsed by regex.
+    """
     start, end = find_block(problem_text, "objects")
-    body = problem_text[start:end]
-    regions: set[str] = set()
-    # Objects are declared as `name1 name2 - type`; keep the location types.
+    body = re.sub(r";[^\n]*", "", problem_text[start:end])
+    objects: dict[str, str] = {}
+    # Objects are declared as `name1 name2 - type`.
     for chunk in re.finditer(r"([^-()]+)-\s*([A-Za-z_][\w-]*)", body):
         names, type_name = chunk.group(1), chunk.group(2).lower()
-        if type_name in ("location", "aisle", "shelf_zone", "loading_zone", "charging_zone"):
-            regions.update(n.lower() for n in names.split() if not n.startswith(":"))
-    return regions
+        for name in names.split():
+            if not name.startswith(":"):
+                objects[name.lower()] = type_name
+    return objects
+
+
+def regions_in_problem(problem_text: str) -> set[str]:
+    """Location names declared in the problem's ``(:objects ...)`` block."""
+    return {name for name, type_name in objects_in_problem(problem_text).items()
+            if type_name in LOCATION_TYPES}
+
+
+def targets_in_problem(problem_text: str) -> set[str]:
+    """Findable objects (``- target``) declared in the problem."""
+    return {name for name, type_name in objects_in_problem(problem_text).items()
+            if type_name == TARGET_TYPE}
+
+
+def _slug(text: str) -> str:
+    """Detector class -> candidate PDDL symbol ("traffic cone" -> traffic_cone)."""
+    return re.sub(r"[^a-z0-9_]+", "_", (text or "").lower()).strip("_")
+
+
+def resolve_target_object(problem_text: str, object_class: str | None = None) -> str | None:
+    """Which declared ``target`` the perception class refers to, if any.
+
+    The executor knows the object as a detector class string -- "traffic cone",
+    with a space -- which is not a legal PDDL symbol, and the mission author
+    should not have to keep the two spellings in sync. So the name is resolved
+    from the problem rather than transmitted:
+
+    1. exact match on the slugified class (``traffic cone`` -> ``traffic_cone``),
+       or on its last word (``cone``) -- what a mission would naturally call it;
+    2. failing that, the sole declared target, since a find-an-object mission
+       that declares exactly one has no ambiguity to resolve;
+    3. otherwise ``None``, and the caller falls back to the old
+       ``(at <robot> <region>)`` goal rather than guessing.
+    """
+    targets = targets_in_problem(problem_text)
+    if not targets:
+        return None
+    slug = _slug(object_class)
+    for candidate in (slug, slug.rsplit("_", 1)[-1] if slug else ""):
+        if candidate and candidate in targets:
+            return candidate
+    return next(iter(targets)) if len(targets) == 1 else None
+
+
+def resolve_found_objects(problem_text: str, found_object, declared) -> list[tuple[str, str]]:
+    """``[(pddl_name, region), ...]`` for every usable sighting, name-sorted.
+
+    ``found_object`` may be one sighting or several: a mission can hunt more
+    than one object (factory_tour_02 wants both the cone and the skateboard),
+    and they are found at different moments, so the caller accumulates them and
+    hands over everything known so far. Rebuilding from the full set each time
+    is what stops the second discovery erasing the first.
+
+    A sighting is dropped when its region is not declared by the problem --
+    asserting a fact about an undeclared object aborts Fast Downward's
+    translator (exit 31) before search runs -- or when its detector class does
+    not resolve to a declared ``target``. Dropping is right: the rest of the
+    sightings still produce a solvable problem, where raising would lose them
+    all.
+
+    Sorted by name so the emitted problem is stable across calls; an artifact
+    that reshuffles between identical inputs is one nobody can diff.
+    """
+    if not found_object:
+        return []
+    sightings = [found_object] if isinstance(found_object, dict) else list(found_object)
+    by_name: dict[str, str] = {}
+    for sighting in sightings:
+        if not sighting:
+            continue
+        region = str(sighting.get("region") or "").strip().lower()
+        if region not in declared:
+            continue
+        name = resolve_target_object(problem_text, sighting.get("class"))
+        if name:
+            by_name[name] = region      # last report of an object wins
+    return sorted(by_name.items())
 
 
 def build_runtime_problem(
@@ -76,6 +179,7 @@ def build_runtime_problem(
     visited_regions=(),
     target_region: str | None = None,
     preserve_goal: bool | None = None,
+    found_object: dict | None = None,
 ) -> str:
     """Return the mission problem updated with runtime facts.
 
@@ -98,19 +202,66 @@ def build_runtime_problem(
     which is exactly the condition worth planning for. It is also the stronger
     and more faithful statement of the intent above: END there, rather than
     merely have passed through at some point.
+
+    ``found_object`` upgrades that narrowed goal when the mission declares what
+    it is hunting. Given ``{"class": "traffic cone", "region": "r1"}`` and a
+    problem declaring ``cone - target``, the object's discovered position
+    becomes a *fact* -- ``(object-at cone r1)``, with ``(location-unknown
+    cone)`` retracted -- and the goal becomes ``(reached jackal_1 cone)``. The
+    planner then derives r1 for itself.
+
+    That is not cosmetic. With ``(at jackal_1 r1)`` the region was computed in
+    Python and the PDDL was told only where to end up: the problem handed to
+    the LLM contained no evidence that an object existed, so nothing it read
+    could explain why r1. Stating the goal in the mission's own vocabulary is
+    also what lets the object move -- a second sighting in a different region
+    changes one fact, not the goal.
     """
     text = base_problem_text
     # preserve_goal=None means "decide from the goal itself"; an explicit
     # True/False overrides for callers that know better.
     if preserve_goal is None:
         preserve_goal = goal_is_executable(base_problem_text)
-    if target_region and not preserve_goal:
+    declared = regions_in_problem(base_problem_text)
+
+    resolved = resolve_found_objects(base_problem_text, found_object, declared)
+
+    if resolved and not preserve_goal:
+        facts = []
+        for object_name, object_region in resolved:
+            # Order matters only for readability: retract before asserting so
+            # the two never coexist in the emitted text.
+            text = remove_init_fact(text, "location-unknown", object_name)
+            # Idempotent. The base may ALREADY carry an (object-at ...) -- the
+            # approach replan is built on the problem /observation wrote when
+            # perception first reported the object, and a second replan (or a
+            # sighting that moved) would otherwise splice a contradictory
+            # second position rather than replacing the first.
+            for region in sorted(declared | {object_region}):
+                text = remove_init_fact(text, "object-at", object_name, region)
+            facts.append(f"(object-at {object_name} {object_region})")
+        text = splice_init(text, facts)
+        goals = " ".join(f"(reached {robot.lower()} {n})" for n, _ in resolved)
+        text = set_goal(text, goals if len(resolved) == 1 else f"(and {goals})")
+    elif target_region and not preserve_goal:
         text = set_goal(text, f"(at {robot.lower()} {target_region.lower()})")
-    if current_region:
+    # Only assert a start location the problem actually declares. Unlike the
+    # blocked/visited facts below, this was spliced unchecked -- and an
+    # undeclared object is not a soft error: Fast Downward's TRANSLATOR aborts
+    # (exit 31) before search ever runs, so the whole replan fails rather than
+    # planning from a slightly wrong place. A live tour_02 run emitted
+    # `(at jackal_1 r6)` into a problem declaring only R1-R5 (r6 came from a
+    # drifted odom-frame pose); FD aborted, fd_first fell through to the LLM,
+    # and the 45 s deadline expired with no plan while the robot sat at r5 with
+    # the object already located. Dropping the fact leaves the problem's
+    # authored start, which is wrong but solvable -- and the executor's
+    # align_plan_start_with_current_region repairs the prefix. Missions
+    # declaring every region (factory_tour_01) never hit this; tour_02's
+    # 5-region subset is what exposed it.
+    if current_region and current_region.lower() in declared:
         text = set_robot_location(text, robot, current_region.lower())
 
     facts = []
-    declared = regions_in_problem(base_problem_text)
     for region in sorted({r.lower() for r in blocked_regions}):
         # Asserting a fact about an undeclared object makes VAL reject the whole
         # problem, which would look like "the planner failed" rather than

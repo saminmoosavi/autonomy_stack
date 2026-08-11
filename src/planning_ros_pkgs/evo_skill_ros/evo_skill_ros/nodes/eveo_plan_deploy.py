@@ -38,14 +38,17 @@ from evo_skill_ros.pddl_stl.pipeline import (
     GroundAction,
     ProblemState,
     parse_domain,
+    parse_problem,
     validate_plan,
 )
 from evoplan_bridge import symbolic_replan
 from evoplan_bridge.observation_memory import load_observations, locate_object
 from evoplan_bridge.phi_mob_shield import PhiMobShield
+from evoplan_bridge.replan_artifacts import next_index, safe_tag, write_artifacts
 from evoplan_bridge.replan_client import ReplanClient
 from evoplan_bridge.symbolic_replan import (
     SymbolicReplanState,
+    align_plan_start,
     build_reason_text,
     derive_blocked_regions,
     filter_executable_actions,
@@ -244,6 +247,22 @@ class PpddlNav2StlSat(Node):
         )
         self.mission_id = self.declare_parameter("mission_id", "factory_mission_01").value
         self.planner_mode = self.declare_parameter("planner_mode", "evoplan").value
+        # Identifies THIS trial to the replan service, which is host-side, long
+        # lived (KEEP_SERVICE=1) and serves many runs -- mission_id alone would
+        # make run N overwrite run N-1's archived problems. Set from the trial's
+        # artifact stem so the .pddl/.plan/.json land beside its
+        # _observations.jsonl and _belief.json. Empty is tolerated: the service
+        # falls back to mission_id + job id rather than dropping the record.
+        self.trial_tag = self.declare_parameter("trial_tag", "").value
+        # Where <tag>_replan_N.{pddl,plan,json} go. The service writes 1..N to
+        # the same directory on the host; this is the container's view of it,
+        # via the repo bind-mount, so index 0 lands beside them.
+        self.replan_artifact_dir = self.declare_parameter(
+            "replan_artifact_dir", "results/single_trials").value
+        # The authored mission problem, archived as replan_0's .pddl. Empty
+        # means "find <mission_id>.pddl" in the usual two places.
+        self.mission_problem_file = self.declare_parameter(
+            "mission_problem_file", "").value
         self.hold_on_replan = bool(self.declare_parameter("hold_on_replan", True).value)
         # Distance to the target region within which the mission counts as
         # arrived: escalation stops and the trial may terminate.
@@ -311,10 +330,21 @@ class PpddlNav2StlSat(Node):
         self.find_object_min_score = float(
             self.declare_parameter("find_object_min_score", 0.5).value
         )
+        # How often to re-read observation memory while the survey is being
+        # driven. The mission problem is unsolvable until the object's region
+        # is known, so this poll is what makes it solvable -- and it runs
+        # DURING the drive, not after it, so the approach can be planned
+        # against a real position the moment YOLO supplies one.
+        self.find_object_poll_s = float(
+            self.declare_parameter("find_object_poll_s", 2.0).value
+        )
         #: "disabled" | "search" | "approach" | "done" | "not_found"
         self.find_phase = "search" if self.find_object_class else "disabled"
         self.find_object_region = None
         self.find_object_evidence = None
+        #: Region last reported to the replan service, so a steady stream of
+        #: detections produces one report rather than one per poll.
+        self._reported_object_region = None
 
         self.cmd_vel_topic = self.declare_parameter(
             "cmd_vel_topic", f"{self.ns}/cmd_vel"
@@ -419,6 +449,9 @@ class PpddlNav2StlSat(Node):
             self.symbolic_timer = self.create_timer(0.2, self.symbolic_replan_tick)
             self.stuck_timer = self.create_timer(1.0, self.stuck_check_tick)
         self.exhaustion_timer = self.create_timer(1.0, self.plan_exhaustion_tick)
+        if self.find_object_class:
+            self.object_watch_timer = self.create_timer(
+                self.find_object_poll_s, self.object_watch_tick)
         self.mission_timeout_timer = self.create_timer(2.0, self.mission_timeout_tick)
 
         self.get_logger().info(
@@ -973,6 +1006,178 @@ class PpddlNav2StlSat(Node):
             "visited_regions": sorted(self.mission_visited_regions),
         })
 
+    def truncate_to_executable_prefix(self, candidate):
+        """Cut a plan at the first action that cannot fire, and return the rest.
+
+        The mission plan deliberately runs PAST what is achievable: it surveys,
+        then acts on the cone, then carries on. The cone action cannot fire
+        while the object's position is unknown, so everything from there on was
+        planned against a state that will never exist -- including the moves
+        after it, which look perfectly drivable in isolation.
+
+        That is why this is a truncation and not a filter.
+        ``filter_executable_actions`` keeps every ``move`` wherever it sits, so
+        on its own it would happily drive the tail and send the robot off on a
+        second lap it was never meant to run. Cutting at the first inapplicable
+        action is what makes "the valid portion of the plan" mean the prefix.
+
+        Validated against the AUTHORED mission problem with ``(at ?r ?l)``
+        rewritten to where the robot actually is, since ``candidate`` has
+        already been aligned to the live pose and the authored start would
+        otherwise reject its first move.
+
+        Degrades to the full plan on any error. A missing mission file must not
+        stop the robot leaving the start line; the worst case is the old
+        behaviour.
+        """
+        if not candidate:
+            return candidate
+        problem_path = self.find_mission_problem()
+        if problem_path is None:
+            self.get_logger().warn(
+                f"no problem file for mission '{self.mission_id}'; cannot trim the "
+                "plan to its executable prefix, driving it as written")
+            return candidate
+        try:
+            domain = parse_domain(self.domain_file)
+            problem = parse_problem(problem_path)
+            if self.current_region:
+                problem.facts = {f for f in problem.facts
+                                 if not (len(f) == 3 and f[0] == "at"
+                                         and f[1] == self.robot_name)}
+                problem.facts.add(("at", self.robot_name, self.current_region))
+            result = validate_plan(domain, problem, candidate, require_goal=False)
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warn(
+                f"could not compute the executable prefix ({exc}); "
+                "driving the plan as written")
+            return candidate
+
+        if result.accepted_prefix_len >= len(candidate):
+            return candidate
+
+        if result.accepted_prefix_len == 0:
+            # An empty prefix means "the robot does nothing", which is never a
+            # better answer than the plan as written -- and it is reachable
+            # from a disagreement about the START rather than anything wrong
+            # with the plan: alignment could not reconcile the live pose (say
+            # the robot drifted into a region the mission graph does not
+            # connect to the first leg), so the very first move is judged
+            # inapplicable and the whole survey disappears. Nav2 can route
+            # from where the robot actually is; a stationary robot cannot.
+            self.get_logger().warn(
+                f"executable prefix is empty ({result.errors[:1]}); the live pose "
+                f"disagrees with the plan's start rather than the plan being "
+                f"wrong -- driving it as written")
+            self.record_json_event("plan_prefix_empty", {
+                "errors": list(result.errors),
+                "current_region": self.current_region,
+                "plan": [a.text() for a in candidate],
+            })
+            return candidate
+
+        prefix = candidate[:result.accepted_prefix_len]
+        dropped = candidate[result.accepted_prefix_len:]
+        self.get_logger().warn(
+            f"[PLAN TRUNCATED] driving {len(prefix)}/{len(candidate)} actions; "
+            f"stopped at {dropped[0].text()} -- "
+            + "; ".join(result.errors[:2])
+        )
+        self.record_json_event("plan_truncated_to_prefix", {
+            "kept": [a.text() for a in prefix],
+            "dropped": [a.text() for a in dropped],
+            "stopped_at": dropped[0].text(),
+            "errors": list(result.errors),
+            "problem_file": str(problem_path),
+        })
+        return prefix
+
+    def locate_target_candidates(self):
+        """Regions the target object may be in, best first, from observation
+        memory. Empty when the evidence does not clear the thresholds.
+
+        Returns the whole ranked list rather than just the winner because the
+        approach records every candidate in its event -- when the robot drives
+        to the wrong region, the runner-up is the first thing worth seeing.
+
+        Shared by the mid-drive watch and the post-survey approach so both
+        apply the same thresholds: a sighting good enough to rewrite the
+        problem must be good enough to drive to, and vice versa.
+        """
+        records = load_observations(self.find_object_obs_log)
+        if not records:
+            return []
+        found = locate_object(
+            records, self.find_object_class,
+            min_score=self.find_object_min_score,
+            min_hits=self.find_object_min_hits,
+            regions=self.regions,
+        )
+        if not found or found[0]["region"] not in self.regions:
+            return []
+        return found
+
+    def object_watch_tick(self):
+        """While the survey is being driven, watch YOLO for the target object.
+
+        The mission problem asserts (location-unknown cone) and a goal naming
+        the cone, which has no achiever -- what the robot is driving is that
+        plan's executable PREFIX. This is the loop that ends the unknown: the
+        one fact needed to make the problem solvable is the object's region,
+        and perception produces it partway through the survey, not at the end.
+        Reporting it as soon as it exists means the replan service has an
+        updated problem on disk before the survey finishes.
+
+        It does NOT interrupt the drive. The mission is "survey every region,
+        THEN approach", and stopping at first sighting would skip regions that
+        were never searched -- the approach is still triggered by plan
+        exhaustion. What changes is that by then the answer is already known.
+
+        Runs only in the search phase: once the approach is planned, the region
+        is settled and a late detection in another region would retarget a
+        robot already driving to the first one.
+        """
+        if self.find_phase != "search":
+            return
+        try:
+            candidates = self.locate_target_candidates()
+        except Exception as exc:  # noqa: BLE001 - a bad log line must not stop the drive
+            self.get_logger().warn(f"object watch failed to read observations: {exc}")
+            return
+        best = candidates[0] if candidates else None
+        if not best or best["region"] == self._reported_object_region:
+            return
+
+        first = self._reported_object_region is None
+        self._reported_object_region = best["region"]
+        self.find_object_region = best["region"]
+        self.find_object_evidence = best
+        self.get_logger().warn(
+            f"[OBJECT SIGHTED] {self.find_object_class} in {best['region']} "
+            f"({best['hits']} detections, mean score {best['mean_score']}, "
+            f"at {best['xy']}) while surveying; "
+            + ("reporting to the replan service" if first
+               else "region CHANGED, re-reporting")
+        )
+        self.record_json_event("find_object_sighted", {
+            "object": self.find_object_class,
+            "region": best["region"],
+            "evidence": best,
+            "first_sighting": first,
+            "plan_still_running": True,
+        })
+        if self.replan_client is not None:
+            self.replan_client.report_observation({
+                "tag": self.trial_tag,
+                "mission_id": self.mission_id,
+                "robot": self.robot_name,
+                "class": self.find_object_class,
+                "region": best["region"],
+                "current_region": self.current_region,
+                "visited_regions": sorted(self.mission_visited_regions),
+                "evidence": best,
+            })
+
     def begin_object_approach(self):
         """Look the target object up in observation memory and retarget to it.
 
@@ -1000,13 +1205,11 @@ class PpddlNav2StlSat(Node):
             })
             return False
 
-        found = locate_object(
-            records, self.find_object_class,
-            min_score=self.find_object_min_score,
-            min_hits=self.find_object_min_hits,
-            regions=self.regions,
-        )
-        if not found or found[0]["region"] not in self.regions:
+        # Re-read rather than trusting what object_watch_tick last saw: the
+        # survey has finished since, so this is strictly more evidence.
+        found = self.locate_target_candidates()
+        best = found[0] if found else None
+        if best is None:
             self.get_logger().warn(
                 f"[OBJECT NOT FOUND] {self.find_object_class} was never seen "
                 f"with >= {self.find_object_min_hits} detections above score "
@@ -1018,11 +1221,10 @@ class PpddlNav2StlSat(Node):
                 "reason": "insufficient evidence",
                 "min_hits": self.find_object_min_hits,
                 "min_score": self.find_object_min_score,
-                "candidates": found,
+                "sighted_during_survey": self._reported_object_region,
             })
             return False
 
-        best = found[0]
         self.find_object_region = best["region"]
         self.find_object_evidence = best
         self.target_region = best["region"]
@@ -1218,6 +1420,9 @@ class PpddlNav2StlSat(Node):
         moves = [a for a in actions if a.name.startswith("move")]
         return {
             "mission_id": self.mission_id,
+            # Which trial this replan belongs to; the service names its
+            # archived problem/plan artifacts after it.
+            "tag": self.trial_tag,
             "robot": self.robot_name,
             "current_region": self.current_region,
             "current_xy": list(self.current_xy) if self.current_xy else None,
@@ -1228,6 +1433,18 @@ class PpddlNav2StlSat(Node):
             # is to reach the object's region, so narrow the goal explicitly.
             # None lets the service decide from the goal, as before.
             "preserve_goal": False if self.find_phase == "approach" else None,
+            # What perception found, in the service's terms. When the mission
+            # problem declares a `- target`, this is what turns the narrowed
+            # goal into (reached <robot> <object>) with (object-at ...) as a
+            # fact, so the PLANNER derives the region instead of being handed
+            # it. `class` is the detector string ("traffic cone"); the service
+            # maps it onto the declared PDDL symbol, because the two spellings
+            # need not -- and cannot always -- match.
+            "found_object": (
+                {"class": self.find_object_class, "region": self.find_object_region}
+                if self.find_phase == "approach" and self.find_object_region
+                else None
+            ),
             "executed_plan": [a.text() for a in moves[:executed_idx]],
             "remaining_plan": [a.text() for a in moves[executed_idx:]],
             "blocked_regions": sorted(self.symbolic.blocked_regions),
@@ -1714,6 +1931,7 @@ class PpddlNav2StlSat(Node):
                     "nav2_goals": [{"x": x, "y": y} for x, y in waypoints],
                 },
             )
+            self.archive_initial_plan(plan_report)
             self.get_logger().info(
                 f"Waiting for Nav2-created trajectory on {self.nav2_plan_topic} for STL monitoring"
             )
@@ -1829,7 +2047,11 @@ class PpddlNav2StlSat(Node):
     def load_pddl_plan_from_file(self):
         self.get_logger().info(f"Loading PDDL plan from {self.plan_file}")
         candidate = self.parse_fast_downward_plan(self.plan_file)
+        # Align first: the prefix is computed from the robot's live pose, and
+        # an unaligned first move would be judged inapplicable at index 0 and
+        # truncate the whole plan away.
         candidate = self.align_plan_start_with_current_region(candidate)
+        candidate = self.truncate_to_executable_prefix(candidate)
         history = [{
             "planner": "plan_file",
             "plan_file": str(self.plan_file),
@@ -1857,33 +2079,78 @@ class PpddlNav2StlSat(Node):
             "history": history,
         }
 
-    def align_plan_start_with_current_region(self, plan):
-        if not plan or self.current_region is None:
-            return plan
-        first = plan[0]
-        if first.name not in {"move", "move-through-narrow-area"} or len(first.args) < 3:
-            return plan
-        if first.args[0] != self.robot_name:
-            return plan
+    def find_mission_problem(self):
+        """Path to the authored problem for ``mission_id``, or None.
 
-        plan_from = first.args[1]
-        plan_to = first.args[2]
-        if plan_from == self.current_region:
-            return plan
-        if plan_to == self.current_region:
+        Two directories because the mission corpus is split: the curated
+        delivery/inspection problems live in the EvoPlan submodule, which is
+        kept pristine, and the tours authored for this stack live in
+        pipeline/missions. The replan service searches the same pair.
+        """
+        if self.mission_problem_file:
+            path = Path(self.mission_problem_file)
+            return path if path.is_file() else None
+        for parent in ("pipeline/missions", "evolve_stl_pddl/jackal/in"):
+            candidate = Path.cwd() / parent / f"{self.mission_id}.pddl"
+            if candidate.is_file():
+                return candidate
+        return None
+
+    def archive_initial_plan(self, plan_report):
+        """Archive the starting plan as ``<tag>_replan_0``.
+
+        The replan service archives every plan it produces, but it never sees
+        this one: the initial plan is read straight off disk here, without a
+        problem being built or a planner being run. That left index 0 missing
+        from every trial, so reconstructing a run meant opening _replan_1.pddl
+        and inferring backwards what it had replaced -- and the most common
+        question about a failed run ("was it already going the wrong way, or
+        did the replan send it there?") was the one the artifacts could not
+        answer.
+
+        What is archived is what genuinely exists at this point: the AUTHORED
+        mission problem, unspliced, because no runtime problem is built for the
+        initial plan. `authored: true` in the .json says so, so the .pddl is
+        not mistaken for something a planner was handed.
+
+        Never raises. An unwritable results directory must not stop the robot
+        driving a plan it has already loaded.
+        """
+        try:
+            out_dir = Path(self.replan_artifact_dir)
+            if not out_dir.is_absolute():
+                out_dir = Path.cwd() / out_dir
+            tag = safe_tag(self.trial_tag, fallback=self.mission_id)
+            problem = self.find_mission_problem()
+            stem = write_artifacts(
+                out_dir, tag, next_index(out_dir, tag),
+                problem.read_text() if problem else None,
+                plan_report["plan"], {
+                    "source": "plan_file",
+                    "authored": True,
+                    "status": "ok",
+                    "planner": "plan_file",
+                    "valid": None,           # loaded without symbolic validation
+                    "plan": plan_report["plan"],
+                    "plan_file": str(self.plan_file),
+                    "problem_file": str(problem) if problem else None,
+                    "mission_id": self.mission_id,
+                    "current_region": self.current_region,
+                    "target_region": self.target_region,
+                    "planner_mode": self.planner_mode,
+                    "trigger": "initial_plan",
+                })
             self.get_logger().info(
-                f"Skipping initial {first.text()} because robot is already in {self.current_region}"
-            )
-            return plan[1:]
+                f"Archived initial plan -> {stem.name}.{{pddl,plan,json}}")
+        except Exception as exc:  # noqa: BLE001 - diagnostics never block driving
+            self.get_logger().warn(f"Could not archive initial plan: {exc}")
 
-        adjusted_first = GroundAction(
-            first.name,
-            (first.args[0], self.current_region, *first.args[2:]),
-        )
-        self.get_logger().info(
-            f"Using live robot region for first move: {first.text()} -> {adjusted_first.text()}"
-        )
-        return [adjusted_first, *plan[1:]]
+    def align_plan_start_with_current_region(self, plan):
+        """Thin ROS wrapper: the arithmetic lives in symbolic_replan."""
+        plan, note = align_plan_start(plan, self.current_region, self.robot_name)
+        if note:
+            self.get_logger().info(note)
+        return plan
 
     def plan_to_nav2_goals(self, plan):
         waypoints = []

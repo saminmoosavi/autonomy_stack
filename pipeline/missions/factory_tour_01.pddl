@@ -6,6 +6,24 @@
 ;;
 ;; Objects and connectivity are inherited from factory_mission_08.pddl; only
 ;; the goal differs.
+;;
+;; The goal states the whole mission: cover every region AND end up at the
+;; cone. The cone is declared but its position is not -- (location-unknown
+;; cone) says so, and that fact is `approach`'s negative precondition, so
+;; (reached jackal_1 cone) has no achiever and THIS PROBLEM IS DELIBERATELY
+;; UNSOLVABLE as written. That is the design: the goal states what the mission
+;; wants, the planner cannot fully deliver it, and the caller takes the plan's
+;; executable PREFIX -- the region survey -- and drives that. Perception then
+;; supplies the cone's real region, the replan retracts (location-unknown
+;; cone), asserts (object-at cone <region>) and narrows the goal to
+;; (reached jackal_1 cone), which IS solvable.
+;; factory_tour_03.pddl carries the full rationale.
+;;
+;; The explanation lives here rather than beside the fact because
+;; remove_init_fact deletes the fact's LINE and leaves any adjacent comment
+;; behind -- and this text is the seed EvoPlan gives the LLM, so a stranded
+;; "nobody knows where the cone is" above a spliced-in (object-at cone r1)
+;; would contradict the state it is meant to explain.
 (define (problem factory_tour_01)
   (:domain factory_jackal)
 
@@ -16,12 +34,17 @@
     R14                                         - loading_zone
     charge_dock                                 - charging_zone
     box_1 box_2                                 - box
+
+    ;; The object the mission is looking for, and named in the goal; see
+    ;; factory_tour_03.pddl for how a goal over an unlocated object is solvable.
+    cone                                        - target
   )
 
   (:init
     ;; Robot state
     (at jackal_1 R5)
     (free-gripper jackal_1)
+    (location-unknown cone)   ;; retracted on discovery -- see the header
 
     ;; Connectivity (bidirectional)
     (connected R1 R2) (connected R1 R5) (connected R10 R11) (connected R10 R9)
@@ -65,6 +88,7 @@
       (visited r12)
       (visited r13)
       (visited r14)
+      (reached jackal_1 cone)
     )
   )
 )

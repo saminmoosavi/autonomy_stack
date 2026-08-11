@@ -135,6 +135,25 @@ def generate_launch_description():
             "robot_name": robot_name,
             "target_region": target_region,
             "tracks_topic": tracks_topic,
+            # WHICH FRAME mission progress is measured in. The node's own
+            # default is {ns}/platform/odom -- the ODOM frame -- while
+            # graph.json region coordinates are MAP frame. Nothing overrode it,
+            # so every region test compared odom coordinates against map
+            # coordinates and drifted apart over a run: a tour_02 run completed
+            # all five plan steps yet counted only r1 and r5 as visited (the
+            # observation logger, which reads TF, had the robot 0.23 m from r4
+            # at the same instant), spuriously "reached" r5 while driving
+            # r3->r4 16 m away, and reported current_region=r6 while the robot
+            # sat at r5 -- which put an undeclared (at jackal_1 r6) into the
+            # replan problem and made Fast Downward's translator abort.
+            # value_type=str: the default is a substitution list that launch
+            # concatenates, and an unhinted value can be inferred as the wrong
+            # type -- the same class of failure as the INTEGER-vs-DOUBLE
+            # mission_timeout_s crash.
+            "pose_topic": ParameterValue(
+                LaunchConfiguration("pose_topic"), value_type=str),
+            "pose_msg_type": ParameterValue(
+                LaunchConfiguration("pose_msg_type"), value_type=str),
             "enable_json_log": LaunchConfiguration("enable_json_log"),
             "json_log_file": LaunchConfiguration("json_log_file"),
             "enable_stl_replan": LaunchConfiguration("enable_stl_replan"),
@@ -156,6 +175,8 @@ def generate_launch_description():
             "mission_deliberation_budget_s": LaunchConfiguration("mission_deliberation_budget_s"),
             "mission_id": LaunchConfiguration("mission_id"),
             "planner_mode": LaunchConfiguration("planner_mode"),
+            "trial_tag": ParameterValue(
+                LaunchConfiguration("trial_tag"), value_type=str),
             "stuck_window_s": LaunchConfiguration("stuck_window_s"),
             "stuck_min_displacement_m": LaunchConfiguration("stuck_min_displacement_m"),
             "hold_on_replan": LaunchConfiguration("hold_on_replan"),
@@ -219,6 +240,32 @@ def generate_launch_description():
             "graph_file",
             default_value=default_graph_file,
             description="Factory graph JSON used to map PDDL move goals to coordinates.",
+        ),
+        # Defaults to AMCL, not the node's {ns}/platform/odom. graph.json is in
+        # the MAP frame, so the pose used for region tests has to be too --
+        # odometry drifts away from it over a run and every region test drifts
+        # with it. AMCL is already running and localised (run_sim.sh blocks on
+        # "AMCL accepted initial pose ... map->odom TF valid"), so this costs
+        # nothing. Override both together for a robot without AMCL.
+        DeclareLaunchArgument(
+            "trial_tag",
+            default_value="",
+            description="Artifact stem identifying this trial (e.g. "
+                        "factory_tour_03_p0_evoplan_20260810_175325). Sent to "
+                        "the replan service so archived problems/plans are "
+                        "named per run instead of overwriting each other.",
+        ),
+        DeclareLaunchArgument(
+            "pose_topic",
+            default_value=[LaunchConfiguration("namespace"), "/amcl_pose"],
+            description="Pose source for mission progress. MUST be map-frame, "
+                        "because graph.json regions are map-frame.",
+        ),
+        DeclareLaunchArgument(
+            "pose_msg_type",
+            default_value="amcl",
+            description="'amcl'/'pose' for PoseWithCovarianceStamped "
+                        "(e.g. {ns}/amcl_pose), 'odometry' for nav_msgs/Odometry.",
         ),
         DeclareLaunchArgument(
             "domain_file",

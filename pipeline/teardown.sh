@@ -20,6 +20,7 @@
 #   ./pipeline/teardown.sh                # tear down everything
 #   ./pipeline/teardown.sh --keep-service # leave the replan service on :8077
 #   ./pipeline/teardown.sh --verify       # check only, change nothing
+#   ./pipeline/teardown.sh --keep-shm     # skip the stale /dev/shm sweep
 #
 # Exit: 0 clean, 1 something survived, 2 bad usage.
 
@@ -33,9 +34,11 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 KEEP_SERVICE=0
 VERIFY_ONLY=0
+KEEP_SHM=0
 for arg in "$@"; do
   case "$arg" in
     --keep-service) KEEP_SERVICE=1 ;;
+    --keep-shm)     KEEP_SHM=1 ;;
     --verify)       VERIFY_ONLY=1 ;;
     -h|--help)      sed -n '2,28p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) echo "teardown: unknown argument '$arg'" >&2; exit 2 ;;
@@ -167,9 +170,45 @@ else
   kill_pattern "openevolve"     'openevolve-run\.py'
 fi
 
+# FastDDS (Humble's default RMW) creates a /dev/shm/fastrtps_* segment per
+# participant and frees them only on a graceful exit. Teardown is all hard
+# kills -- `docker rm -f`, `kill -KILL` -- so every run leaks a few dozen, and
+# they accumulate across sessions: 5045 of them had piled up before this was
+# added. FastDDS scans /dev/shm at startup, and once the pile is large enough,
+# service responses start timing out mid-handshake:
+#
+#   [amcl] failed to send response to /amcl/change_state (timeout)
+#   [robot_state_publisher] failed to send response to /get_parameters (timeout)
+#   [spawner] died: platform_velocity_controller (--controller-manager-timeout 60)
+#
+# which surfaces as AMCL never activating (no map frame -> Nav2 never
+# activates), the robot never spawning, and `ros2 topic list` returning nothing
+# while topics are demonstrably publishing. All bringup flakes, all this.
+#
+# Only safe once nothing is running -- checked above -- because a live
+# participant's segment is indistinguishable by name. The segments are owned by
+# the CONTAINER's uid, so the host user cannot unlink them; docker-compose.yml
+# sets `ipc: host`, so a throwaway container shares this /dev/shm and can.
+clean_dds_shm() {
+  local before after
+  before="$(ls /dev/shm 2>/dev/null | grep -c '^fastrtps_' || true)"
+  [ "${before:-0}" -eq 0 ] && { ok "dds shm: none stale"; return 0; }
+  if ! docker compose version >/dev/null 2>&1; then
+    bad "dds shm: $before stale segments, but docker compose is unavailable to remove them"
+    return 0
+  fi
+  say "dds shm: removing $before stale fastrtps segments"
+  docker compose run --rm -T ros_humble bash -lc \
+    'find /dev/shm -maxdepth 1 \( -name "fastrtps_*" -o -name "sem.fastrtps_*" \) \
+       -user "$(id -u)" -delete 2>/dev/null; true' >/dev/null 2>&1 || true
+  after="$(ls /dev/shm 2>/dev/null | grep -c '^fastrtps_' || true)"
+  ok "dds shm: $before -> $after"
+}
+
 say "verifying"
 sleep 2
 if verify; then
+  [ "$KEEP_SHM" = "1" ] || clean_dds_shm
   say "CLEAN"
   exit 0
 fi

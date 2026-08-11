@@ -91,6 +91,31 @@ class ReplanClient:
         except Exception:
             return None
 
+    def report_observation(self, payload: dict, timeout_s: float = 5.0) -> None:
+        """Tell the service perception found the mission object. Fire and forget.
+
+        Posted from a periodic callback on the rclpy executor thread while the
+        robot is driving, so it must not block that thread and must not raise:
+        a failed report costs an early problem-file update, whereas a stalled
+        callback stops the robot being steered. Both are handled by doing the
+        HTTP on a throwaway daemon thread and swallowing everything.
+
+        Independent of the replan worker on purpose -- ``busy()`` is often true
+        exactly when a sighting arrives, and a sighting must never be dropped
+        for being concurrent with a replan.
+        """
+        snapshot = json.loads(json.dumps(payload))
+
+        def send():
+            try:
+                self._post("/observation", snapshot, timeout_s)
+            except Exception as exc:  # noqa: BLE001
+                if self._log:
+                    self._log.warn(f"observation report failed: {exc}")
+
+        threading.Thread(target=send, daemon=True,
+                         name="observation-report").start()
+
     def request_async(self, payload: dict, deadline_s: float) -> bool:
         """Start a replan on a worker thread. Returns False if one is running.
 

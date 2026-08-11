@@ -12,24 +12,42 @@ from evoplan_bridge.symbolic_replan import (
     SymbolicReplanState,
     build_reason_text,
     derive_blocked_regions,
+    align_plan_start,
     filter_executable_actions,
     plan_reaches_target,
 )
 
 
 class FakeAction:
-    """Stand-in for pddl_stl.pipeline.GroundAction (same duck type)."""
+    """Stand-in for pddl_stl.pipeline.GroundAction.
 
-    def __init__(self, name, *args):
+    Constructor mirrors the real dataclass -- ``(name, args_tuple)``, not
+    varargs -- because align_plan_start rebuilds an action as
+    ``type(first)(name, args)`` to stay agnostic about which action class the
+    caller parsed with. A stand-in that only resembles the real signature would
+    let that call pass here and fail on the robot.
+
+    ``of()`` keeps the varargs spelling the older tests read better with.
+    """
+
+    def __init__(self, name, args):
         self.name = name
         self.args = tuple(args)
+
+    @classmethod
+    def of(cls, name, *args):
+        return cls(name, args)
+
+    def __eq__(self, other):
+        return (isinstance(other, FakeAction) and self.name == other.name
+                and self.args == other.args)
 
     def text(self):
         return "(" + " ".join((self.name,) + self.args) + ")"
 
 
 def move(frm, to):
-    return FakeAction("move", "jackal_1", frm, to)
+    return FakeAction.of("move", "jackal_1", frm, to)
 
 
 class TestGuards:
@@ -149,7 +167,7 @@ class TestReasonText:
 class TestActionFiltering:
     def test_splits_move_from_unexecutable(self):
         actions = [move("r5", "r6"),
-                   FakeAction("pickup-box", "jackal_1", "box_1", "r6"),
+                   FakeAction.of("pickup-box", "jackal_1", "box_1", "r6"),
                    move("r6", "r7")]
         executable, dropped = filter_executable_actions(actions)
         assert [a.text() for a in executable] == [
@@ -158,7 +176,7 @@ class TestActionFiltering:
 
     def test_move_through_narrow_area_counts_as_executable(self):
         """plan_to_nav2_goals lowers anything starting with 'move'."""
-        actions = [FakeAction("move-through-narrow-area", "jackal_1", "r5", "r6")]
+        actions = [FakeAction.of("move-through-narrow-area", "jackal_1", "r5", "r6")]
         executable, dropped = filter_executable_actions(actions)
         assert len(executable) == 1 and not dropped
 
@@ -172,7 +190,7 @@ class TestActionFiltering:
         """A plan of only non-move actions must be rejected, not accepted."""
         assert not plan_reaches_target([], "r12")
         assert not plan_reaches_target(
-            [FakeAction("inspect-shelf", "jackal_1", "r7")], "r12")
+            [FakeAction.of("inspect-shelf", "jackal_1", "r7")], "r12")
 
 
 class TestWaypointSpliceArithmetic:
@@ -276,3 +294,64 @@ class TestWaypointSpliceArithmetic:
         node = self.FakeNode([(0, 0), (1, 0)], [move("r1", "r2"), move("r2", "r3")])
         node.resend_suffix(99)
         assert node.active_waypoints, "must not send an empty waypoint list"
+
+
+class TestAlignPlanStart:
+    """A plan must be driven from where the robot IS, not where the problem said.
+
+    The planner works from the problem's (at ?r ?l), which lags the robot after
+    a hot-swap. Driving verbatim sends the first leg from a region the robot is
+    not standing in -- visible as a first move that doubles back across the map.
+    """
+
+    def test_matching_start_is_untouched(self):
+        plan = [move("r5", "r1"), move("r1", "r2")]
+        out, note = align_plan_start(plan, "r5", "jackal_1")
+        assert out == plan and note is None
+
+    def test_first_move_is_retargeted_from_the_live_region(self):
+        out, note = align_plan_start([move("r5", "r1"), move("r1", "r2")],
+                                     "r3", "jackal_1")
+        assert [a.text() for a in out] == ["(move jackal_1 r3 r1)",
+                                           "(move jackal_1 r1 r2)"]
+        assert "r3" in note
+
+    def test_a_move_already_completed_is_dropped(self):
+        """The robot is standing at the first leg's destination: driving it
+        again is a no-op goal Nav2 may or may not report as reached."""
+        out, note = align_plan_start([move("r5", "r1"), move("r1", "r2")],
+                                     "r1", "jackal_1")
+        assert [a.text() for a in out] == ["(move jackal_1 r1 r2)"]
+        assert "Skipping" in note
+
+    def test_anchors_on_the_first_move_not_the_first_action(self):
+        """The regression. `search-for` records the planner's assumption about
+        an unlocated object and has no executor; nothing orders it after the
+        driving. Keying on plan[0] made this repair silently no-op whenever a
+        planner scheduled bookkeeping first."""
+        plan = [FakeAction.of("search-for", "jackal_1", "cone", "r5"),
+                move("r5", "r1"), move("r1", "r2")]
+        out, note = align_plan_start(plan, "r3", "jackal_1")
+        assert [a.text() for a in out] == ["(search-for jackal_1 cone r5)",
+                                           "(move jackal_1 r3 r1)",
+                                           "(move jackal_1 r1 r2)"]
+        assert note is not None
+
+    def test_leading_bookkeeping_survives_a_dropped_move(self):
+        plan = [FakeAction.of("search-for", "jackal_1", "cone", "r5"),
+                move("r5", "r1"), move("r1", "r2")]
+        out, _ = align_plan_start(plan, "r1", "jackal_1")
+        assert [a.name for a in out] == ["search-for", "move"]
+
+    def test_a_plan_with_no_moves_is_returned_as_is(self):
+        plan = [FakeAction.of("approach", "jackal_1", "cone", "r1")]
+        out, note = align_plan_start(plan, "r5", "jackal_1")
+        assert out == plan and note is None
+
+    def test_unknown_region_or_empty_plan_is_a_no_op(self):
+        assert align_plan_start([move("r5", "r1")], None, "jackal_1")[1] is None
+        assert align_plan_start([], "r5", "jackal_1") == ([], None)
+
+    def test_another_robots_plan_is_left_alone(self):
+        plan = [FakeAction.of("move", "other_bot", "r5", "r1")]
+        assert align_plan_start(plan, "r3", "jackal_1") == (plan, None)

@@ -2,126 +2,117 @@
   "node": "scand_metrics",
   "robot": "j100_0000/robot",
   "world": "warehouse",
-  "duration_s": 53.601,
-  "ticks": 456,
-  "path_length_m": 38.077,
-  "collisions": 1,
+  "duration_s": 359.502,
+  "ticks": 2703,
+  "path_length_m": 63.919,
+  "collisions": 0,
   "success": false,
-  "path_progress_pct": 25.95,
+  "path_progress_pct": 80.55,
   "path_arc_m": 0.0,
-  "path_total_m": 168.531,
-  "route_completed_m": 43.736,
-  "path_leg_total_m": 124.795,
-  "intim_pct": 0.658,
-  "pers_pct": 2.632,
-  "social_pct": 16.447,
-  "p_int": 5.837,
-  "min_human_clearance_m": 0.2961,
+  "path_total_m": 80.186,
+  "route_completed_m": 64.592,
+  "path_leg_total_m": 15.594,
+  "intim_pct": 0.0,
+  "pers_pct": 0.0,
+  "social_pct": 0.0,
+  "p_int": 0.0,
+  "min_human_clearance_m": null,
   "envelope": {
     "speed": {
-      "extreme": 1.0619,
+      "extreme": 0.5155,
       "bound": "<=",
       "threshold": 2.603,
       "compliant_pct": 100.0
     },
     "yaw_rate": {
-      "extreme": 1.0371,
+      "extreme": 1.2303,
       "bound": "<=",
       "threshold": 3.293,
       "compliant_pct": 100.0
     },
     "accel": {
-      "extreme": 1.9808,
+      "extreme": 2.6669,
       "bound": "<=",
       "threshold": 3.213,
       "compliant_pct": 100.0
     },
     "jerk": {
-      "extreme": 19.5522,
+      "extreme": 25.315,
       "bound": "<=",
       "threshold": 5.862,
-      "compliant_pct": 94.07
+      "compliant_pct": 89.64
     },
     "lat_accel": {
-      "extreme": 0.8322,
+      "extreme": 0.3862,
       "bound": "<=",
       "threshold": 2.228,
       "compliant_pct": 100.0
     },
     "ttc": {
-      "extreme": 0.5635,
+      "extreme": null,
       "bound": ">=",
       "threshold": 0.452,
       "compliant_pct": 100.0
     },
     "ped_ttc": {
-      "extreme": 0.5635,
+      "extreme": null,
       "bound": ">=",
       "threshold": 0.422,
       "compliant_pct": 100.0
     },
     "ped_approach_rate": {
-      "extreme": 1.1314,
+      "extreme": 0.0,
       "bound": "<=",
       "threshold": 5.0,
       "compliant_pct": 100.0
     }
   },
-  "symbolic_replans": 0,
-  "deliberation_time_s": 0.0,
-  "held_time_s": 0.0,
-  "moving_time_s": 53.601,
-  "shield_vetoes": 44,
+  "symbolic_replans": 3,
+  "deliberation_time_s": 174.079,
+  "held_time_s": 174.184,
+  "moving_time_s": 185.318,
+  "shield_vetoes": 0,
   "mission_complete": false,
-  "plan_exhausted": false,
-  "regions_required": 14,
-  "regions_visited": 0,
+  "plan_exhausted": true,
+  "regions_required": 5,
+  "regions_visited": 4,
   "regions_remaining": [
-    "r1",
-    "r10",
-    "r11",
-    "r12",
-    "r13",
-    "r14",
-    "r2",
-    "r3",
-    "r4",
-    "r5",
-    "r6",
-    "r7",
-    "r8",
-    "r9"
+    "r4"
   ],
   "evoplan": {
     "state": "idle",
-    "symbolic_replans": 0,
-    "deliberation_s_wall": 0.0,
-    "held_s": 0.0,
-    "shield_vetoes": 44,
-    "blocked_regions": [],
+    "symbolic_replans": 3,
+    "deliberation_s_wall": 174.0785285020247,
+    "held_s": 174.18428564071655,
+    "shield_vetoes": 0,
+    "blocked_regions": [
+      "r3"
+    ],
     "mission_complete": false,
-    "regions_required": 14,
-    "regions_visited": 0,
+    "plan_exhausted": true,
+    "find_phase": "approach",
+    "find_object_class": "traffic cone",
+    "find_object_region": "r1",
+    "find_object_evidence": {
+      "region": "r1",
+      "hits": 37,
+      "mean_score": 0.768,
+      "xy": [
+        -12.23,
+        -10.46
+      ]
+    },
+    "target_region": "r1",
+    "regions_required": 5,
+    "regions_visited": 4,
     "regions_remaining": [
-      "r1",
-      "r10",
-      "r11",
-      "r12",
-      "r13",
-      "r14",
-      "r2",
-      "r3",
-      "r4",
-      "r5",
-      "r6",
-      "r7",
-      "r8",
-      "r9"
+      "r4"
     ],
     "region_closest_m": {
-      "r1": 1.9,
-      "r2": 7.4,
-      "r5": 3.1
+      "r1": 0.3,
+      "r2": 2.38,
+      "r3": 0.29,
+      "r5": 2.45
     }
   }
 }
