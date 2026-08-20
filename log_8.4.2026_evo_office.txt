@@ -1,0 +1,95 @@
+evo_office 
+[INFO] [launch]: All log files can be found below /home/user/.ros/log/2026-08-04-20-04-49-334353-promaxgb10-4263-18936
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [tracker_with_yolo-1]: process started with pid [18937]
+[INFO] [evo_plan_deploy-2]: process started with pid [18939]
+[INFO] [factory_world_visualizer-3]: process started with pid [18941]
+[tracker_with_yolo-1] [INFO] [1785873889.636516572] [j100_0612.tracker_with_yolo]: Namespace: /j100_0612
+[tracker_with_yolo-1] Listening:
+[tracker_with_yolo-1]   tracking: /yolo/tracking (yolo_msgs/DetectionArray)
+[tracker_with_yolo-1]   points:   /j100_0612/sensors/camera_0/points   (sensor_msgs/PointCloud2)
+[tracker_with_yolo-1]   odom:     /j100_0612/platform/odom/filtered     (nav_msgs/Odometry)
+[tracker_with_yolo-1] Publishing:
+[tracker_with_yolo-1]   tracks:   /j100_0612/tracks      (vision_msgs/Detection3D)
+[tracker_with_yolo-1] Target frame: 'map'
+[factory_world_visualizer-3] [INFO] [1785873889.670210456] [factory_world_visualizer]: Publishing factory world markers from /home/user/autonomy_stack_ros_humble/install/evo_skill_ros/share/evo_skill_ros/config/graph_office.json
+[evo_plan_deploy-2] [INFO] [1785873889.701725118] [evo_plan_deploy]: Waiting for odometry pose on /j100_0612/platform/odom; target=main_center; monitor_map=/j100_0612/map; costmap_edit_topic=/j100_0612/map; tracks=/a200_0000/tracks; nav2_goals_topic=ppddl_nav2_goals; nav2_plan_topic=/j100_0612/plan
+[evo_plan_deploy-2] [WARN] [1785873889.702049690] [evo_plan_deploy]: Could not write JSON log /home/samin/autonomy_stack_ros_humble/evo_plan_deploy_log.json: [Errno 13] Permission denied: '/home/samin'
+[evo_plan_deploy-2] [INFO] [1785873890.830067308] [evo_plan_deploy]: Received ROS map 228x114, resolution=0.050, frame=map
+[evo_plan_deploy-2] [INFO] [1785873891.192767411] [evo_plan_deploy]: Starting PDDL -> Nav2 -> STL monitor flow from main_door to main_center
+[evo_plan_deploy-2] [INFO] [1785873891.192984993] [evo_plan_deploy]: Loading PDDL plan from /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/problem_office1/plan.txt
+[evo_plan_deploy-2] [INFO] [1785873891.193413180] [evo_plan_deploy]: Selected PDDL plan from file without symbolic validation: (open-door robot1 d_main_door main_door) -> (move-through-door robot1 d_main_door main_door main_center) -> (check-lab-object robot1 chair_2 main_center) -> (check-lab-object robot1 table_3 main_center) -> (move robot1 main_center main_empty_wall) -> (check-lab-object robot1 table_4 main_empty_wall) -> (move robot1 main_empty_wall doorway) -> (check-lab-object robot1 table_5 doorway) -> (check-lab-object robot1 table_6 doorway) -> (open-door robot1 d_conference_door doorway) -> (move-through-door robot1 d_conference_door doorway conference_door) -> (check-lab-object robot1 d_conference_door conference_door) -> (move-through-door robot1 d_conference_door conference_door conference_center) -> (check-lab-object robot1 table_7 conference_center) -> (move robot1 conference_center doorway) -> (move robot1 doorway main_center) -> (move-through-door robot1 d_main_door main_center main_door) -> (check-lab-object robot1 chair_1 main_door) -> (check-lab-object robot1 table_1 main_door) -> (check-lab-object robot1 table_2 main_door) -> (check-lab-object robot1 trash_can main_door)
+[evo_plan_deploy-2] [INFO] [1785873891.193715128] [evo_plan_deploy]: PDDL plan: (open-door robot1 d_main_door main_door) -> (move-through-door robot1 d_main_door main_door main_center) -> (check-lab-object robot1 chair_2 main_center) -> (check-lab-object robot1 table_3 main_center) -> (move robot1 main_center main_empty_wall) -> (check-lab-object robot1 table_4 main_empty_wall) -> (move robot1 main_empty_wall doorway) -> (check-lab-object robot1 table_5 doorway) -> (check-lab-object robot1 table_6 doorway) -> (open-door robot1 d_conference_door doorway) -> (move-through-door robot1 d_conference_door doorway conference_door) -> (check-lab-object robot1 d_conference_door conference_door) -> (move-through-door robot1 d_conference_door conference_door conference_center) -> (check-lab-object robot1 table_7 conference_center) -> (move robot1 conference_center doorway) -> (move robot1 doorway main_center) -> (move-through-door robot1 d_main_door main_center main_door) -> (check-lab-object robot1 chair_1 main_door) -> (check-lab-object robot1 table_1 main_door) -> (check-lab-object robot1 table_2 main_door) -> (check-lab-object robot1 trash_can main_door)
+[evo_plan_deploy-2] [INFO] [1785873891.193884982] [evo_plan_deploy]: Nav2 goals: (9.03, 6.51), (10.88, 5.03), (12.64, 8.39), (15.02, 8.75), (14.36, 6.26), (12.64, 8.39), (9.03, 6.51), (6.39, 8.04)
+[evo_plan_deploy-2] [INFO] [1785873891.194066324] [evo_plan_deploy]: Waiting for Nav2-created trajectory on /j100_0612/plan for STL monitoring
+[evo_plan_deploy-2] [INFO] [1785873891.194230546] [evo_plan_deploy]: Dispatching leg to main_door: 0 waypoint(s), dwell 3.0s, 6 leg(s) remaining
+[evo_plan_deploy-2] [INFO] [1785873891.194397056] [evo_plan_deploy]: Holding position at main_door for 3.0s: (open-door robot1 d_main_door main_door)
+[evo_plan_deploy-2] [INFO] [1785873894.195078565] [evo_plan_deploy]: Inspection dwell complete at main_door
+[evo_plan_deploy-2] [INFO] [1785873894.195521775] [evo_plan_deploy]: Dispatching leg to main_center: 1 waypoint(s), dwell 6.0s, 5 leg(s) remaining
+[evo_plan_deploy-2] [INFO] [1785873894.196125208] [evo_plan_deploy]: Published 1 Nav2 goal poses to ppddl_nav2_goals
+[evo_plan_deploy-2] [INFO] [1785873894.197490824] [evo_plan_deploy]: Nav2 waypoint goal accepted
+[evo_plan_deploy-2] [INFO] [1785873894.205713126] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873894.206077601] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873894.206409949] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=149; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873895.236110991] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873895.236536026] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=166; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873896.266675728] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873896.266868558] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873896.267015676] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=119; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873896.388787375] [evo_plan_deploy]: Hold requested; will park after the current dwell (timeout 120 s)
+[evo_plan_deploy-2] [INFO] [1785873897.281189737] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873897.281393942] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=84; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873898.310901829] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873898.311094099] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873898.311242529] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=66; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873899.330573217] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873899.330782831] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=42; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873900.360420925] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873900.360627738] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873900.360794872] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=20; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873901.391192454] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873901.391622801] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=14; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873902.420873077] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873902.421238208] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873902.421573932] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=17; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873903.450115457] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873903.450315215] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=17; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873904.472842740] [evo_plan_deploy]: Plan reload requested: /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/plan.txt
+[evo_plan_deploy-2] [INFO] [1785873904.473019154] [evo_plan_deploy]: Canceling active Nav2 waypoint goal before STL feedback replan
+[evo_plan_deploy-2] [INFO] [1785873904.473342094] [evo_plan_deploy]: Loading PDDL plan from /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/plan.txt
+[evo_plan_deploy-2] [INFO] [1785873904.473560011] [evo_plan_deploy]: Selected PDDL plan from file without symbolic validation: (open-door robot1 d_main_door main_door) -> (move-through-door robot1 d_main_door main_door main_center) -> (move robot1 main_center main_empty_wall) -> (check-lab-object robot1 backpack main_empty_wall)
+[evo_plan_deploy-2] [INFO] [1785873904.473757577] [evo_plan_deploy]: Reloaded PDDL plan: (open-door robot1 d_main_door main_door) -> (move-through-door robot1 d_main_door main_door main_center) -> (move robot1 main_center main_empty_wall) -> (check-lab-object robot1 backpack main_empty_wall)
+[evo_plan_deploy-2] [INFO] [1785873904.473894999] [evo_plan_deploy]: Nav2 goals: (9.03, 6.51), (10.88, 5.03)
+[evo_plan_deploy-2] [INFO] [1785873904.474049046] [evo_plan_deploy]: Hold released by incoming plan
+[evo_plan_deploy-2] [INFO] [1785873904.474224579] [evo_plan_deploy]: Dispatching leg to main_door: 0 waypoint(s), dwell 3.0s, 1 leg(s) remaining
+[evo_plan_deploy-2] [INFO] [1785873904.474371314] [evo_plan_deploy]: Holding position at main_door for 3.0s: (open-door robot1 d_main_door main_door)
+[evo_plan_deploy-2] [INFO] [1785873904.474900875] [evo_plan_deploy]: Active Nav2 waypoint goal cancel accepted
+[evo_plan_deploy-2] [WARN] [1785873904.502418069] [evo_plan_deploy]: Nav2 waypoint goal did not succeed (status=5); not advancing plan legs
+[evo_plan_deploy-2] [INFO] [1785873907.474944316] [evo_plan_deploy]: Inspection dwell complete at main_door
+[evo_plan_deploy-2] [INFO] [1785873907.475261193] [evo_plan_deploy]: Dispatching leg to main_empty_wall: 2 waypoint(s), dwell 3.0s, 0 leg(s) remaining
+[evo_plan_deploy-2] [INFO] [1785873907.475588533] [evo_plan_deploy]: Published 2 Nav2 goal poses to ppddl_nav2_goals
+[evo_plan_deploy-2] [INFO] [1785873907.476430107] [evo_plan_deploy]: Nav2 waypoint goal accepted
+[evo_plan_deploy-2] [INFO] [1785873907.496296335] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873907.496467917] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873907.496609180] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=14; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873908.526369164] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873908.526560858] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=9; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873910.086546628] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873910.086969183] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873910.087289020] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=95; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873911.118572176] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873911.119043706] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=74; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873912.125635066] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873912.125830680] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873912.125985238] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=54; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873913.155471472] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873913.155666125] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=33; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873914.188762917] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873914.188951907] [evo_plan_deploy]: STL monitor obstacles before map expansion: total=0, tracked=0, humans=0
+[evo_plan_deploy-2] [INFO] [1785873914.189097825] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=17; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873915.205593957] [evo_plan_deploy]: Tracked STL obstacles: none
+[evo_plan_deploy-2] [INFO] [1785873915.205993760] [evo_plan_deploy]: STL monitor satisfied=True; trajectory_points=14; min_obstacle_margin=inf; eventually_goal_checked=False; eventually_goal_margin=-inf; closest_obstacle=None
+[evo_plan_deploy-2] [INFO] [1785873917.046396314] [evo_plan_deploy]: All PPDDL Nav2 STL-SAT waypoints completed successfully
+[evo_plan_deploy-2] [INFO] [1785873917.046878676] [evo_plan_deploy]: Holding position at main_empty_wall for 3.0s: (move-through-door robot1 d_main_door main_door main_center), (move robot1 main_center main_empty_wall), (check-lab-object robot1 backpack main_empty_wall)
+[evo_plan_deploy-2] [INFO] [1785873920.047507130] [evo_plan_deploy]: Inspection dwell complete at main_empty_wall
+[evo_plan_deploy-2] [INFO] [1785873920.047771303] [evo_plan_deploy]: All PDDL plan legs completed

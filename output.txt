@@ -1,0 +1,247 @@
+[INFO] [launch]: All log files can be found below /home/user/.ros/log/2026-07-29-19-57-06-865532-promaxgb10-4263-20408
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [controller_server-1]: process started with pid [20409]
+[INFO] [smoother_server-2]: process started with pid [20411]
+[INFO] [planner_server-3]: process started with pid [20413]
+[INFO] [behavior_server-4]: process started with pid [20415]
+[INFO] [bt_navigator-5]: process started with pid [20417]
+[INFO] [waypoint_follower-6]: process started with pid [20419]
+[INFO] [velocity_smoother-7]: process started with pid [20421]
+[INFO] [lifecycle_manager-8]: process started with pid [20423]
+[velocity_smoother-7] [INFO] [1785355026.982657724] [j100_0612.velocity_smoother]: 
+[velocity_smoother-7] 	velocity_smoother lifecycle node launched. 
+[velocity_smoother-7] 	Waiting on external lifecycle transitions to activate
+[velocity_smoother-7] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[waypoint_follower-6] [INFO] [1785355026.992385773] [j100_0612.waypoint_follower]: 
+[waypoint_follower-6] 	waypoint_follower lifecycle node launched. 
+[waypoint_follower-6] 	Waiting on external lifecycle transitions to activate
+[waypoint_follower-6] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[waypoint_follower-6] [INFO] [1785355026.993011719] [j100_0612.waypoint_follower]: Creating
+[lifecycle_manager-8] [INFO] [1785355026.993879296] [j100_0612.lifecycle_manager_navigation]: Creating
+[lifecycle_manager-8] [INFO] [1785355026.996827112] [j100_0612.lifecycle_manager_navigation]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[planner_server-3] [INFO] [1785355027.009972044] [j100_0612.planner_server]: 
+[planner_server-3] 	planner_server lifecycle node launched. 
+[planner_server-3] 	Waiting on external lifecycle transitions to activate
+[planner_server-3] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-3] [INFO] [1785355027.011488192] [j100_0612.planner_server]: Creating
+[behavior_server-4] [INFO] [1785355027.010489000] [j100_0612.behavior_server]: 
+[behavior_server-4] 	behavior_server lifecycle node launched. 
+[behavior_server-4] 	Waiting on external lifecycle transitions to activate
+[behavior_server-4] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[smoother_server-2] [INFO] [1785355027.012795893] [j100_0612.smoother_server]: 
+[controller_server-1] [INFO] [1785355027.013605566] [j100_0612.controller_server]: 
+[smoother_server-2] 	smoother_server lifecycle node launched. 
+[smoother_server-2] 	Waiting on external lifecycle transitions to activate
+[smoother_server-2] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-1] 	controller_server lifecycle node launched. 
+[controller_server-1] 	Waiting on external lifecycle transitions to activate
+[controller_server-1] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[bt_navigator-5] [INFO] [1785355027.014459543] [j100_0612.bt_navigator]: 
+[bt_navigator-5] 	bt_navigator lifecycle node launched. 
+[bt_navigator-5] 	Waiting on external lifecycle transitions to activate
+[bt_navigator-5] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[bt_navigator-5] [INFO] [1785355027.014535335] [j100_0612.bt_navigator]: Creating
+[smoother_server-2] [INFO] [1785355027.015264657] [j100_0612.smoother_server]: Creating smoother server
+[controller_server-1] [INFO] [1785355027.016305592] [j100_0612.controller_server]: Creating controller server
+[planner_server-3] [INFO] [1785355027.026544596] [j100_0612.global_costmap.global_costmap]: 
+[planner_server-3] 	global_costmap lifecycle node launched. 
+[planner_server-3] 	Waiting on external lifecycle transitions to activate
+[planner_server-3] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[planner_server-3] [INFO] [1785355027.027159855] [j100_0612.global_costmap.global_costmap]: Creating Costmap
+[controller_server-1] [INFO] [1785355027.045619640] [j100_0612.local_costmap.local_costmap]: 
+[controller_server-1] 	local_costmap lifecycle node launched. 
+[controller_server-1] 	Waiting on external lifecycle transitions to activate
+[controller_server-1] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[controller_server-1] [INFO] [1785355027.046285650] [j100_0612.local_costmap.local_costmap]: Creating Costmap
+[lifecycle_manager-8] [INFO] [1785355027.296248734] [j100_0612.lifecycle_manager_navigation]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-8] [INFO] [1785355027.296300974] [j100_0612.lifecycle_manager_navigation]: [34m[1mConfiguring controller_server[0m[0m
+[controller_server-1] [INFO] [1785355027.296680411] [j100_0612.controller_server]: Configuring controller interface
+[controller_server-1] [INFO] [1785355027.297196359] [j100_0612.controller_server]: getting goal checker plugins..
+[controller_server-1] [INFO] [1785355027.297731138] [j100_0612.controller_server]: Controller frequency set to 20.0000Hz
+[controller_server-1] [INFO] [1785355027.297779874] [j100_0612.local_costmap.local_costmap]: Configuring
+[controller_server-1] [INFO] [1785355027.318591751] [j100_0612.local_costmap.local_costmap]: Using plugin "static_layer"
+[controller_server-1] [INFO] [1785355027.322342248] [j100_0612.local_costmap.local_costmap]: Subscribing to the map topic (/j100_0612/map) with transient local durability
+[controller_server-1] [INFO] [1785355027.324389767] [j100_0612.local_costmap.local_costmap]: Initialized plugin "static_layer"
+[controller_server-1] [INFO] [1785355027.324422199] [j100_0612.local_costmap.local_costmap]: Using plugin "voxel_layer"
+[controller_server-1] [INFO] [1785355027.326097370] [j100_0612.local_costmap.local_costmap]: Subscribed to Topics: scan
+[controller_server-1] [INFO] [1785355027.356503168] [j100_0612.local_costmap.local_costmap]: Initialized plugin "voxel_layer"
+[controller_server-1] [INFO] [1785355027.356532912] [j100_0612.local_costmap.local_costmap]: Using plugin "inflation_layer"
+[controller_server-1] [INFO] [1785355027.357161306] [j100_0612.local_costmap.local_costmap]: Initialized plugin "inflation_layer"
+[controller_server-1] [INFO] [1785355027.393272898] [j100_0612.local_costmap.local_costmap]: StaticLayer: Resizing static layer to 327 X 162 at 0.050000 m/pix
+[controller_server-1] [INFO] [1785355027.393527504] [j100_0612.controller_server]: Created progress_checker : progress_checker of type nav2_controller::SimpleProgressChecker
+[controller_server-1] [INFO] [1785355027.394798470] [j100_0612.controller_server]: Created goal checker : general_goal_checker of type nav2_controller::SimpleGoalChecker
+[controller_server-1] [INFO] [1785355027.396402584] [j100_0612.controller_server]: Controller Server has general_goal_checker  goal checkers available.
+[controller_server-1] [INFO] [1785355027.397688414] [j100_0612.controller_server]: Created controller : FollowPath of type dwb_core::DWBLocalPlanner
+[controller_server-1] [INFO] [1785355027.400194745] [j100_0612.controller_server]: Setting transform_tolerance to 0.200000
+[controller_server-1] [INFO] [1785355027.417019119] [j100_0612.controller_server]: Using critic "RotateToGoal" (dwb_critics::RotateToGoalCritic)
+[controller_server-1] [INFO] [1785355027.417963687] [j100_0612.controller_server]: Critic plugin initialized
+[controller_server-1] [INFO] [1785355027.418108822] [j100_0612.controller_server]: Using critic "Oscillation" (dwb_critics::OscillationCritic)
+[controller_server-1] [INFO] [1785355027.418398068] [j100_0612.controller_server]: Critic plugin initialized
+[controller_server-1] [INFO] [1785355027.418510163] [j100_0612.controller_server]: Using critic "BaseObstacle" (dwb_critics::BaseObstacleCritic)
+[controller_server-1] [INFO] [1785355027.418780737] [j100_0612.controller_server]: Critic plugin initialized
+[controller_server-1] [INFO] [1785355027.419013519] [j100_0612.controller_server]: Using critic "GoalAlign" (dwb_critics::GoalAlignCritic)
+[controller_server-1] [INFO] [1785355027.419390204] [j100_0612.controller_server]: Critic plugin initialized
+[controller_server-1] [INFO] [1785355027.419438507] [j100_0612.controller_server]: Using critic "PathAlign" (dwb_critics::PathAlignCritic)
+[controller_server-1] [INFO] [1785355027.419781768] [j100_0612.controller_server]: Critic plugin initialized
+[controller_server-1] [INFO] [1785355027.419835992] [j100_0612.controller_server]: Using critic "PathDist" (dwb_critics::PathDistCritic)
+[controller_server-1] [INFO] [1785355027.420187733] [j100_0612.controller_server]: Critic plugin initialized
+[controller_server-1] [INFO] [1785355027.420450883] [j100_0612.controller_server]: Using critic "GoalDist" (dwb_critics::GoalDistCritic)
+[controller_server-1] [INFO] [1785355027.420759585] [j100_0612.controller_server]: Critic plugin initialized
+[controller_server-1] [INFO] [1785355027.420800304] [j100_0612.controller_server]: Controller Server has FollowPath  controllers available.
+[lifecycle_manager-8] [INFO] [1785355027.439797028] [j100_0612.lifecycle_manager_navigation]: [34m[1mConfiguring smoother_server[0m[0m
+[smoother_server-2] [INFO] [1785355027.440768284] [j100_0612.smoother_server]: Configuring smoother server
+[smoother_server-2] [INFO] [1785355027.449136280] [j100_0612.smoother_server]: Created smoother : simple_smoother of type nav2_smoother::SimpleSmoother
+[smoother_server-2] [INFO] [1785355027.449826482] [j100_0612.smoother_server]: Smoother Server has simple_smoother  smoothers available.
+[lifecycle_manager-8] [INFO] [1785355027.454415804] [j100_0612.lifecycle_manager_navigation]: [34m[1mConfiguring planner_server[0m[0m
+[planner_server-3] [INFO] [1785355027.454576619] [j100_0612.planner_server]: Configuring
+[planner_server-3] [INFO] [1785355027.454613083] [j100_0612.global_costmap.global_costmap]: Configuring
+[planner_server-3] [INFO] [1785355027.459186213] [j100_0612.global_costmap.global_costmap]: Using plugin "static_layer"
+[planner_server-3] [INFO] [1785355027.462660857] [j100_0612.global_costmap.global_costmap]: Subscribing to the map topic (/j100_0612/map) with transient local durability
+[planner_server-3] [INFO] [1785355027.464341787] [j100_0612.global_costmap.global_costmap]: Initialized plugin "static_layer"
+[planner_server-3] [INFO] [1785355027.464369387] [j100_0612.global_costmap.global_costmap]: Using plugin "obstacle_layer"
+[planner_server-3] [INFO] [1785355027.464970950] [j100_0612.global_costmap.global_costmap]: Subscribed to Topics: scan
+[planner_server-3] [INFO] [1785355027.468636568] [j100_0612.global_costmap.global_costmap]: Initialized plugin "obstacle_layer"
+[planner_server-3] [INFO] [1785355027.468668279] [j100_0612.global_costmap.global_costmap]: Using plugin "inflation_layer"
+[planner_server-3] [INFO] [1785355027.469487377] [j100_0612.global_costmap.global_costmap]: Initialized plugin "inflation_layer"
+[planner_server-3] [INFO] [1785355027.481788107] [j100_0612.global_costmap.global_costmap]: StaticLayer: Resizing costmap to 327 X 162 at 0.050000 m/pix
+[planner_server-3] [INFO] [1785355027.481901099] [j100_0612.planner_server]: Created global planner plugin GridBased of type nav2_navfn_planner/NavfnPlanner
+[planner_server-3] [INFO] [1785355027.481920970] [j100_0612.planner_server]: Configuring plugin GridBased of type NavfnPlanner
+[planner_server-3] [INFO] [1785355027.482489254] [j100_0612.planner_server]: Planner Server has GridBased  planners available.
+[lifecycle_manager-8] [INFO] [1785355027.494504739] [j100_0612.lifecycle_manager_navigation]: [34m[1mConfiguring behavior_server[0m[0m
+[behavior_server-4] [INFO] [1785355027.494795473] [j100_0612.behavior_server]: Configuring
+[behavior_server-4] [INFO] [1785355027.501201500] [j100_0612.behavior_server]: Creating behavior plugin spin of type nav2_behaviors/Spin
+[behavior_server-4] [INFO] [1785355027.501746984] [j100_0612.behavior_server]: Configuring spin
+[behavior_server-4] [INFO] [1785355027.509439433] [j100_0612.behavior_server]: Creating behavior plugin backup of type nav2_behaviors/BackUp
+[behavior_server-4] [INFO] [1785355027.509909461] [j100_0612.behavior_server]: Configuring backup
+[behavior_server-4] [INFO] [1785355027.515210793] [j100_0612.behavior_server]: Creating behavior plugin drive_on_heading of type nav2_behaviors/DriveOnHeading
+[behavior_server-4] [INFO] [1785355027.515651062] [j100_0612.behavior_server]: Configuring drive_on_heading
+[behavior_server-4] [INFO] [1785355027.521009690] [j100_0612.behavior_server]: Creating behavior plugin assisted_teleop of type nav2_behaviors/AssistedTeleop
+[behavior_server-4] [INFO] [1785355027.522444926] [j100_0612.behavior_server]: Configuring assisted_teleop
+[behavior_server-4] [INFO] [1785355027.528422621] [j100_0612.behavior_server]: Creating behavior plugin wait of type nav2_behaviors/Wait
+[behavior_server-4] [INFO] [1785355027.528875961] [j100_0612.behavior_server]: Configuring wait
+[lifecycle_manager-8] [INFO] [1785355027.533626402] [j100_0612.lifecycle_manager_navigation]: [34m[1mConfiguring bt_navigator[0m[0m
+[bt_navigator-5] [INFO] [1785355027.533804561] [j100_0612.bt_navigator]: Configuring
+[lifecycle_manager-8] [INFO] [1785355027.615276148] [j100_0612.lifecycle_manager_navigation]: [34m[1mConfiguring waypoint_follower[0m[0m
+[waypoint_follower-6] [INFO] [1785355027.615512402] [j100_0612.waypoint_follower]: Configuring
+[waypoint_follower-6] [INFO] [1785355027.626569479] [j100_0612.waypoint_follower]: Created waypoint_task_executor : wait_at_waypoint of type nav2_waypoint_follower::WaitAtWaypoint
+[lifecycle_manager-8] [INFO] [1785355027.627447344] [j100_0612.lifecycle_manager_navigation]: [34m[1mConfiguring velocity_smoother[0m[0m
+[velocity_smoother-7] [INFO] [1785355027.627726846] [j100_0612.velocity_smoother]: Configuring velocity smoother
+[lifecycle_manager-8] [INFO] [1785355027.634515718] [j100_0612.lifecycle_manager_navigation]: [34m[1mActivating controller_server[0m[0m
+[controller_server-1] [INFO] [1785355027.634695044] [j100_0612.controller_server]: Activating
+[controller_server-1] [INFO] [1785355027.634740340] [j100_0612.local_costmap.local_costmap]: Activating
+[controller_server-1] [INFO] [1785355027.634749924] [j100_0612.local_costmap.local_costmap]: Checking transform
+[controller_server-1] [INFO] [1785355027.634765908] [j100_0612.local_costmap.local_costmap]: Timed out waiting for transform from base_link to odom to become available, tf error: Invalid frame ID "base_link" passed to canTransform argument source_frame - frame does not exist
+[controller_server-1] [INFO] [1785355028.134942425] [j100_0612.local_costmap.local_costmap]: start
+[controller_server-1] [INFO] [1785355028.336290098] [j100_0612.controller_server]: Creating bond (controller_server) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355028.441045925] [j100_0612.lifecycle_manager_navigation]: Server controller_server connected with bond.
+[lifecycle_manager-8] [INFO] [1785355028.441085460] [j100_0612.lifecycle_manager_navigation]: [34m[1mActivating smoother_server[0m[0m
+[smoother_server-2] [INFO] [1785355028.441403266] [j100_0612.smoother_server]: Activating
+[smoother_server-2] [INFO] [1785355028.441455873] [j100_0612.smoother_server]: Creating bond (smoother_server) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355028.546151621] [j100_0612.lifecycle_manager_navigation]: Server smoother_server connected with bond.
+[lifecycle_manager-8] [INFO] [1785355028.546188197] [j100_0612.lifecycle_manager_navigation]: [34m[1mActivating planner_server[0m[0m
+[planner_server-3] [INFO] [1785355028.546432915] [j100_0612.planner_server]: Activating
+[planner_server-3] [INFO] [1785355028.546476466] [j100_0612.global_costmap.global_costmap]: Activating
+[planner_server-3] [INFO] [1785355028.546485250] [j100_0612.global_costmap.global_costmap]: Checking transform
+[planner_server-3] [INFO] [1785355028.546591585] [j100_0612.global_costmap.global_costmap]: start
+[planner_server-3] [INFO] [1785355028.854960379] [j100_0612.global_costmap.global_costmap]: Message Filter dropping message: frame 'lidar2d_0_laser' at time 1785355028.556 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[planner_server-3] [INFO] [1785355029.597571196] [j100_0612.planner_server]: Activating plugin GridBased of type NavfnPlanner
+[planner_server-3] [INFO] [1785355029.598783666] [j100_0612.planner_server]: Creating bond (planner_server) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355029.702920073] [j100_0612.lifecycle_manager_navigation]: Server planner_server connected with bond.
+[lifecycle_manager-8] [INFO] [1785355029.702961784] [j100_0612.lifecycle_manager_navigation]: [34m[1mActivating behavior_server[0m[0m
+[behavior_server-4] [INFO] [1785355029.703282182] [j100_0612.behavior_server]: Activating
+[behavior_server-4] [INFO] [1785355029.703323525] [j100_0612.behavior_server]: Activating spin
+[behavior_server-4] [INFO] [1785355029.703335173] [j100_0612.behavior_server]: Activating backup
+[behavior_server-4] [INFO] [1785355029.703343509] [j100_0612.behavior_server]: Activating drive_on_heading
+[behavior_server-4] [INFO] [1785355029.703350597] [j100_0612.behavior_server]: Activating assisted_teleop
+[behavior_server-4] [INFO] [1785355029.703357685] [j100_0612.behavior_server]: Activating wait
+[behavior_server-4] [INFO] [1785355029.703368165] [j100_0612.behavior_server]: Creating bond (behavior_server) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355029.808627811] [j100_0612.lifecycle_manager_navigation]: Server behavior_server connected with bond.
+[lifecycle_manager-8] [INFO] [1785355029.808673666] [j100_0612.lifecycle_manager_navigation]: [34m[1mActivating bt_navigator[0m[0m
+[bt_navigator-5] [INFO] [1785355029.809063647] [j100_0612.bt_navigator]: Activating
+[bt_navigator-5] [INFO] [1785355029.999929756] [j100_0612.bt_navigator]: Creating bond (bt_navigator) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355030.895664805] [j100_0612.lifecycle_manager_navigation]: Server bt_navigator connected with bond.
+[lifecycle_manager-8] [INFO] [1785355030.895709733] [j100_0612.lifecycle_manager_navigation]: [34m[1mActivating waypoint_follower[0m[0m
+[waypoint_follower-6] [INFO] [1785355030.896075218] [j100_0612.waypoint_follower]: Activating
+[waypoint_follower-6] [INFO] [1785355030.896114242] [j100_0612.waypoint_follower]: Creating bond (waypoint_follower) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355031.001937289] [j100_0612.lifecycle_manager_navigation]: Server waypoint_follower connected with bond.
+[lifecycle_manager-8] [INFO] [1785355031.001998441] [j100_0612.lifecycle_manager_navigation]: [34m[1mActivating velocity_smoother[0m[0m
+[velocity_smoother-7] [INFO] [1785355031.002311910] [j100_0612.velocity_smoother]: Activating
+[velocity_smoother-7] [INFO] [1785355031.002370150] [j100_0612.velocity_smoother]: Creating bond (velocity_smoother) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355031.106821208] [j100_0612.lifecycle_manager_navigation]: Server velocity_smoother connected with bond.
+[lifecycle_manager-8] [INFO] [1785355031.106873383] [j100_0612.lifecycle_manager_navigation]: [34m[1mManaged nodes are active[0m[0m
+[lifecycle_manager-8] [INFO] [1785355031.106885911] [j100_0612.lifecycle_manager_navigation]: [34m[1mCreating bond timer...[0m[0m
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT)
+[velocity_smoother-7] [INFO] [1785355036.273086281] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[velocity_smoother-7] [INFO] [1785355036.273225335] [j100_0612.velocity_smoother]: Running Nav2 LifecycleNode rcl preshutdown (velocity_smoother)
+[velocity_smoother-7] [INFO] [1785355036.273254359] [j100_0612.velocity_smoother]: Deactivating
+[velocity_smoother-7] [INFO] [1785355036.273264631] [j100_0612.velocity_smoother]: Destroying bond (velocity_smoother) to lifecycle manager.
+[lifecycle_manager-8] [INFO] [1785355036.273098056] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[lifecycle_manager-8] [INFO] [1785355036.273166376] [j100_0612.lifecycle_manager_navigation]: Running Nav2 LifecycleManager rcl preshutdown (lifecycle_manager_navigation)
+[lifecycle_manager-8] [INFO] [1785355036.273189464] [j100_0612.lifecycle_manager_navigation]: [34m[1mTerminating bond timer...[0m[0m
+[controller_server-1] [INFO] [1785355036.273086825] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[controller_server-1] [INFO] [1785355036.273195432] [j100_0612.controller_server]: Running Nav2 LifecycleNode rcl preshutdown (controller_server)
+[controller_server-1] [INFO] [1785355036.273228199] [j100_0612.controller_server]: Deactivating
+[controller_server-1] [INFO] [1785355036.273249463] [j100_0612.local_costmap.local_costmap]: Deactivating
+[smoother_server-2] [INFO] [1785355036.273093384] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[smoother_server-2] [INFO] [1785355036.273176968] [j100_0612.smoother_server]: Running Nav2 LifecycleNode rcl preshutdown (smoother_server)
+[smoother_server-2] [INFO] [1785355036.273214759] [j100_0612.smoother_server]: Deactivating
+[smoother_server-2] [INFO] [1785355036.273224615] [j100_0612.smoother_server]: Destroying bond (smoother_server) to lifecycle manager.
+[planner_server-3] [INFO] [1785355036.273097608] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[planner_server-3] [INFO] [1785355036.273211847] [j100_0612.planner_server]: Running Nav2 LifecycleNode rcl preshutdown (planner_server)
+[planner_server-3] [INFO] [1785355036.273247879] [j100_0612.planner_server]: Deactivating
+[planner_server-3] [INFO] [1785355036.273271543] [j100_0612.global_costmap.global_costmap]: Deactivating
+[waypoint_follower-6] [INFO] [1785355036.273170152] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[waypoint_follower-6] [INFO] [1785355036.273288151] [j100_0612.waypoint_follower]: Running Nav2 LifecycleNode rcl preshutdown (waypoint_follower)
+[waypoint_follower-6] [INFO] [1785355036.273325959] [j100_0612.waypoint_follower]: Deactivating
+[bt_navigator-5] [INFO] [1785355036.273183608] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[bt_navigator-5] [INFO] [1785355036.273294567] [j100_0612.bt_navigator]: Running Nav2 LifecycleNode rcl preshutdown (bt_navigator)
+[bt_navigator-5] [INFO] [1785355036.273335302] [j100_0612.bt_navigator]: Deactivating
+[behavior_server-4] [INFO] [1785355036.273186776] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[behavior_server-4] [INFO] [1785355036.273280759] [j100_0612.behavior_server]: Running Nav2 LifecycleNode rcl preshutdown (behavior_server)
+[behavior_server-4] [INFO] [1785355036.273318935] [j100_0612.behavior_server]: Deactivating
+[behavior_server-4] [INFO] [1785355036.273338182] [j100_0612.behavior_server]: Destroying bond (behavior_server) to lifecycle manager.
+[waypoint_follower-6] [INFO] [1785355036.273341110] [j100_0612.waypoint_follower]: Destroying bond (waypoint_follower) to lifecycle manager.
+[bt_navigator-5] [INFO] [1785355036.273347606] [j100_0612.bt_navigator]: Destroying bond (bt_navigator) to lifecycle manager.
+[smoother_server-2] [INFO] [1785355036.283391347] [j100_0612.smoother_server]: Cleaning up
+[velocity_smoother-7] [INFO] [1785355036.283427427] [j100_0612.velocity_smoother]: Cleaning up
+[velocity_smoother-7] [INFO] [1785355036.283455330] [j100_0612.velocity_smoother]: Destroying bond (velocity_smoother) to lifecycle manager.
+[behavior_server-4] [INFO] [1785355036.283536018] [j100_0612.behavior_server]: Cleaning up
+[waypoint_follower-6] [INFO] [1785355036.283555682] [j100_0612.waypoint_follower]: Cleaning up
+[bt_navigator-5] [INFO] [1785355036.283554946] [j100_0612.bt_navigator]: Cleaning up
+[velocity_smoother-7] [INFO] [1785355036.288192811] [j100_0612.velocity_smoother]: Destroying
+[waypoint_follower-6] [INFO] [1785355036.289022788] [j100_0612.waypoint_follower]: Destroying bond (waypoint_follower) to lifecycle manager.
+[behavior_server-4] [INFO] [1785355036.290399641] [j100_0612.behavior_server]: Destroying bond (behavior_server) to lifecycle manager.
+[smoother_server-2] [INFO] [1785355036.293267201] [j100_0612.smoother_server]: Destroying bond (smoother_server) to lifecycle manager.
+[waypoint_follower-6] [INFO] [1785355036.296245272] [j100_0612.waypoint_follower]: Destroying
+[smoother_server-2] [INFO] [1785355036.298170248] [j100_0612.smoother_server]: Destroying
+[behavior_server-4] [INFO] [1785355036.326894233] [j100_0612.behavior_server]: Destroying
+[controller_server-1] [INFO] [1785355036.335102517] [j100_0612.controller_server]: Destroying bond (controller_server) to lifecycle manager.
+[controller_server-1] [INFO] [1785355036.345274881] [j100_0612.controller_server]: Cleaning up
+[controller_server-1] [INFO] [1785355036.345392992] [j100_0612.local_costmap.local_costmap]: Cleaning up
+[lifecycle_manager-8] [INFO] [1785355036.362325763] [j100_0612.lifecycle_manager_navigation]: Destroying lifecycle_manager_navigation
+[controller_server-1] [INFO] [1785355036.372421503] [j100_0612.controller_server]: Destroying bond (controller_server) to lifecycle manager.
+[controller_server-1] [INFO] [1785355036.375537797] [j100_0612.local_costmap.local_costmap]: Destroying
+[controller_server-1] [INFO] [1785355036.383893040] [j100_0612.controller_server]: Destroying
+[bt_navigator-5] [INFO] [1785355036.395718925] [j100_0612.bt_navigator]: Completed Cleaning up
+[bt_navigator-5] [INFO] [1785355036.395770733] [j100_0612.bt_navigator]: Destroying bond (bt_navigator) to lifecycle manager.
+[bt_navigator-5] [INFO] [1785355036.403084480] [j100_0612.bt_navigator]: Destroying
+[INFO] [velocity_smoother-7]: process has finished cleanly [pid 20421]
+[INFO] [waypoint_follower-6]: process has finished cleanly [pid 20419]
+[INFO] [smoother_server-2]: process has finished cleanly [pid 20411]
+[INFO] [behavior_server-4]: process has finished cleanly [pid 20415]
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT) again, ignoring...
+[ERROR] [lifecycle_manager-8]: process has died [pid 20423, exit code -2, cmd '/opt/ros/humble/lib/nav2_lifecycle_manager/lifecycle_manager --ros-args --log-level info --ros-args -r __node:=lifecycle_manager_navigation -r __ns:=/j100_0612 --params-file /tmp/launch_params_htd6dms6 --params-file /tmp/launch_params_a4lit57a --params-file /tmp/launch_params_5lre7l04 -r /j100_0612/global_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan -r /j100_0612/local_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan'].
+[ERROR] [controller_server-1]: process has died [pid 20409, exit code -2, cmd '/opt/ros/humble/lib/nav2_controller/controller_server --ros-args --log-level info --ros-args -r __ns:=/j100_0612 --params-file /tmp/launch_params_i4j1hzei -r /j100_0612/global_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan -r /j100_0612/local_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan -r /tf:=tf -r /tf_static:=tf_static -r cmd_vel:=cmd_vel_nav'].
+[ERROR] [bt_navigator-5]: process has died [pid 20417, exit code -2, cmd '/opt/ros/humble/lib/nav2_bt_navigator/bt_navigator --ros-args --log-level info --ros-args -r __node:=bt_navigator -r __ns:=/j100_0612 --params-file /tmp/launch_params_i4j1hzei -r /j100_0612/global_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan -r /j100_0612/local_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan -r /tf:=tf -r /tf_static:=tf_static'].
+[planner_server-3] [INFO] [1785355036.546996292] [j100_0612.planner_server]: Deactivating plugin GridBased of type NavfnPlanner
+[planner_server-3] [INFO] [1785355036.547088532] [j100_0612.planner_server]: Destroying bond (planner_server) to lifecycle manager.
+[planner_server-3] [INFO] [1785355036.557259775] [j100_0612.planner_server]: Cleaning up
+[planner_server-3] [INFO] [1785355036.570509617] [j100_0612.global_costmap.global_costmap]: Cleaning up
+[planner_server-3] [INFO] [1785355036.578009363] [j100_0612.planner_server]: Cleaning up plugin GridBased of type NavfnPlanner
+[planner_server-3] [INFO] [1785355036.578156081] [j100_0612.planner_server]: Destroying plugin GridBased of type NavfnPlanner
+[planner_server-3] [INFO] [1785355036.588103295] [j100_0612.planner_server]: Destroying bond (planner_server) to lifecycle manager.
+[planner_server-3] [INFO] [1785355036.604643045] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[planner_server-3] [INFO] [1785355036.605397279] [j100_0612.global_costmap.global_costmap]: Destroying
+[planner_server-3] [INFO] [1785355036.625511480] [j100_0612.planner_server]: Destroying
+[WARNING] [launch]: user interrupted with ctrl-c (SIGINT) again, ignoring...
+[ERROR] [planner_server-3]: process has died [pid 20413, exit code -2, cmd '/opt/ros/humble/lib/nav2_planner/planner_server --ros-args --log-level info --ros-args -r __node:=planner_server -r __ns:=/j100_0612 --params-file /tmp/launch_params_i4j1hzei -r /j100_0612/global_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan -r /j100_0612/local_costmap/sensors/lidar2d_0/scan:=/j100_0612/sensors/lidar2d_0/scan -r /tf:=tf -r /tf_static:=tf_static'].

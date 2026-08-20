@@ -11,3 +11,11 @@ __pycache__/
 #ros
 .catkin_tools/
 .catkin_workspace
+
+# secrets — never commit
+.env
+
+# standalone research repo, cloned separately (git@github.com:Nbhavyasai/evolve-stl-pddl.git)
+evolve-stl-pddl/
+# IPC benchmark data for evolve-stl-pddl (github.com/aibasel/downward-benchmarks)
+downward-benchmarks/

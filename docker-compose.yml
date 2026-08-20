@@ -12,6 +12,9 @@ services:
       - DISPLAY=${DISPLAY}
       - XAUTHORITY=${XAUTHORITY} # not sure if this is actually needed
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # evolve-stl-pddl: IPC benchmark data (cloned to the repo root, gitignored).
+      # FD_PATH and the VAL binaries are baked into the image, see Dockerfile.
+      - DOWNWARD_BENCHMARKS=/home/user/autonomy_stack_ros_humble/downward-benchmarks
       # Windows 10/11 using WSLg (part of WSL2)
       # - DISPLAY
       # - WAYLAND_DISPLAY
@@ -29,13 +32,17 @@ services:
       # The repository files and the bashrc file
       - ./:/home/user/autonomy_stack_ros_humble/
       - ./docker/.bashrc:/home/user/.bashrc
-      - /dev:/dev ## permission for videos
+      - /dev:/dev ## permission for videos — this already covers /dev/video*, /dev/bus/usb
       - /dev/bus/usb:/dev/bus/usb # Pass raw USB bus devices ( usb overflow for realsense camera)
+      # NOTE: do NOT add a "/dev/video*" bind mount. Compose does not expand globs,
+      # so Docker creates a literal directory named "/dev/video*" on the host and
+      # mounts that empty dir over the path in the container. The /dev:/dev line
+      # above already passes every video node through.
 
       # Windows Display forwarding
       #- /mnt/wslg:/mnt/wslg
-      - /tmp/.X11-unix:/tmp/.X11-unix
-
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XAUTHORITY}:${XAUTHORITY}:ro
       # Other folders you may want to volume in
       # - /home/$USER/.ros/:/home/user/.ros/
       #- /home/$USER/bags/:/home/user/bags/

@@ -126,6 +126,94 @@ alias yolo='ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/ca
 alias spine='ros2 launch spine_ros2 spine.launch.py ns:=a200_0000'
 alias goal='ros2 service call /a200_0000/region_goal spine_interface_ros2/srv/Task task:" R2"'
 alias evo='ros2 launch evo_skill_ros evo_plan_run.launch.py namespace:=/j100_0612 robot_name:=jackal_1 target_region:=fire graph_file:="$EVO_CFG/graph_lab.json" domain_file:="$EVO_CFG/lens_lab_domain.pddl" plan_file:="$EVO_CFG/evoskill_plan_lab.txt" costmap_edit_max_radius:=1.0 require_map:=true tracking_topic:=/yolo/tracking points_topic:=/sensors/camera_0/points odom_topic:=/platform/odom/filtered tracker_out_topic:=/tracks'
+alias point='ros2 param set /camera/camera_0 pointcloud__neon_.enable true'
+alias sensors='~/autonomy_stack_ros_humble/run_sensors.sh'
+# Check the camera is enumerated BEFORE launching: should list the D435 and its serial.
+alias camcheck='rs-enumerate-devices -s || echo "no RealSense on the USB bus — check cable/port on the HOST first"'
+alias loc='ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy_stack_ros_humble/office_map_20260811_190334.yaml setup_path:=/home/user/jackal_setup/'
+alias svmap='ros2 run nav2_map_server map_saver_cli -f "vlab_map" --ros-args -p map_subscribe_transient_local:=true -r __ns:=/j100_0612'
+alias evo_lab='EVO_CFG="$(ros2 pkg prefix evo_skill_ros)/share/evo_skill_ros/config"; EVO_OUT=/home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/lab; ros2 launch evo_skill_ros evo_plan_run.launch.py namespace:=/j100_0612 robot_name:=jackal_1 target_region:=fire graph_file:=$EVO_CFG/graph_lab.json domain_file:=$EVO_CFG/lens_lab_domain.pddl plan_file:=$EVO_OUT/plan.txt tracks_topic:=/j100_0612/tracks tracking_topic:=/yolo/tracking points_topic:=/sensors/camera_0/points odom_topic:=/platform/odom/filtered tracker_out_topic:=/tracks enable_stl_replan:=true max_nav2_replans:=8 costmap_edit_max_radius:=1.0 require_map:=true inspect_dwell_s:=5.0 hold_timeout_s:=120.0 enable_json_log:=true json_log_file:=$EVO_OUT/deploy_log.json'
+# robot_name MUST be robot1 (the office problem names the robot robot1, not jackal_1).
+# tracks_topic MUST be set: it defaults to /a200_0000/tracks, so the STL layer would
+# silently see nothing. json_log_file MUST be set: the default /home/samin/... does not
+# exist in this container and the node dies with exit code 1 trying to write it.
+alias evo_office='source /opt/ros/humble/setup.bash && source ~/autonomy_stack_ros_humble/install/setup.bash && EVO_CFG="$(ros2 pkg prefix evo_skill_ros)/share/evo_skill_ros/config" && EVO_OUT=/home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/problem_office1 && ros2 launch evo_skill_ros evo_plan_run.launch.py namespace:=/j100_0612 robot_name:=robot1 target_region:=main_center graph_file:=/home/user/autonomy_stack_ros_humble/graph_office_2.json domain_file:=$EVO_CFG/office_domain.pddl plan_file:=/home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/phase1/prefix.txt tracks_topic:=/j100_0612/tracks tracking_topic:=/yolo/tracking points_topic:=/sensors/camera_0/points odom_topic:=/platform/odom/filtered tracker_out_topic:=/tracks enable_stl_replan:=true max_nav2_replans:=8 costmap_edit_max_radius:=1.0 require_map:=true inspect_dwell_s:=18.0 inspect_dwell_max_s:=45.0 hold_timeout_s:=180.0 enable_json_log:=true json_log_file:=$EVO_OUT/deploy_log.json'
+
+# ── office / perception-replanning pipeline ─────────────────────────────────
+# Run in this order: sensors -> loc -> yolo -> ordered -> camtf -> tracker
+#                    -> tracks (must publish!) -> repair_office -> evo_office
+
+# YOLO-World vocabulary. Edit evolve-stl-pddl/jackal/yolo_classes.txt, run bake_yolo,
+# then relaunch with yolo_office. Baking avoids /yolo/set_classes, which needs CLIP at
+# runtime (ultralytics auto-installs the wrong 'clip' package and crashes yolo_node)
+# and which resets to the model defaults on every restart.
+alias bake_yolo='(cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal && python3 bake_yolo_classes.py --verify)'
+alias yolo_office='ros2 launch yolo_bringup yolo-world.launch.py model:=/home/user/autonomy_stack_ros_humble/yolo_office.pt input_image_topic:=/camera/camera_0/color/image_raw'
+alias yolo_classes='${EDITOR:-nano} ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/yolo_classes.txt'
+
+# The RealSense cloud must be ORGANIZED (height>1) or tracker_with_yolo cannot index
+# it by pixel. rs_launch.py silently ignores args it does not declare, so set it live.
+# Verify: ros2 topic echo /camera/camera_0/depth/color/points --field height --once
+alias ordered='ros2 param set /camera/camera_0 pointcloud__neon_.ordered_pc true'
+
+# Joins the camera into the robot TF tree. The standalone RealSense publishes its frames
+# to the GLOBAL /tf, so the namespaced tracker cannot see them without this.
+# EDIT --x --y --z to the real mounting offset. Leave the -1.5708/0/-1.5708 rotation
+# alone: it is the body->optical convention, and dropping it rotates every detection 90°.
+# If base_link is detached on this robot, change --frame-id to chassis_link.
+alias camtf='ros2 run tf2_ros static_transform_publisher --x 0.20 --y 0.0 --z 0.30 --roll -1.5708 --pitch 0 --yaw -1.5708 --frame-id base_link --child-frame-id camera_0_depth_optical_frame --ros-args -r /tf:=/j100_0612/tf -r /tf_static:=/j100_0612/tf_static'
+
+# Standalone tracker. namespace:="" stops the node prepending /j100_0612 to the absolute
+# camera topic, so every other topic is given absolutely too. The launch file starts its
+# own tracker that stays idle on a topic that does not exist; that is expected.
+alias tracker='ros2 run evo_skill_ros tracker_with_yolo --ros-args -p namespace:=\"\" -p tracking_topic:=/yolo/tracking -p points_topic:=/camera/camera_0/depth/color/points -p odom_topic:=/j100_0612/platform/odom/filtered -p out_topic:=/j100_0612/tracks -p target_frame:=map -r /tf:=/j100_0612/tf -r /tf_static:=/j100_0612/tf_static'
+
+# The gate. Nothing downstream works until this publishes with an object in view.
+alias tracks='ros2 topic hz /j100_0612/tracks'
+
+# EvoPlan on the office STRIPS twin. TARGET defaults to 1.0, so ITERS is a ceiling.
+alias gen_office='(cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal && DIFF=true ITERS=40 MODEL=gpt-5-mini CONFIG=$PWD/config_office.yaml ./gen_plan.sh --domain office/office_domain.pddl --problem office/problem_office1.pddl)'
+
+# Perception -> problem repair -> EvoPlan. --append-goal keeps the survey goals and ADDS
+# the backpack, so the corrected plan is the whole mission. --defer never interrupts the
+# survey: the plan is built while the robot runs and printed for you to push at the end,
+# by which point the robot is back at main_door, matching the problem's :init exactly.
+# One-shot: restart to re-arm.
+alias repair_office='(cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal && CONFIG=$PWD/config_office.yaml python3 observe_and_repair.py --object backpack --type lab_object --domain office/office_domain.pddl --problem office/problem_office1.pddl --graph "/home/user/autonomy_stack_ros_humble/graph_office_2.json" --iters 40 --append-goal --defer --seed-plan out/problem_office1/plan.txt)'
+
+# ── experiment recording ────────────────────────────────────────────────────
+# Start `rec <label>` FIRST, then use the _rec variants so their consoles are captured.
+# Ctrl-C on rec stops the bag and writes summary.md / stl_violations.csv / events.csv.
+alias rec='~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/record_run.sh'
+alias evo_office_rec='L=~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/runs/latest; mkdir -p "$L" 2>/dev/null; evo_office 2>&1 | tee -a "$L/evo_office.log"'
+alias mission_office_rec='L=~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/runs/latest; mkdir -p "$L" 2>/dev/null; mission_office 2>&1 | tee -a "$L/mission_office.log"'
+alias resummarize='python3 ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/summarize_run.py --run ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/runs/latest'
+
+# FULL MISSION, one command. Phase 1: plan against problem_office1_mission.pddl (backpack
+# is in the goal but has no location, so it is unsolvable by design), truncate to the
+# executable prefix, deploy it. Then watch for the backpack, ground it, repair the problem,
+# replan the whole mission, and push it when the prefix finishes.
+# Start evo_office too — this publishes to it (it waits up to 60s for that subscriber).
+alias mission_office='(cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal && CONFIG=$PWD/config_office.yaml python3 observe_and_repair.py --object backpack --type lab_object --domain office/office_domain.pddl --problem office/problem_office1_mission.pddl --graph "/home/user/autonomy_stack_ros_humble/graph_office_2.json" --bootstrap --prefix-target 13 --min-prefix 6 --append-goal --defer --iters 40 --seed-plan out/phase1/prefix.txt)'
+
+# SURVEY-THEN-REPLAN — the consistent demo.
+# Phase 1: a normal SOLVABLE survey plan that visits every region, dwells in each, and
+# returns to main_door. Phase 2: on arrival home, every object discovered along the way is
+# folded into the problem in one go and the full mission is replanned and pushed.
+# No unsolvable problem, no prefix truncation, no mid-mission interruption.
+alias survey_office='(cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal && CONFIG=$PWD/config_office.yaml python3 observe_and_repair.py --object backpack box orange_traffic_cone --type lab_object --domain office/office_domain.pddl --problem office/problem_office1_survey.pddl --graph "/home/user/autonomy_stack_ros_humble/graph_office_2.json" --bootstrap --append-goal --iters 40 --min-prefix 6)'
+
+# PHASE 2 ONLY — same as mission_office but WITHOUT --bootstrap, so it does not replan or
+# delete the existing prefix. Use when phase 1 already produced out/phase1/prefix.txt and you
+# just want the backpack watcher: push the prefix by hand, then run this.
+alias watch_office='(cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal && CONFIG=$PWD/config_office.yaml python3 observe_and_repair.py --object backpack --type lab_object --domain office/office_domain.pddl --problem office/problem_office1_mission.pddl --graph "/home/user/autonomy_stack_ros_humble/graph_office_2.json" --append-goal --defer --iters 40 --seed-plan out/phase1/prefix.txt)'
+
+# Push an already-generated phase-1 prefix to the robot.
+alias push_prefix='ros2 topic pub --once /evo_plan_deploy/load_plan std_msgs/msg/String "{data: /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/phase1/prefix.txt}"'
+
+# Offline rehearsal: same 11-goal problem the live run builds, but no robot and no ROS.
+# Safe any time. This is the step that de-risks EvoPlan before an audience.
+alias repair_dry='(cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal && CONFIG=$PWD/config_office.yaml python3 observe_and_repair.py --object backpack --type lab_object --domain office/office_domain.pddl --problem office/problem_office1.pddl --iters 40 --append-goal --seed-plan out/problem_office1/plan.txt --region main_empty_wall)'
 
 # Source workspace, then gazebo
 #sc

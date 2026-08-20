@@ -72,9 +72,9 @@ class PersonFollowerNav2(Node):
         # -----------------------------
         # Parameters
         # -----------------------------
-        self.declare_parameter("namespace", "/a200_0000")
+        self.declare_parameter("namespace", "/j100_0612")
         self.declare_parameter("detections_topic", "/yolo/detections")
-        self.declare_parameter("points_topic", "/sensors/camera_0/points")
+        self.declare_parameter("points_topic", "/camera/camera_0/depth/color/points")
         self.declare_parameter("camera_frame", "camera_color_optical_frame")
         self.declare_parameter("map_frame", "map")
         self.declare_parameter("base_frame", "base_link")
@@ -269,6 +269,7 @@ class PersonFollowerNav2(Node):
             if p.score > best_score:
                 best_score = p.score
                 best = p
+        self.get_logger().info(f"select_best_person() -> best = {best}")
         return best
 
     def pointcloud_to_3d(self, u: float, v: float) -> Optional[Tuple[float, float, float]]:

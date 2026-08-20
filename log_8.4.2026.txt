@@ -1,0 +1,145 @@
+cd ~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal
+CONFIG=$PWD/config_office.yaml python3 observe_and_repair.py \
+    --object backpack --type lab_object \
+    --domain office/office_domain.pddl \
+    --problem office/problem_office1.pddl \
+    --graph $EVO_CFG/graph_office.json \
+    --iters 40
+[INFO] [1785873882.128103625] [observe_and_repair]: Watching /j100_0612/tracks for 'backpack' (5 votes, 0.50 m region margin)
+[INFO] [1785873896.117271767] [observe_and_repair]: backpack sample 1/5 at (11.31, 4.56)
+[INFO] [1785873896.183922668] [observe_and_repair]: backpack sample 2/5 at (11.73, 3.92)
+[INFO] [1785873896.254160597] [observe_and_repair]: backpack sample 3/5 at (11.12, 4.44)
+[INFO] [1785873896.321307380] [observe_and_repair]: backpack sample 4/5 at (11.38, 4.13)
+[INFO] [1785873896.387494638] [observe_and_repair]: backpack sample 5/5 at (11.21, 4.28)
+[INFO] [1785873896.387688396] [observe_and_repair]: Grounded backpack -> region 'main_empty_wall' (0.86 m, margin 2.32 m)
+[INFO] [1785873896.388684976] [observe_and_repair]: hold -> True
+[INFO] [1785873896.390153199] [observe_and_repair]: Wrote repaired problem: /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/problem_office1_backpack.pddl
+[INFO] [1785873896.390609193] [observe_and_repair]: Running EvoPlan (gpt-4.1-mini, ITERS=40, DIFF=true) ...
+=== EvoPlan ===
+  domain:     office/office_domain.pddl
+  problem:    /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/problem_office1_backpack.pddl
+  config:     /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/config.yaml  (model: gpt-4.1-mini)
+  iterations: 40 (max)
+  target:     1.0
+  out:        /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair
+[evoplan] seed: /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/initial_program.py
+[evoplan] cmd:  /usr/bin/python3 /home/user/openevolve/openevolve-run.py /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/initial_program.py /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/pddl_evolve/evaluator.py --config /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/config.yaml --output /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe --iterations 40 --target-score 1.0
+2026-08-04 20:04:56,761 - INFO - Logging to /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/logs/openevolve_20260804_200456.log
+2026-08-04 20:04:56,762 - INFO - Set random seed to 42 for reproducibility
+2026-08-04 20:04:56,793 - INFO - Initialized OpenAI LLM with model: gpt-4.1-mini
+2026-08-04 20:04:56,793 - INFO - Initialized LLM ensemble with models: gpt-4.1-mini (weight: 1.00)
+2026-08-04 20:04:56,816 - INFO - Initialized prompt sampler
+2026-08-04 20:04:56,817 - INFO - Set custom templates: system=evaluator_system_message, user=None
+2026-08-04 20:04:56,817 - INFO - Initialized program database with 0 programs
+2026-08-04 20:04:56,817 - INFO - Successfully loaded evaluation function from /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/pddl_evolve/evaluator.py
+2026-08-04 20:04:56,817 - INFO - Initialized evaluator with /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/pddl_evolve/evaluator.py
+2026-08-04 20:04:56,817 - INFO - Initialized OpenEvolve with /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/initial_program.py
+2026-08-04 20:04:56,817 - INFO - Adding initial program to database
+2026-08-04 20:04:56,819 - INFO - Evaluated program a4f899f7-a70a-4bef-ad5c-19fed5db7a8e in 0.00s: combined_score=0.0000, score=0.0000, valid=0.0000, plan_length=0.0000, steps_passed=0.0000
+2026-08-04 20:04:56,819 - INFO - New MAP-Elites cell occupied in island 0: {'complexity': 5, 'diversity': 0}
+2026-08-04 20:04:56,819 - INFO - Stored artifacts for initial program
+2026-08-04 20:04:56,820 - INFO - Initialized process parallel controller with 1 workers
+2026-08-04 20:04:56,820 - INFO - Started process pool with 1 processes
+2026-08-04 20:04:56,820 - INFO - Using island-based evolution with 3 islands
+2026-08-04 20:04:56,820 - INFO - Island Status:
+2026-08-04 20:04:56,820 - INFO -  * Island 0: 1 programs, best=0.0000, avg=0.0000, diversity=0.00, gen=0 (best: a4f899f7-a70a-4bef-ad5c-19fed5db7a8e)
+2026-08-04 20:04:56,820 - INFO -    Island 1: 0 programs, best=0.0000, avg=0.0000, diversity=0.00, gen=0
+2026-08-04 20:04:56,820 - INFO -    Island 2: 0 programs, best=0.0000, avg=0.0000, diversity=0.00, gen=0
+2026-08-04 20:04:56,820 - INFO - Starting process-based evolution from iteration 1 for 40 iterations (total: 41)
+2026-08-04 20:04:56,823 - INFO - Early stopping disabled
+2026-08-04 20:04:56,871 - INFO - Set custom templates: system=evaluator_system_message, user=None
+2026-08-04 20:04:56,872 - INFO - Successfully loaded evaluation function from /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/pddl_evolve/evaluator.py
+2026-08-04 20:04:56,872 - INFO - Initialized evaluator with /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/pddl_evolve/evaluator.py
+2026-08-04 20:04:56,873 - INFO - Sampled model: gpt-4.1-mini
+2026-08-04 20:05:03,237 - INFO - HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2026-08-04 20:05:03,264 - INFO - Evaluated program 86f013c9-2765-4af8-b9b2-0d363e551e71 in 0.01s: combined_score=1.0000, score=1.0000, valid=1.0000, plan_length=4.0000, steps_passed=4.0000
+2026-08-04 20:05:03,266 - INFO - Sampled model: gpt-4.1-mini
+2026-08-04 20:05:03,266 - INFO - New MAP-Elites cell occupied in island 0: {'complexity': 9, 'diversity': 5}
+2026-08-04 20:05:03,267 - INFO - New best program 86f013c9-2765-4af8-b9b2-0d363e551e71 replaces a4f899f7-a70a-4bef-ad5c-19fed5db7a8e (combined_score: 0.0000 → 1.0000, +1.0000)
+2026-08-04 20:05:03,267 - INFO - Iteration 1: Program 86f013c9-2765-4af8-b9b2-0d363e551e71 (parent: a4f899f7-a70a-4bef-ad5c-19fed5db7a8e) completed in 6.39s
+2026-08-04 20:05:03,267 - INFO - Metrics: combined_score=1.0000, score=1.0000, valid=1.0000, plan_length=4.0000, steps_passed=4.0000
+2026-08-04 20:05:03,267 - INFO - 🌟 New best solution found at iteration 1: 86f013c9-2765-4af8-b9b2-0d363e551e71
+2026-08-04 20:05:03,267 - INFO - Checkpoint interval reached at iteration 1
+2026-08-04 20:05:03,267 - INFO - Island Status:
+2026-08-04 20:05:03,267 - INFO -  * Island 0: 2 programs, best=1.0000, avg=0.5000, diversity=70.20, gen=1 (best: 86f013c9-2765-4af8-b9b2-0d363e551e71)
+2026-08-04 20:05:03,267 - INFO -    Island 1: 0 programs, best=0.0000, avg=0.0000, diversity=0.00, gen=0
+2026-08-04 20:05:03,267 - INFO -    Island 2: 0 programs, best=0.0000, avg=0.0000, diversity=0.00, gen=0
+2026-08-04 20:05:03,268 - INFO - Saved database with 2 programs to /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/checkpoints/checkpoint_1
+2026-08-04 20:05:03,269 - INFO - Saved best program at checkpoint 1 with metrics: combined_score=1.0000, score=1.0000, valid=1.0000, plan_length=4.0000, steps_passed=4.0000
+2026-08-04 20:05:03,269 - INFO - Saved checkpoint at iteration 1 to /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/checkpoints/checkpoint_1
+2026-08-04 20:05:03,269 - INFO - Target score 1.0 reached at iteration 1
+2026-08-04 20:05:03,269 - INFO - ✅ Evolution completed - Maximum iterations reached
+2026-08-04 20:05:03,270 - INFO - Saved database with 2 programs to /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/checkpoints/checkpoint_40
+2026-08-04 20:05:03,270 - INFO - Saved best program at checkpoint 40 with metrics: combined_score=1.0000, score=1.0000, valid=1.0000, plan_length=4.0000, steps_passed=4.0000
+2026-08-04 20:05:03,270 - INFO - Saved checkpoint at iteration 40 to /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/checkpoints/checkpoint_40
+2026-08-04 20:05:03,270 - INFO - Received signal 15, initiating graceful shutdown...
+2026-08-04 20:05:03,270 - INFO - Graceful shutdown requested...
+2026-08-04 20:05:04,275 - INFO - Stopped process pool
+2026-08-04 20:05:04,275 - INFO - Using tracked best program: 86f013c9-2765-4af8-b9b2-0d363e551e71
+2026-08-04 20:05:04,275 - INFO - Evolution complete. Best program has metrics: combined_score=1.0000, score=1.0000, valid=1.0000, plan_length=4.0000, steps_passed=4.0000
+2026-08-04 20:05:04,276 - INFO - Saved best program to /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/best/best_program.py with program info to /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/best/best_program_info.json
+
+Evolution complete!
+Best program metrics:
+  combined_score: 1.0000
+  score: 1.0000
+  valid: 1.0000
+  plan_length: 4.0000
+  steps_passed: 4.0000
+
+Latest checkpoint saved at: /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/checkpoints/checkpoint_40
+To resume, use: --checkpoint /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/oe/checkpoints/checkpoint_40
+
+=== EvoPlan result ===
+  valid:       True
+  score:       1.000
+  plan_length: 4
+  steps_passed:4
+  best_plan:   /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/best_plan.txt
+
+=== timing ===
+  model                : gpt-4.1-mini
+  iterations completed : 1
+  per-iteration (s)    : avg 6.4  min 6.4  max 6.4
+  per-iteration detail : #1=6.4s
+  first VALID plan at  : iteration 1
+  time to VALID plan   : 6.5s
+  total wall clock (s) : 8
+
+=== plan (4 actions) -> /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/plan.txt ===
+(open-door robot1 d_main_door main_door)
+(move-through-door robot1 d_main_door main_door main_center)
+(move robot1 main_center main_empty_wall)
+(check-lab-object robot1 backpack main_empty_wall)
+
+=== VAL re-check of /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/plan.txt ===
+Plan Validation details
+Plan valid
+Successful plans:
+EvoPlan: VALID plan
+
+=== deploy it (Jackal stack must already be up) ===
+  source /opt/ros/humble/setup.bash
+  source ~/autonomy_stack_ros_humble/install/setup.bash
+  EVO_CFG="$(ros2 pkg prefix evo_skill_ros)/share/evo_skill_ros/config"
+  ros2 launch evo_skill_ros evo_plan_run.launch.py \
+    namespace:=/j100_0612 robot_name:=jackal_1 target_region:=fire \
+    graph_file:=$EVO_CFG/graph_lab.json \
+    domain_file:=$EVO_CFG/lens_lab_domain.pddl \
+    plan_file:=/home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/plan.txt \
+    costmap_edit_max_radius:=1.0 require_map:=true \
+    tracking_topic:=/yolo/tracking points_topic:=/sensors/camera_0/points \
+    odom_topic:=/platform/odom/filtered tracker_out_topic:=/tracks
+[INFO] [1785873904.472096685] [observe_and_repair]: VAL accepted the evolved plan: /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/plan.txt
+[INFO] [1785873904.472354378] [observe_and_repair]: Published new plan to /evo_plan_deploy/load_plan: /home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/out/repair/plan.txt
+^CTraceback (most recent call last):
+  File "/home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/observe_and_repair.py", line 335, in <module>
+    main()
+  File "/home/user/autonomy_stack_ros_humble/evolve-stl-pddl/jackal/observe_and_repair.py", line 331, in main
+    rclpy.shutdown()
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 130, in shutdown
+    _shutdown(context=context)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/utilities.py", line 58, in shutdown
+    return context.shutdown()
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/context.py", line 102, in shutdown
+user@promaxgb10-4263:~/autonomy_stack_ros_humble/evolve-stl-pddl/jackal$ 

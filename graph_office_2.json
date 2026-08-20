@@ -1,0 +1,38 @@
+{
+  "objects": [
+    { "name": "trash_can",  "coords": [-10.5, -5.82] },
+    { "name": "table_1",  "coords": [-3.87, -2.38] },
+    { "name": "table_2",  "coords": [-4.67, -0.84] },
+    { "name": "table_3",  "coords": [-6.69, -1.26] },
+    { "name": "table_4",  "coords": [-8.51, -1.87] },
+    { "name": "table_5",  "coords": [-10.7, -3.22] },
+    { "name": "table_6",  "coords": [-6.08, -4.97] },
+    { "name": "table_7",  "coords": [-12.8, -3.57] },
+    { "name": "chair_1",  "coords": [-4.38, -2.99] },
+    { "name": "chair_2",  "coords": [-4.83, -2.49] },
+    { "name": "main_door",  "coords": [-3.72, -4.51] },
+    { "name": "conference_door",  "coords": [-11.9, -7.52] }
+  ],
+
+  "regions": [
+    { "name": "main_door",  "coords": [-4.34, -4.38] },
+    { "name": "main_center",  "coords": [-7.12, -3.17] },
+    { "name": "doorway",  "coords": [-10.00, -6.37] },
+    { "name": "conference_door",  "coords": [-11.7, -6.47] },
+    { "name": "conference_center",  "coords": [-12.02, -5.20] },
+    { "name": "main_empty_wall", "coords": [-9.21, -4.54] }
+  ],
+
+  "object_connections": [
+  ],
+
+  "region_connections": [
+    ["main_door","main_center"],
+    ["main_center", "main_empty_wall"],
+    ["main_center", "doorway"],
+    ["main_empty_wall", "doorway"],
+    ["doorway", "conference_door"],
+    ["doorway","conference_center"],
+    ["conference_door", "conference_center"]
+  ]
+}

@@ -27,7 +27,7 @@ def generate_launch_description():
         # Topics
         DeclareLaunchArgument('use_sim_time', default_value='false'),
 
-        DeclareLaunchArgument("namespace", default_value="j100_0611"),
+        DeclareLaunchArgument("namespace", default_value="j100_0612"),
         DeclareLaunchArgument(
             'detections_topic',
             default_value='/yolo/detections',
@@ -36,7 +36,7 @@ def generate_launch_description():
 
         DeclareLaunchArgument(
             'points_topic',
-            default_value='/j100_0611/sensors/camera_0/points',
+            default_value='/camera/camera_0/depth/color/points',
             description='Point cloud topic'
         ),
 

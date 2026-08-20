@@ -24,3 +24,7 @@
 	path = src/sensor_drivers/realsense-ros
 	url = https://github.com/realsenseai/realsense-ros.git
 	branch = ros2-master
+[submodule "src/control_ros_pkgs/clearpath_nav2_demos"]
+	path = src/control_ros_pkgs/clearpath_nav2_demos
+	url = https://github.com/clearpathrobotics/clearpath_nav2_demos.git
+	branch = humble

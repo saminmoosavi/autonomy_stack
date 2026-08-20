@@ -78,14 +78,14 @@ LIDAR_PID=$!
     pointcloud.ordered_pc:=true &
 CAM_PID=$!
 
- echo "enabling pointcloud for realsense"
- ros2 param set /camera/camera_0 pointcloud__neon_.enable true &
- PARAM_PID=$!
+# echo "enabling pointcloud for realsense"
+# ros2 param set /camera/camera_0 pointcloud__neon_.enable true &
+# PARAM_PID=$!
 
 # Handle continuous runtime termination sequence gracefully
 cleanup() {
     echo -e "\nShutting down sensor streaming components safely..."
-    kill $LIDAR_TF_PID $CAM_TF_PID $LIDAR_PID $CAM_PID
+    kill $LIDAR_PID $CAM_PID
     exit 0
 }
 

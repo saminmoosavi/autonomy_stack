@@ -144,6 +144,45 @@ RUN cd ~/autonomy_stack_ros_humble && \
     
 RUN cd ~/autonomy_stack_ros_humble && rosdep install --from-paths src --ignore-src -r -y
 
+# ==============================================================================
+# EvoSkill toolchain for evolve-stl-pddl (OpenEvolve + Fast Downward + VAL)
+# The repo itself is not copied here — it is volume-mounted at
+# ~/autonomy_stack_ros_humble/evolve-stl-pddl by docker-compose.
+# ==============================================================================
+RUN sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+        cmake \
+        g++ \
+        make \
+        flex \
+        bison \
+    && sudo rm -rf /var/lib/apt/lists/*
+
+# Fast Downward — PDDL planner + validator fallback used by pddl_evolve/evaluator.py
+RUN sudo git clone --depth 1 https://github.com/aibasel/downward.git /opt/fast-downward && \
+    sudo chown -R $UID:$GID /opt/fast-downward && \
+    cd /opt/fast-downward && ./build.py
+ENV FD_PATH=/opt/fast-downward/fast-downward.py
+
+# VAL — evaluator.py prefers `validate` on PATH over the FD fallback
+RUN sudo git clone --depth 1 https://github.com/KCL-Planning/VAL.git /opt/VAL && \
+    sudo chown -R $UID:$GID /opt/VAL && \
+    cd /opt/VAL && \
+    cmake -DCMAKE_BUILD_TYPE=Release -B build . && \
+    cmake --build build -j"$(nproc)" && \
+    sudo ln -s /opt/VAL/build/bin/Validate /usr/local/bin/validate
+ENV PATH=/opt/VAL/build/bin:/home/user/.local/bin:$PATH
+ENV LD_LIBRARY_PATH=/opt/VAL/build/bin:$LD_LIBRARY_PATH
+
+# OpenEvolve — evolution loop driver. Installed from PyPI: an editable install of
+# the git checkout breaks against the setuptools<71 pin above.
+RUN pip install --no-cache-dir openevolve==0.3.2 stlpy
+
+# The repo's job scripts invoke openevolve-run.py by path; keep that path working.
+RUN sudo mkdir -p /opt/openevolve && \
+    printf '%s\n' '#!/usr/bin/env python3' 'from openevolve.cli import main' 'raise SystemExit(main())' \
+        | sudo tee /opt/openevolve/openevolve-run.py > /dev/null && \
+    sudo chmod +x /opt/openevolve/openevolve-run.py && \
+    ln -s /opt/openevolve /home/user/openevolve
 
 # Copy entrypoint
 COPY docker/entrypoint.sh /
