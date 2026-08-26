@@ -31,3 +31,13 @@
 	path = src/mapping_ros_pkgs/dlo
 	url = https://github.com/vectr-ucla/direct_lidar_inertial_odometry
 	branch = feature/ros2
+[submodule "src/xarm_ros2"]
+	path = src/xarm_ros2
+	url = https://github.com/xArm-Developer/xarm_ros2.git
+	branch = humble
+[submodule "/home/samin/autonomy_stack_ros_humble/src/PX4-gazebo-models"]
+	path = /home/samin/autonomy_stack_ros_humble/src/PX4-gazebo-models
+	url = https://github.com/PX4/PX4-gazebo-models.git
+[submodule "/home/samin/autonomy_stack_ros_humble/src/PX4-Autopilot"]
+	path = /home/samin/autonomy_stack_ros_humble/src/PX4-Autopilot
+	url = https://github.com/PX4/PX4-Autopilot.git
