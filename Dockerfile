@@ -156,6 +156,11 @@ RUN apt install libomp-dev libpcl-dev libeigen3-dev
 
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y  python3-redis
+#xarm packages
+RUN apt update && apt install -y \
+    ros-humble-moveit \
+    ros-humble-gazebo-ros2-control
+    
 RUN groupadd -g $GID $UNAME
 RUN useradd -m -u $UID -g $GID -s /bin/bash $UNAME
 # Allow the user to run sudo without a password

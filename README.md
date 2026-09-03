@@ -87,11 +87,11 @@ source /opt/ros/humble/setup.bash
 ros2 launch clearpath_nav2_demos nav2.launch.py setup_path:=/home/user/jackal_setup/ use_sim_time:=false 
 ros2 launch clearpath_nav2_demos slam.launch.py setup_path:=/home/user/jackal_setup/ use_sim_time:=false
 ros2 launch clearpath_nav2_demos localization.launch.py map:=/home/user/autonomy_stack_ros_humble/lens_lab_map.yaml setup_path:=/home/user/jackal_setup/ use_sim_time:=false 
-ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0611 use_sim_time:=false
+ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0612 use_sim_time:=false
 ```
 check tf
 ```bash
-ros2 run warthog_nav2_bringup scan_relay 
+ros2 run warthog_bringup scan_relay 
 ros2 run tf2_ros tf2_echo base_link lidar2d_0_laser --ros-args -r /tf:=/w200_0105/tf -r /tf_static:=/w200_0105/tf_static
 ros2 launch clearpath_nav2_demos nav2.launch.py setup_path:=/home/user/warthog_setup/
 ros2 launch clearpath_nav2_demos slam.launch.py setup_path:=/home/user/warthog_setup/
@@ -109,7 +109,7 @@ If running in simulation, skip directly to launching YOLO.
 
 For a physical RealSense camera, start the RealSense drivers
 ```bash
-ros2 launch realsense2_camera rs_launch.py serial_no:="'135122079298'"
+ros2 launch realsense2_camera rs_launch.py serial_no:="'135122079298'" pointcloud.enable:=true
 ```
 If you encounter permission issues, try:
 ```bash
@@ -137,5 +137,4 @@ To give a mission goal to it
 ```bash
 ros2 service call /a200_0000/region_goal spine_interface_ros2/srv/Task task:" R2"
 ```
-
 

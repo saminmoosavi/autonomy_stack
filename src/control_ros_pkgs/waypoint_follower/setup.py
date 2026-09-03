@@ -30,6 +30,9 @@ setup(
             "pure_pursuit_follower = waypoint_follower.pure_pursuit_follower:main",
             "trajectory_plotter = waypoint_follower.trajectory_plotter:main",
             "trajectory_record_plotter = waypoint_follower.trajectory_record_plotter:main",
+            "xarm_waypoint = waypoint_follower.xarm_waypoint:main",
+            "xarm_waypoint_joint = waypoint_follower.xarm_waypoint_joint:main",
+            "mppi_waypoint = waypoint_follower.mppi_waypoint:main"
         ],
     },
 )

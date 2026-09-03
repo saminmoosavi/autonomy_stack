@@ -26,6 +26,12 @@ ekf_comparison_plotter:
 
 trajectory_recorder:
   ros__parameters:
+    localization_source: redis
+    odom_topic: /a200_0000/odometry/filtered
+    pose_topic: /a200_0000/amcl_pose
+    tf_fixed_frame: a200_0000/odom
+    tf_robot_frame: a200_0000/base_link
+    tf_timeout_s: 0.05
     redis_host: localhost
     redis_port: 6379
     redis_db: 0
@@ -45,6 +51,12 @@ trajectory_recorder:
 
 trajectory_record_plotter:
   ros__parameters:
+    localization_source: redis
+    odom_topic: /a200_0000/odometry/filtered
+    pose_topic: /a200_0000/amcl_pose
+    tf_fixed_frame: a200_0000/odom
+    tf_robot_frame: a200_0000/base_link
+    tf_timeout_s: 0.05
     redis_host: localhost
     redis_port: 6379
     redis_db: 0
@@ -62,6 +74,12 @@ trajectory_record_plotter:
 
 pure_pursuit_follower:
   ros__parameters:
+    localization_source: redis
+    odom_topic: /a200_0000/odometry/filtered
+    pose_topic: /a200_0000/amcl_pose
+    tf_fixed_frame: a200_0000/odom
+    tf_robot_frame: a200_0000/base_link
+    tf_timeout_s: 0.05
     redis_host: localhost
     redis_port: 6379
     redis_db: 0
@@ -107,6 +125,12 @@ pure_pursuit_follower:
 
 trajectory_plotter:
   ros__parameters:
+    localization_source: redis
+    odom_topic: /a200_0000/odometry/filtered
+    pose_topic: /a200_0000/amcl_pose
+    tf_fixed_frame: a200_0000/odom
+    tf_robot_frame: a200_0000/base_link
+    tf_timeout_s: 0.05
     redis_host: localhost
     redis_port: 6379
     redis_db: 0

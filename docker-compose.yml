@@ -27,6 +27,8 @@ services:
       # The repository files and the bashrc file
       - ./:/home/user/autonomy_stack_ros_humble/
       - ./docker/.bashrc:/home/user/.bashrc
+      - /dev:/dev
+      - /dev/bus/usb:/dev/bus/usb
 
       # Windows Display forwarding
       #- /mnt/wslg:/mnt/wslg
@@ -38,7 +40,8 @@ services:
       - /home/$USER/clearpath/:/home/user/clearpath/
       - /home/$USER/clearpath_2/:/home/user/clearpath_2/
       - /home/$USER/jackal_setup/:/home/user/jackal_setup/
-      - /home/$USER/warthog_setup/:/home/user/warthog_setup/     
+      - /home/$USER/warthog_setup/:/home/user/warthog_setup/ 
+      - /home/$USER/warthog_xarm_setup/:/home/user/warthog_xarm_setup/
       - /home/$USER/.cache/huggingface:/home/.cache/huggingface
 
     working_dir: /home/user/autonomy_stack_ros_humble/

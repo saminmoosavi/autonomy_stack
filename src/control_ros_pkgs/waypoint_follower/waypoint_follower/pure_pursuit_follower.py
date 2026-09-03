@@ -6,16 +6,37 @@ from pathlib import Path
 
 from ament_index_python.packages import get_package_share_directory
 import rclpy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import PoseWithCovarianceStamped, Twist
+from nav_msgs.msg import Odometry
+from rclpy.duration import Duration
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
+from rclpy.time import Time
+from tf2_ros import Buffer, TransformException, TransformListener
 
+from waypoint_follower.pose_utils import quaternion_to_yaw
 from waypoint_follower.redis_pose_reader import RedisPoseReader
+
+
+AMCL_POSE_QOS = QoSProfile(
+    depth=1,
+    reliability=ReliabilityPolicy.RELIABLE,
+    durability=DurabilityPolicy.TRANSIENT_LOCAL,
+)
 
 
 class PurePursuitFollower(Node):
     def __init__(self):
         super().__init__("pure_pursuit_follower")
 
+        self.localization_source = str(
+            self.declare_parameter("localization_source", "redis").value
+        ).lower()
+        self.odom_topic = self.declare_parameter("odom_topic", "/a200_0000/odometry/filtered").value
+        self.pose_topic = self.declare_parameter("pose_topic", "/a200_0000/amcl_pose").value
+        self.tf_fixed_frame = self.declare_parameter("tf_fixed_frame", "map").value
+        self.tf_robot_frame = self.declare_parameter("tf_robot_frame", "a200_0000/base_link").value
+        self.tf_timeout_s = float(self.declare_parameter("tf_timeout_s", 0.05).value)
         self.cmd_vel_topic = self.declare_parameter("cmd_vel_topic", "/w200_0105/cmd_vel").value
         self.trajectory_csv = self.declare_parameter("trajectory_csv", "trajectories/warthog_trajectory.csv").value
         self.controller_path_csv = self.declare_parameter(
@@ -68,7 +89,33 @@ class PurePursuitFollower(Node):
         )
         self.reverse_allowed = bool(self.declare_parameter("reverse_allowed", False).value)
         self.stop_on_completion = bool(self.declare_parameter("stop_on_completion", True).value)
-        self.redis_pose_reader = RedisPoseReader(self)
+        if self.localization_source not in ("redis", "odom", "pose", "tf"):
+            raise ValueError("localization_source must be 'redis', 'odom', 'pose', or 'tf'")
+
+        self.redis_pose_reader = None
+        self.odom_sub = None
+        self.pose_sub = None
+        self.tf_buffer = None
+        self.tf_listener = None
+        if self.localization_source == "redis":
+            self.redis_pose_reader = RedisPoseReader(self)
+        elif self.localization_source == "odom":
+            self.odom_sub = self.create_subscription(
+                Odometry,
+                self.odom_topic,
+                self.odom_callback,
+                20,
+            )
+        elif self.localization_source == "pose":
+            self.pose_sub = self.create_subscription(
+                PoseWithCovarianceStamped,
+                self.pose_topic,
+                self.pose_callback,
+                AMCL_POSE_QOS,
+            )
+        else:
+            self.tf_buffer = Buffer()
+            self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.raw_waypoint_count = 0
         self.waypoints = self.load_waypoints(self.trajectory_csv)
@@ -91,11 +138,11 @@ class PurePursuitFollower(Node):
         self.timer = self.create_timer(1.0 / self.control_rate_hz, self.control_loop)
         self.status_timer = self.create_timer(max(self.status_log_period_s, 0.1), self.log_status)
 
+        pose_source_text = self.pose_source_text()
         self.get_logger().info(
             f"Loaded {len(self.waypoints)} waypoints from {self.trajectory_csv} "
             f"(raw={self.raw_waypoint_count}, spacing={self.min_waypoint_spacing_m:.2f} m); "
-            f"reading Redis stream {self.redis_pose_reader.stream_name} "
-            f"node {self.redis_pose_reader.target_node}, publishing to {self.cmd_vel_topic}"
+            f"{pose_source_text}, publishing to {self.cmd_vel_topic}"
         )
 
     @staticmethod
@@ -217,6 +264,61 @@ class PurePursuitFollower(Node):
 
         self.current_pose = (pose.x, pose.y, pose.yaw)
         return True
+
+    def odom_callback(self, msg):
+        pose = msg.pose.pose
+        self.current_pose = (
+            pose.position.x,
+            pose.position.y,
+            quaternion_to_yaw(pose.orientation),
+        )
+
+    def pose_callback(self, msg):
+        pose = msg.pose.pose
+        self.current_pose = (
+            pose.position.x,
+            pose.position.y,
+            quaternion_to_yaw(pose.orientation),
+        )
+
+    def update_current_pose(self):
+        if self.localization_source == "redis":
+            return self.update_current_pose_from_redis()
+        if self.localization_source == "tf":
+            return self.update_current_pose_from_tf()
+        return self.current_pose is not None
+
+    def update_current_pose_from_tf(self):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                self.tf_fixed_frame,
+                self.tf_robot_frame,
+                Time(),
+                timeout=Duration(seconds=self.tf_timeout_s),
+            )
+        except TransformException:
+            return False
+
+        translation = transform.transform.translation
+        rotation = transform.transform.rotation
+        self.current_pose = (
+            translation.x,
+            translation.y,
+            quaternion_to_yaw(rotation),
+        )
+        return True
+
+    def pose_source_text(self):
+        if self.localization_source == "redis":
+            return (
+                f"reading Redis stream {self.redis_pose_reader.stream_name} "
+                f"node {self.redis_pose_reader.target_node}"
+            )
+        if self.localization_source == "tf":
+            return f"reading TF {self.tf_fixed_frame} -> {self.tf_robot_frame}"
+        if self.localization_source == "pose":
+            return f"subscribing to pose on {self.pose_topic}"
+        return f"subscribing to odometry on {self.odom_topic}"
 
     def align_waypoints_to_current_pose(self):
         if self.current_pose is None or self.trajectory_aligned:
@@ -368,7 +470,7 @@ class PurePursuitFollower(Node):
     def control_loop(self):
         if self.done:
             return
-        self.update_current_pose_from_redis()
+        self.update_current_pose()
         if self.current_pose is None:
             return
 
@@ -465,8 +567,8 @@ class PurePursuitFollower(Node):
 
         if self.current_pose is None:
             self.get_logger().warn(
-                f"Waiting for Redis stream {self.redis_pose_reader.stream_name} "
-                f"node {self.redis_pose_reader.target_node}; no /cmd_vel will be published yet"
+                f"Waiting for localization from {self.pose_source_text()}; "
+                "no cmd_vel will be published yet"
             )
             return
 

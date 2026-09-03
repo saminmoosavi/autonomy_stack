@@ -117,7 +117,7 @@ if ! shopt -oq posix; then
 fi
 source /opt/ros/humble/setup.bash
 alias sc='. ~/autonomy_stack_ros_humble/install/setup.bash'
-alias build='cd ~/autonomy_stack_ros_humble && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release && sc'
+alias build='cd ~/autonomy_stack_ros_humble && colcon build --symlink-install --cmake-args -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 && sc'
 alias sim='ros2 launch clearpath_gz simulation.launch.py'
 alias nav2='ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
 alias slam='ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
@@ -125,10 +125,14 @@ alias rviz='ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200
 alias yolo='ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/a200_0000/sensors/camera_0/color/image'
 alias spine='ros2 launch spine_ros2 spine.launch.py ns:=a200_0000'
 alias goal='ros2 service call /a200_0000/region_goal spine_interface_ros2/srv/Task task:" R2"'
+alias xarm='ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py'
+alias xarmsim='ros2 launch xarm_gazebo xarm6_beside_table_gazebo.launch.py add_gripper:=true'
+alias xarm6='ros2 launch xarm_moveit_config xarm6_moveit_gazebo.launch.py add_gripper:=true'
+alias xarmreal='ros2 launch xarm_moveit_config xarm6_moveit_realmove.launch.py robot_ip:=192.168.1.230 add_gripper:=true'
 # Source workspace, then gazebo
 #sc
 #. /usr/share/gazebo-11/setup.bash
-export ROS_DOMAIN_ID=5  # 0 for jackal, 5 for warthog
+export ROS_DOMAIN_ID=0  # 0 for jackal, 5 for warthog
 export ROS_LOCALHOST_ONLY=0
 export RMW_IMPLEMENTATION=rmw_fastrtps_cpp
 
