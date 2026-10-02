@@ -171,55 +171,67 @@ RUN apt-get update && apt-get install -y \
 RUN apt-get update && apt-get install -y \
     python3-redis \
     && rm -rf /var/lib/apt/lists/*
-
+    
 # ============================================================
-# Python build dependencies
+# Python dependencies managed by Ubuntu
 # ============================================================
 RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-dev \
-    python3-scipy \
-    python3-yaml \
+    python3-numpy \
+    python3-matplotlib \
+    python3-transforms3d \
+    python3-networkx \
+    python3-opencv \
     && rm -rf /var/lib/apt/lists/*
 
 
+# ============================================================
+# Python packages not provided by Ubuntu
+# ============================================================
 
-# ============================================================
-# PyTorch CUDA 12.6
-# ============================================================
+# OpenAI and UTM:
+# --ignore-installed prevents pip from trying to uninstall
+# Debian-managed dependencies such as idna/typing_extensions.
 RUN python3 -m pip install \
     --break-system-packages \
+    --ignore-installed \
     --no-cache-dir \
-    torch==2.6.0 \
-    torchvision==0.21.0 \
-    torchaudio==2.6.0 \
-    --index-url https://download.pytorch.org/whl/cu126
-
-
-# ============================================================
-# General Python dependencies
-# ============================================================
-RUN python3 -m pip install \
-    --break-system-packages \
-    --no-cache-dir \
-    "numpy<2" \
-    matplotlib \
-    transforms3d \
     utm \
-    networkx \
-    openai \
-    "opencv-python>=4.8.1.78" \
-    "typing-extensions>=4.4.0" \
+    openai
+
+
+# LAP - use existing Ubuntu NumPy
+RUN python3 -m pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    --no-deps \
     "lap>=0.5.12"
 
 
 # ============================================================
-# Ultralytics / YOLO
+# Ultralytics
 # ============================================================
+# Install dependencies separately, then install Ultralytics
+# without dependency resolution so pip does not replace NumPy.
+RUN python3 -m pip install \
+    --break-system-packages \
+    --ignore-installed \
+    --no-cache-dir \
+    pyyaml \
+    requests \
+    scipy \
+    pillow \
+    psutil \
+    py-cpuinfo \
+    tqdm \
+    seaborn
+
 RUN python3 -m pip install \
     --break-system-packages \
     --no-cache-dir \
-    ultralytics==8.3.168
+    --no-deps \
+    ultralytics
 # ============================================================
 # Install sudo
 # ============================================================
