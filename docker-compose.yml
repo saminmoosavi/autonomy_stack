@@ -1,0 +1,132 @@
+services:
+  ros_jazzy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        UNAME: user
+        UID: 1000
+        GID: 1000
+
+    container_name: autonomy-jazzy-container
+    image: ubuntu-24-jazzy:latest
+
+    user: user
+
+    environment:
+      # ======================================================
+      # Linux GUI / X11
+      # ======================================================
+      - DISPLAY=${DISPLAY}
+      - XAUTHORITY=${XAUTHORITY}
+
+      # OpenAI
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+      # ======================================================
+      # NVIDIA
+      # ======================================================
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+
+      # ======================================================
+      # ROS 2
+      # ======================================================
+      - ROS_DISTRO=jazzy
+
+      # Uncomment if you want CycloneDDS
+      # - RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+
+      # Usually leave this disabled when communicating
+      # with physical robots / other computers.
+      # - ROS_LOCALHOST_ONLY=1
+
+      # Custom CycloneDDS configuration
+      # - CYCLONEDDS_URI=file:///home/user/autonomy_stack_ros_jazzy/docker/rtk_cyclonedds.xml
+
+      # ======================================================
+      # Gazebo / Qt GUI
+      # ======================================================
+      - QT_X11_NO_MITSHM=1
+
+    volumes:
+      # ======================================================
+      # Main ROS 2 Jazzy workspace
+      # ======================================================
+      - ./:/home/user/autonomy_stack_ros_jazzy/
+
+      # User bash configuration
+      - ./docker/.bashrc:/home/user/.bashrc
+
+      # ======================================================
+      # Hardware access
+      # ======================================================
+      - /dev:/dev
+      - /dev/bus/usb:/dev/bus/usb
+
+      # ======================================================
+      # X11 display forwarding
+      # ======================================================
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+
+      # ======================================================
+      # ROS bags / Clearpath / robot setup
+      # ======================================================
+      - /home/$USER/bags/:/home/user/bags/
+      - /home/$USER/clearpath/:/home/user/clearpath/
+      - /home/$USER/clearpath_2/:/home/user/clearpath_2/
+      - /home/$USER/jackal_setup/:/home/user/jackal_setup/
+      - /home/$USER/warthog_setup/:/home/user/warthog_setup/
+      - /home/$USER/warthog_xarm_setup/:/home/user/warthog_xarm_setup/
+
+      # ======================================================
+      # HuggingFace cache
+      # ======================================================
+      - /home/$USER/.cache/huggingface:/home/user/.cache/huggingface
+
+      # Optional ROS data persistence
+      # - /home/$USER/.ros/:/home/user/.ros/
+
+      # ======================================================
+      # WSLg - only enable under Windows/WSL2
+      # ======================================================
+      # - /mnt/wslg:/mnt/wslg
+
+    working_dir: /home/user/autonomy_stack_ros_jazzy/
+
+    # Needed for direct hardware access
+    privileged: true
+
+    # Important for ROS 2 DDS communication with robots
+    network_mode: host
+
+    # Shared memory - useful for ROS/Gazebo/cameras
+    ipc: host
+
+    # Share host PID namespace
+    pid: host
+
+    # ======================================================
+    # Devices
+    # ======================================================
+    devices:
+      - "/dev/bus/usb/:/dev/bus/usb/"
+
+    group_add:
+      - dialout
+
+    # ======================================================
+    # NVIDIA GPU
+    # ======================================================
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    stdin_open: true
+    tty: true
+
+    command: ["bash"]
