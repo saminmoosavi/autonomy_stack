@@ -232,6 +232,7 @@ RUN python3 -m pip install \
     --no-cache-dir \
     --no-deps \
     ultralytics
+RUN apt update && apt install ros-jazzy-rmw-zenoh-cpp
 # ============================================================
 # Install sudo
 # ============================================================

@@ -91,7 +91,9 @@ fi
 # ------------------------------------------------------------
 # Uncomment to force CycloneDDS:
 #
-# export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export RMW_IMPLEMENTATION=rmw_zenoh_cpp
+export ZENOH_SESSION_CONFIG_URI=~/autonomy_stack_ros_jazzy/zenoh_config.json5   # uncommnet on host and ros2 run rmw_zenoh_cpp rmw_zenohd
+#export ZENOH_SESSION_CONFIG_URI=~/autonomy_stack_ros_jazzy/zenoh_session.json5 # uncommnet on client 
 
 # Optional custom CycloneDDS configuration:
 #
