@@ -1,0 +1,38 @@
+running develop
+running egg_info
+creating waypoint_follower.egg-info
+writing waypoint_follower.egg-info/PKG-INFO
+writing dependency_links to waypoint_follower.egg-info/dependency_links.txt
+writing entry points to waypoint_follower.egg-info/entry_points.txt
+writing requirements to waypoint_follower.egg-info/requires.txt
+writing top-level names to waypoint_follower.egg-info/top_level.txt
+writing manifest file 'waypoint_follower.egg-info/SOURCES.txt'
+reading manifest file 'waypoint_follower.egg-info/SOURCES.txt'
+writing manifest file 'waypoint_follower.egg-info/SOURCES.txt'
+running build_ext
+Creating /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/python3.12/site-packages/waypoint-follower.egg-link (link to .)
+Installing ekf_comparison_plotter script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing gps_imu_ekf_localizer script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing mppi_waypoint script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing pure_pursuit_follower script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing trajectory_plotter script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing trajectory_record_plotter script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing trajectory_recorder script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing xarm_waypoint script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+Installing xarm_waypoint_joint script to /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/lib/waypoint_follower
+
+Installed /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower
+running symlink_data
+creating /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/ament_index
+creating /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/ament_index/resource_index
+creating /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/ament_index/resource_index/packages
+symbolically linking /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower/resource/waypoint_follower -> /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/ament_index/resource_index/packages
+symbolically linking /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower/package.xml -> /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower
+creating /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/config
+symbolically linking /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower/config/warthog_waypoint_follower.yaml -> /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/config
+creating /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/launch
+symbolically linking /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower/launch/follow_trajectory.launch.py -> /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/launch
+symbolically linking /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower/launch/gps_imu_localization.launch.py -> /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/launch
+symbolically linking /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower/launch/record_trajectory.launch.py -> /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/launch
+creating /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/trajectories
+symbolically linking /home/user/autonomy_stack_ros_jazzy/build/waypoint_follower/trajectories/.gitkeep -> /home/user/autonomy_stack_ros_jazzy/install/waypoint_follower/share/waypoint_follower/trajectories

@@ -1,0 +1,31 @@
+[0.745s] Invoking command in '/home/user/autonomy_stack_ros_jazzy/build/person_follower': AMENT_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${CMAKE_PREFIX_PATH} LD_LIBRARY_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/user/autonomy_stack_ros_jazzy/build/person_follower/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/user/autonomy_stack_ros_jazzy/install/person_follower/lib/python3.12/site-packages:/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/user/autonomy_stack_ros_jazzy/build/person_follower/build --no-deps symlink_data
+[0.893s] running develop
+[0.982s] running egg_info
+[0.982s] creating person_follower.egg-info
+[0.990s] writing person_follower.egg-info/PKG-INFO
+[0.990s] writing dependency_links to person_follower.egg-info/dependency_links.txt
+[0.990s] writing entry points to person_follower.egg-info/entry_points.txt
+[0.991s] writing requirements to person_follower.egg-info/requires.txt
+[0.991s] writing top-level names to person_follower.egg-info/top_level.txt
+[0.991s] writing manifest file 'person_follower.egg-info/SOURCES.txt'
+[1.007s] reading manifest file 'person_follower.egg-info/SOURCES.txt'
+[1.007s] writing manifest file 'person_follower.egg-info/SOURCES.txt'
+[1.016s] running build_ext
+[1.016s] Creating /home/user/autonomy_stack_ros_jazzy/install/person_follower/lib/python3.12/site-packages/person-follower.egg-link (link to .)
+[1.016s] Installing person_follower script to /home/user/autonomy_stack_ros_jazzy/install/person_follower/lib/person_follower
+[1.016s] Installing save_trajectory script to /home/user/autonomy_stack_ros_jazzy/install/person_follower/lib/person_follower
+[1.016s] Installing waypoint_follower script to /home/user/autonomy_stack_ros_jazzy/install/person_follower/lib/person_follower
+[1.016s] 
+[1.016s] Installed /home/user/autonomy_stack_ros_jazzy/build/person_follower
+[1.016s] running symlink_data
+[1.016s] creating /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/ament_index
+[1.017s] creating /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/ament_index/resource_index
+[1.017s] creating /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/ament_index/resource_index/packages
+[1.017s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/person_follower/resource/person_follower -> /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/ament_index/resource_index/packages
+[1.017s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/person_follower/package.xml -> /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/person_follower
+[1.017s] creating /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/person_follower/launch
+[1.017s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/person_follower/launch/run.launch.py -> /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/person_follower/launch
+[1.017s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/person_follower/launch/two_huskies_gz.launch.py -> /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/person_follower/launch
+[1.017s] creating /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/person_follower/config
+[1.017s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/person_follower/config/two_huskies_nav2.yaml -> /home/user/autonomy_stack_ros_jazzy/install/person_follower/share/person_follower/config
+[1.038s] Invoked command in '/home/user/autonomy_stack_ros_jazzy/build/person_follower' returned '0': AMENT_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${CMAKE_PREFIX_PATH} LD_LIBRARY_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/user/autonomy_stack_ros_jazzy/build/person_follower/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/user/autonomy_stack_ros_jazzy/install/person_follower/lib/python3.12/site-packages:/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/user/autonomy_stack_ros_jazzy/build/person_follower/build --no-deps symlink_data

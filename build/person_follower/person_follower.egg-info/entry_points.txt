@@ -1,0 +1,4 @@
+[console_scripts]
+person_follower = person_follower.nodes.person_follower:main
+save_trajectory = person_follower.nodes.save_trajectory:main
+waypoint_follower = person_follower.nodes.waypoint_follower:main

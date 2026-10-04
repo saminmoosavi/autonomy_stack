@@ -201,7 +201,48 @@ RUN python3 -m pip install \
     openai
 
 
-# LAP - use existing Ubuntu NumPy
+
+# ============================================================
+# NumPy compatibility with ROS 2 Jazzy cv_bridge
+# ============================================================
+RUN python3 -m pip install \
+    --break-system-packages \
+    --ignore-installed \
+    --no-cache-dir \
+    "numpy==1.26.4"
+
+# ============================================================
+# PyTorch - NVIDIA GB10
+# Match known-working Humble environment
+# ============================================================
+RUN python3 -m pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    "torch==2.13.0" \
+    torchvision \
+    torchaudio \
+    --index-url https://download.pytorch.org/whl/cu130
+
+# ============================================================
+# Ultralytics dependencies
+# ============================================================
+RUN python3 -m pip install \
+    --break-system-packages \
+    --no-cache-dir \
+    "numpy==1.26.4" \
+    pyyaml \
+    requests \
+    scipy \
+    pillow \
+    psutil \
+    py-cpuinfo \
+    tqdm \
+    seaborn
+
+
+# ============================================================
+# LAP
+# ============================================================
 RUN python3 -m pip install \
     --break-system-packages \
     --no-cache-dir \
@@ -212,26 +253,14 @@ RUN python3 -m pip install \
 # ============================================================
 # Ultralytics
 # ============================================================
-# Install dependencies separately, then install Ultralytics
-# without dependency resolution so pip does not replace NumPy.
-RUN python3 -m pip install \
-    --break-system-packages \
-    --ignore-installed \
-    --no-cache-dir \
-    pyyaml \
-    requests \
-    scipy \
-    pillow \
-    psutil \
-    py-cpuinfo \
-    tqdm \
-    seaborn
-
 RUN python3 -m pip install \
     --break-system-packages \
     --no-cache-dir \
     --no-deps \
     ultralytics
+
+
+
 RUN apt update && apt install ros-jazzy-rmw-zenoh-cpp
 RUN apt update && apt install -y ros-jazzy-urg-node
 # ============================================================

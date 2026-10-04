@@ -1,0 +1,29 @@
+[0.743s] Invoking command in '/home/user/autonomy_stack_ros_jazzy/build/yolo_ros': AMENT_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${CMAKE_PREFIX_PATH} LD_LIBRARY_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/user/autonomy_stack_ros_jazzy/build/yolo_ros/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/user/autonomy_stack_ros_jazzy/install/yolo_ros/lib/python3.12/site-packages:/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/user/autonomy_stack_ros_jazzy/build/yolo_ros/build --no-deps symlink_data
+[0.910s] running develop
+[0.991s] running egg_info
+[0.991s] creating yolo_ros.egg-info
+[0.998s] writing yolo_ros.egg-info/PKG-INFO
+[0.998s] writing dependency_links to yolo_ros.egg-info/dependency_links.txt
+[0.999s] writing entry points to yolo_ros.egg-info/entry_points.txt
+[0.999s] writing requirements to yolo_ros.egg-info/requires.txt
+[0.999s] writing top-level names to yolo_ros.egg-info/top_level.txt
+[0.999s] writing manifest file 'yolo_ros.egg-info/SOURCES.txt'
+[1.014s] reading manifest file 'yolo_ros.egg-info/SOURCES.txt'
+[1.015s] writing manifest file 'yolo_ros.egg-info/SOURCES.txt'
+[1.023s] running build_ext
+[1.023s] Creating /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/lib/python3.12/site-packages/yolo-ros.egg-link (link to .)
+[1.023s] Installing debug_node script to /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/lib/yolo_ros
+[1.023s] Installing detect_3d_node script to /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/lib/yolo_ros
+[1.023s] Installing tracking_node script to /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/lib/yolo_ros
+[1.023s] Installing yolo_node script to /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/lib/yolo_ros
+[1.023s] 
+[1.023s] Installed /home/user/autonomy_stack_ros_jazzy/build/yolo_ros
+[1.023s] yolo_ros: 'uv' not found, skipping runtime virtual environment management. Install the python dependencies in the system environment (e.g. via rosdep) and rebuild.
+[1.023s] running symlink_data
+[1.023s] creating /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/share/ament_index
+[1.023s] creating /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/share/ament_index/resource_index
+[1.023s] creating /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/share/ament_index/resource_index/packages
+[1.023s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/yolo_ros/resource/yolo_ros -> /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/share/ament_index/resource_index/packages
+[1.023s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/yolo_ros/package.xml -> /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/share/yolo_ros
+[1.023s] symbolically linking /home/user/autonomy_stack_ros_jazzy/build/yolo_ros/pyproject.toml -> /home/user/autonomy_stack_ros_jazzy/install/yolo_ros/share/yolo_ros
+[1.045s] Invoked command in '/home/user/autonomy_stack_ros_jazzy/build/yolo_ros' returned '0': AMENT_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${AMENT_PREFIX_PATH} CMAKE_PREFIX_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs:${CMAKE_PREFIX_PATH} LD_LIBRARY_PATH=/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib:${LD_LIBRARY_PATH} PYTHONPATH=/home/user/autonomy_stack_ros_jazzy/build/yolo_ros/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/home/user/autonomy_stack_ros_jazzy/install/yolo_ros/lib/python3.12/site-packages:/home/user/autonomy_stack_ros_jazzy/install/yolo_msgs/lib/python3.12/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py develop --editable --build-directory /home/user/autonomy_stack_ros_jazzy/build/yolo_ros/build --no-deps symlink_data

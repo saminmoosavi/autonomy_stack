@@ -1,0 +1,1 @@
+/home/user/autonomy_stack_ros_jazzy/build/yolo_msgs/rosidl_generator_rs/yolo_msgs/rust/src/srv.rs
