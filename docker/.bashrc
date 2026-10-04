@@ -92,9 +92,9 @@ fi
 # Uncomment to force CycloneDDS:
 #
 export RMW_IMPLEMENTATION=rmw_zenoh_cpp
-export ZENOH_SESSION_CONFIG_URI=~/autonomy_stack_ros_jazzy/zenoh_config.json5   # uncommnet on host and ros2 run rmw_zenoh_cpp rmw_zenohd
+#export ZENOH_SESSION_CONFIG_URI=~/autonomy_stack_ros_jazzy/zenoh_config.json5   # uncommnet on host and ros2 run rmw_zenoh_cpp rmw_zenohd
 #export ZENOH_SESSION_CONFIG_URI=~/autonomy_stack_ros_jazzy/zenoh_session.json5 # uncommnet on client 
-
+export ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.50.214:7447"]'
 # Optional custom CycloneDDS configuration:
 #
 # export CYCLONEDDS_URI=file:///home/user/autonomy_stack_ros_jazzy/docker/cyclonedds.xml
@@ -117,7 +117,7 @@ export ROS_LOCALHOST_ONLY=0
 # ============================================================
 
 # Your Clearpath systems commonly use Domain ID 5.
-export ROS_DOMAIN_ID=5
+export ROS_DOMAIN_ID=0
 
 
 # ============================================================
@@ -268,6 +268,7 @@ echo ""
 # Nav2 launch
 # ============================================================
 alias sim='ros2 launch clearpath_gz simulation.launch.py'
-alias nav2='ros2 launch clearpath_nav2_demos nav2.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
-alias slam='ros2 launch clearpath_nav2_demos slam.launch.py use_sim_time:=true setup_path:=/home/user/clearpath/'
-alias rviz='ros2 launch clearpath_viz view_navigation.launch.py namespace:=/a200_0000 use_sim_time:=true'
+alias nav2='ros2 launch clearpath_nav2_demos nav2.launch.py setup_path:=/home/user/jackal_setup/'
+alias slam='ros2 launch clearpath_nav2_demos slam.launch.py  setup_path:=/home/user/jackal_setup/'
+alias rviz='ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0612'
+alias yolo='ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/camera/camera_0/color/image_raw'

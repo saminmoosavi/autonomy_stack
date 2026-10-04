@@ -233,6 +233,7 @@ RUN python3 -m pip install \
     --no-deps \
     ultralytics
 RUN apt update && apt install ros-jazzy-rmw-zenoh-cpp
+RUN apt update && apt install -y ros-jazzy-urg-node
 # ============================================================
 # Install sudo
 # ============================================================
