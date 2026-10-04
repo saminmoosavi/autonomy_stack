@@ -19,3 +19,7 @@ __pycache__/
 evolve-stl-pddl/
 # IPC benchmark data for evolve-stl-pddl (github.com/aibasel/downward-benchmarks)
 downward-benchmarks/
+
+build/
+install/
+log/

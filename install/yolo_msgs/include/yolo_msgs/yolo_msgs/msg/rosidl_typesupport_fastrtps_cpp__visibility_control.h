@@ -1,1 +1,0 @@
-/home/user/autonomy_stack_ros_jazzy/build/yolo_msgs/rosidl_typesupport_fastrtps_cpp/yolo_msgs/msg/rosidl_typesupport_fastrtps_cpp__visibility_control.h

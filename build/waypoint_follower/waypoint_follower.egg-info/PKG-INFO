@@ -1,7 +1,0 @@
-Metadata-Version: 2.1
-Name: waypoint-follower
-Version: 0.0.1
-Summary: Trajectory recorder and pure pursuit waypoint follower for Clearpath Warthog.
-Maintainer: Samin Moosavi
-Maintainer-email: saminmoosavi@yahoo.com
-License: BSD-3-Clause
