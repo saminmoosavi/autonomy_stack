@@ -137,14 +137,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 
-# ============================================================
-# Intel RealSense
-# ============================================================
-RUN apt-get update && apt-get install -y \
-    ros-jazzy-realsense2-camera \
-    ros-jazzy-realsense2-description \
-    && rm -rf /var/lib/apt/lists/*
-
 
 # ============================================================
 # MoveIt 2
@@ -164,7 +156,24 @@ RUN apt-get update && apt-get install -y \
     libomp-dev \
     libboost-all-dev \
     && rm -rf /var/lib/apt/lists/*
-
+# ============================================================
+# Intel RealSense SDK
+# ============================================================
+RUN apt-get update && apt-get install -y \
+    software-properties-common \
+    lsb-release \
+    curl \
+    gnupg \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -sSf https://librealsense.realsenseai.com/Debian/librealsenseai.asc \
+       | gpg --dearmor > /etc/apt/keyrings/librealsenseai.gpg \
+    && echo "deb [signed-by=/etc/apt/keyrings/librealsenseai.gpg] https://librealsense.realsenseai.com/Debian/apt-repo $(lsb_release -cs) main" \
+       > /etc/apt/sources.list.d/librealsense.list \
+    && apt-get update \
+    && apt-get install -y \
+       librealsense2-utils \
+       librealsense2-dev \
+    && rm -rf /var/lib/apt/lists/*
 # ============================================================
 # Redis
 # ============================================================

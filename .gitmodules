@@ -1,3 +1,7 @@
 [submodule "src/detection_ros_pkgs/yolo_ros"]
 	path = src/detection_ros_pkgs/yolo_ros
 	url = https://github.com/mgonzs13/yolo_ros.git
+[submodule "src/sensor_ros_pkgs/realsense-ros"]
+	path = src/sensor_ros_pkgs/realsense-ros
+	url = https://github.com/IntelRealSense/realsense-ros.git
+	branch = ros2-master

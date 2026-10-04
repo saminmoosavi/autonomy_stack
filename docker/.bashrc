@@ -272,3 +272,4 @@ alias nav2='ros2 launch clearpath_nav2_demos nav2.launch.py setup_path:=/home/us
 alias slam='ros2 launch clearpath_nav2_demos slam.launch.py  setup_path:=/home/user/jackal_setup/'
 alias rviz='ros2 launch clearpath_viz view_navigation.launch.py namespace:=/j100_0612'
 alias yolo='ros2 launch yolo_bringup yolo-world.launch.py input_image_topic:=/camera/camera_0/color/image_raw'
+alias point='ros2 param set /camera/camera_0 pointcloud__neon_.enable true'
