@@ -94,7 +94,7 @@ fi
 export RMW_IMPLEMENTATION=rmw_zenoh_cpp
 #export ZENOH_SESSION_CONFIG_URI=~/autonomy_stack_ros_jazzy/zenoh_config.json5   # uncommnet on host and ros2 run rmw_zenoh_cpp rmw_zenohd
 #export ZENOH_SESSION_CONFIG_URI=~/autonomy_stack_ros_jazzy/zenoh_session.json5 # uncommnet on client 
-export ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.50.214:7447"]'
+export ZENOH_CONFIG_OVERRIDE='mode="client";connect/endpoints=["tcp/192.168.50.10:7447"]'
 # Optional custom CycloneDDS configuration:
 #
 # export CYCLONEDDS_URI=file:///home/user/autonomy_stack_ros_jazzy/docker/cyclonedds.xml
