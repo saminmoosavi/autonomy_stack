@@ -67,7 +67,7 @@ def segment_end(tasks) -> int | None:
     mission with no inspections: the behaviour that predates all of this.
     """
     for idx, task in enumerate(tasks or ()):
-        if (task or {}).get("kind") == "inspect":
+        if (task or {}).get("kind") in ("inspect", "report"):
             return idx
     return None
 

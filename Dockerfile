@@ -90,7 +90,9 @@ RUN apt-get update && apt-get install -y ros-humble-realsense2-*
 # CLIP: required by ultralytics YOLOWorld (yolo-world) for text prompts / set_classes.
 # Without it the yolo_node crashes with "ModuleNotFoundError: No module named 'clip'"
 # the moment classes are set, so camera-based person detection produces nothing.
-RUN pip install git+https://github.com/openai/CLIP.git
+# packaging must match the image's setuptools or CLIP's setup.py dies in
+# canonicalize_version(strip_trailing_zero=...).
+RUN pip install -U packaging && pip install git+https://github.com/openai/CLIP.git
 
 # Widen the simulated RealSense camera horizontal FOV (default 1.25 rad ~= 72 deg)
 # to 2.0 rad (~115 deg) so the robot sees people over a wider angle for
@@ -111,14 +113,8 @@ RUN sed -i -e "s/xy_goal_tolerance: 0.3/xy_goal_tolerance: 0.6/" \
 RUN pip install \
       scipy \
       pandas \
-      tensorflow \
-      tensorflow-datasets \
       torch \
       torchvision \
-      transformers \
-      datasets \
-      accelerate \
-      trl \
       drake==1.51.1 \
       git+https://github.com/vincekurtz/stlpy.git 
 
@@ -174,6 +170,27 @@ RUN cd ~/autonomy_stack_ros_humble && \
     
 RUN cd ~/autonomy_stack_ros_humble && rosdep install --from-paths src --ignore-src -r -y
 
+
+# The generated platform launch names the Madgwick node `imu_filter_node`, but
+# clearpath_control's imu_filter.yaml keys its parameters under
+# `imu_filter_madgwick`, so with the Sept-2026 packages none of them apply:
+# use_mag stays true and the filter waits forever for a magnetometer the sim
+# does not have. No sensors/imu_0/data -> the EKF's odom->base_link TF degrades,
+# AMCL's map->odom goes stale and Nav2 reports every goal "reached" at once.
+RUN sudo sed -i "s/^\\( *\\)imu_filter_madgwick:/\\1imu_filter_node:/" \
+    /opt/ros/humble/share/clearpath_control/config/imu_filter.yaml
+
+# tf2 0.25.23 (the 2026-09-07 sync) deadlocks: Buffer::waitForTransform and the
+# TransformListener thread take two tf2 mutexes in opposite orders (ros2/geometry2
+# #982, fixed in 0.25.24). AMCL, the Nav2 costmaps and anything else using a tf
+# MessageFilter then stop ingesting /tf for good -- "map does not exist",
+# "Transform data too old", goals "reached" instantly, a robot that never moves.
+# An image whose cached apt layer predates 0.25.24 must be upgraded explicitly.
+RUN sudo apt-get update && sudo apt-get install -y --only-upgrade \
+        ros-humble-tf2 ros-humble-tf2-ros ros-humble-tf2-ros-py ros-humble-tf2-py \
+        ros-humble-tf2-msgs ros-humble-tf2-geometry-msgs ros-humble-tf2-sensor-msgs \
+        ros-humble-tf2-eigen ros-humble-tf2-kdl ros-humble-tf2-tools ros-humble-geometry2 \
+    && sudo rm -rf /var/lib/apt/lists/*
 
 # Copy entrypoint
 COPY docker/entrypoint.sh /

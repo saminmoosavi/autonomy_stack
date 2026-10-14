@@ -228,7 +228,7 @@ def locate_object(records, class_name, min_score=DEFAULT_MIN_SCORE,
 def cluster_detections(records, classes=None, min_score=DEFAULT_MIN_SCORE,
                        min_hits=DEFAULT_MIN_HITS,
                        link_radius_m=DEFAULT_LINK_RADIUS_M, regions=None,
-                       snap_max_m=6.0):
+                       snap_max_m=6.0, max_range_m=None):
     """Group detections into ONE ENTRY PER PHYSICAL OBJECT, strongest first.
 
     :func:`locate_object` answers "which region holds a cone", which is all a
@@ -264,6 +264,12 @@ def cluster_detections(records, classes=None, min_score=DEFAULT_MIN_SCORE,
             continue
         score = float(obj.get("score") or 0.0)
         if score < min_score:
+            continue
+        # ``max_range_m`` drops detections made from further away than that.
+        # The map position is a depth projection, and at 5-9 m it smears along
+        # the line of sight by metres: a live run turned two cones into four,
+        # the extra two being the real ones seen from the far end of an aisle.
+        if max_range_m and float(obj.get("range_m") or 0.0) > max_range_m:
             continue
         xy = position_xy(obj)
         if xy is None:

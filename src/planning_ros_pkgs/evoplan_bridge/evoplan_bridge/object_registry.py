@@ -71,7 +71,8 @@ class InspectionTarget:
     """
 
     __slots__ = ("name", "class_name", "xy", "region", "hits", "mean_score",
-                 "inspected", "inspected_at", "first_seen_at")
+                 "inspected", "inspected_at", "first_seen_at",
+                 "reported", "reported_at")
 
     def __init__(self, name, class_name, xy, region, hits=0, mean_score=0.0,
                  first_seen_at=None):
@@ -84,6 +85,8 @@ class InspectionTarget:
         self.inspected = False
         self.inspected_at = None
         self.first_seen_at = first_seen_at
+        self.reported = False
+        self.reported_at = None
 
     def as_dict(self) -> dict:
         return {
@@ -95,6 +98,8 @@ class InspectionTarget:
             "mean_score": self.mean_score,
             "inspected": self.inspected,
             "inspected_at": self.inspected_at,
+            "reported": self.reported,
+            "reported_at": self.reported_at,
         }
 
     def as_instance(self) -> dict:
@@ -109,7 +114,8 @@ class InspectionTarget:
         truth the executor already knows.
         """
         return {"name": self.name, "region": self.region,
-                "class": self.class_name, "inspected": self.inspected}
+                "class": self.class_name, "inspected": self.inspected,
+                "reported": self.reported}
 
     def __repr__(self) -> str:  # pragma: no cover - diagnostics only
         state = "inspected" if self.inspected else "pending"
@@ -124,6 +130,9 @@ class ObjectRegistry:
         self.merge_radius_m = float(merge_radius_m)
         self._targets: dict[str, InspectionTarget] = {}
         self._minted: dict[str, int] = {}
+        #: True for an inspect-AND-REPORT mission: an object is then only done
+        #: once its finding has been handed over at a report station.
+        self.require_report = False
 
     # ------------------------------------------------------------------
     def update(self, clusters, now=None) -> list[InspectionTarget]:
@@ -193,12 +202,22 @@ class ObjectRegistry:
         target.inspected_at = at
         return True
 
+    def mark_reported(self, name, at=None) -> bool:
+        """Record that the finding was handed over. False if the name is unknown."""
+        target = self.get(name)
+        if target is None:
+            return False
+        target.reported = True
+        target.reported_at = at
+        return True
+
     def all(self) -> list[InspectionTarget]:
         return sorted(self._targets.values(), key=lambda t: t.name)
 
     def pending(self) -> list[InspectionTarget]:
         """Discovered but not yet inspected. Empty means the mission is done."""
-        return [t for t in self.all() if not t.inspected]
+        return [t for t in self.all()
+                if not t.inspected or (self.require_report and not t.reported)]
 
     def instances(self, pending_only: bool = False) -> list[dict]:
         """``inspect_objects`` payload for the replan request.
@@ -217,7 +236,8 @@ class ObjectRegistry:
         return {
             "total": len(targets),
             "inspected": sum(1 for t in targets if t.inspected),
-            "pending": [t.name for t in targets if not t.inspected],
+            "reported": sum(1 for t in targets if t.reported),
+            "pending": [t.name for t in self.pending()],
             "by_class": {
                 class_name: sum(1 for t in targets if t.class_name == class_name)
                 for class_name in sorted({t.class_name for t in targets})

@@ -270,6 +270,32 @@ class PpddlNav2StlSat(Node):
         self.mission_problem_file = self.declare_parameter(
             "mission_problem_file", "").value
         self.hold_on_replan = bool(self.declare_parameter("hold_on_replan", True).value)
+        # Yield: stop for a person who is close AND on the path ahead, instead
+        # of driving on while a costmap nudge and a re-sent goal take effect.
+        # See ``maybe_yield``.
+        self.enable_stl_yield = bool(self.declare_parameter("enable_stl_yield", True).value)
+        self.stl_yield_distance_m = float(self.declare_parameter("stl_yield_distance_m", 2.5).value)
+        self.stl_yield_path_margin_m = float(
+            self.declare_parameter("stl_yield_path_margin_m", 0.3).value)
+        self.stl_yield_clear_s = float(self.declare_parameter("stl_yield_clear_s", 1.0).value)
+        self.stl_yield_max_s = float(self.declare_parameter("stl_yield_max_s", 25.0).value)
+        # A person this close who simply stops being tracked has most likely
+        # left the cameras' view, not the robot's way: keep holding this long
+        # after the last sighting before calling the path clear.
+        self.stl_yield_lost_track_m = float(
+            self.declare_parameter("stl_yield_lost_track_m", 1.5).value)
+        self.stl_yield_lost_track_s = float(
+            self.declare_parameter("stl_yield_lost_track_s", 10.0).value)
+        self._yield_last_seen = None
+        self.stl_yield_cooldown_s = float(self.declare_parameter("stl_yield_cooldown_s", 3.0).value)
+        self.yield_active = False
+        self.yield_timer = None
+        self._yield_path = None
+        self._yield_started = None
+        self._yield_clear_since = None
+        self._yield_ended = None
+        self._yield_resume_idx = 0
+        self.yield_count = 0
         # Distance to the target region within which the mission counts as
         # arrived: escalation stops and the trial may terminate.
         self.goal_arrival_radius_m = float(
@@ -520,6 +546,45 @@ class PpddlNav2StlSat(Node):
         self.last_monitor_signature = None
         self.sent_goal = False
         self.active_goal_handle = None
+        #: Goal handles this node replaced or cancelled itself. Their results
+        #: still arrive (FollowWaypoints reports a preempted goal as ABORTED) and
+        #: must not be read as a navigation failure. See ``result_callback``.
+        self._superseded_goal_handles = []
+        #: A goal whose cancel is still in flight, and the route waiting for it.
+        #: See ``send_waypoints``.
+        self._cancelling_goal_handle = None
+        self._deferred_waypoints = None
+        self._deferred_send_timer = None
+        self.report_station = None
+        self.replan_on_discovery = False
+        self._discovery_replan_due = False
+        # Detections from further than this do not count as evidence of an
+        # object to inspect (0 disables); see cluster_detections.
+        self.inspect_max_range_m = float(
+            self.declare_parameter("inspect_max_range_m", 2.5).value)
+        self.report_dwell_s = float(self.declare_parameter("report_dwell_s", 2.0).value)
+        self.cancel_settle_timeout_s = float(
+            self.declare_parameter("cancel_settle_timeout_s", 2.0).value)
+        self.cancel_downstream_settle_s = float(
+            self.declare_parameter("cancel_downstream_settle_s", 0.5).value)
+        # Guard against Nav2 "succeeding" without driving. See
+        # ``spurious_success``.
+        self.spurious_success_radius_m = float(
+            self.declare_parameter("spurious_success_radius_m", 2.0).value)
+        self.spurious_success_retry_s = float(
+            self.declare_parameter("spurious_success_retry_s", 3.0).value)
+        self.spurious_success_max_retries = int(
+            self.declare_parameter("spurious_success_max_retries", 10).value)
+        self._spurious_retries = 0
+        self._spurious_retry_timer = None
+        # Waypoints Nav2 moved on from without reaching. See ``feedback_callback``.
+        self.skipped_waypoint_max_retries = int(
+            self.declare_parameter("skipped_waypoint_max_retries", 3).value)
+        self.skipped_waypoint_retry_s = float(
+            self.declare_parameter("skipped_waypoint_retry_s", 2.0).value)
+        self._skipped_floor = None
+        self._skip_retry_counts = {}
+        self._skip_retry_timer = None
         self.replan_in_progress = False
         self.nav2_replan_count = 0
         self.last_stl_replan_time = None
@@ -1455,12 +1520,14 @@ class PpddlNav2StlSat(Node):
         """
         if self.inspect_phase in ("disabled", "done"):
             return
+        self.maybe_replan_for_discovery()
         try:
             records = load_observations(self.find_object_obs_log)
             clusters = cluster_detections(
                 records, classes=self.inspect_object_classes,
                 min_score=self.inspect_min_score, min_hits=self.inspect_min_hits,
-                link_radius_m=self.inspect_cluster_radius_m, regions=self.regions)
+                link_radius_m=self.inspect_cluster_radius_m, regions=self.regions,
+                max_range_m=self.inspect_max_range_m)
         except Exception as exc:  # noqa: BLE001 - a bad log line must not stop the drive
             self.get_logger().warn(f"inspection watch failed to read observations: {exc}")
             return
@@ -1494,6 +1561,45 @@ class PpddlNav2StlSat(Node):
                 "visited_regions": sorted(self.mission_visited_regions),
                 "inspect_objects": self.object_registry.instances(),
             })
+        # "; replan-on-discovery: true" in the plan file: do not wait for the
+        # plan to run out. The problem's goal keeps every (visited ...) conjunct,
+        # so the plan that comes back still finishes the sweep -- it just takes
+        # the new object in on the way instead of coming back for it. Skipped
+        # mid-dwell (the hold would be abandoned) and while a replan is already
+        # in flight; begin_inspection_round picks those up when the plan ends.
+        if self.replan_on_discovery:
+            self._discovery_replan_due = True
+            self.maybe_replan_for_discovery()
+
+    def maybe_replan_for_discovery(self):
+        """Ask for the plan that takes in a newly found object, once it is safe to.
+
+        "Safe" is about the state the planner is handed, not about the robot.
+        The request says which moves were executed, and the service derives
+        (visited ...) from them; mid-leg the robot's nearest region has often
+        flipped to the one it is driving toward while that move still counts as
+        unexecuted, and a plan made from "at r2, r2 not visited" spends a hop
+        leaving r2 and coming back. So the replan waits -- a few seconds at
+        most -- until the robot stands in the region its last finished move
+        ended in.
+        """
+        if not self._discovery_replan_due:
+            return
+        if not self.object_registry or not self.object_registry.pending():
+            self._discovery_replan_due = False
+            return
+        if self._dwell is not None or self.symbolic.state != symbolic_replan.IDLE:
+            return
+        route = self.route_actions or []
+        done = (self._last_feedback_waypoint or 0) + self._waypoints_offset
+        last = route[done - 1] if 0 < done <= len(route) else None
+        if last is None or not last.args or last.args[-1].lower() != self.current_region:
+            return
+        self._discovery_replan_due = False
+        self.get_logger().warn(
+            "[INSPECTION] replanning now for the object(s) just found: "
+            + ", ".join(t.name for t in self.object_registry.pending()))
+        self.begin_inspection_round()
 
     def begin_inspection_round(self):
         """Plan the next batch of inspections. True if a replan is in flight.
@@ -1788,7 +1894,13 @@ class PpddlNav2StlSat(Node):
 
     def build_replan_request(self, trigger, detail):
         """Assemble the JSON request for the host service."""
-        executed_idx = (self._last_feedback_waypoint or 0) + self._waypoints_offset
+        local_idx = self._last_feedback_waypoint or 0
+        if self._skipped_floor is not None:
+            # Nav2 skipped a waypoint that is about to be re-sent; counting it
+            # as executed would hand the planner a state where its region is
+            # already visited and the replan would drop it for good.
+            local_idx = min(local_idx, self._skipped_floor)
+        executed_idx = local_idx + self._waypoints_offset
         # The route's own actions, in route order, so the split is between what
         # the robot HAS driven and what it has not. Indexing a filtered list of
         # moves was equivalent only while moves were the sole lowered action;
@@ -1818,6 +1930,7 @@ class PpddlNav2StlSat(Node):
                 f"(inspect-object {self.robot_name} {target.name} {target.region})"
                 for target in (self.object_registry.pending()
                                if self.object_registry else [])
+                if not target.inspected
             ]
         return {
             "mission_id": self.mission_id,
@@ -2145,6 +2258,10 @@ class PpddlNav2StlSat(Node):
         two cannot drift on the ``_waypoints_offset`` arithmetic.
         """
         start = max(0, int(start_idx or 0))
+        if self._skipped_floor is not None:
+            # Nav2 advanced past a waypoint it never reached; do not let the
+            # resume index drop it from the route.
+            start = min(start, self._skipped_floor)
         if start >= len(self.active_waypoints or []):
             start = 0                      # keep the whole route, as before
         remaining = self.slice_route(start)
@@ -2200,6 +2317,18 @@ class PpddlNav2StlSat(Node):
             "hold_started_sim_s": None,
             "face_warned": False,
         }
+        if task.get("kind") == "report":
+            self.get_logger().info(
+                f"[REPORTING] {task.get('object')} at station {task.get('region')}: "
+                f"holding {self.report_dwell_s:.1f} s")
+            self.record_json_event("report_started", {
+                "object": task.get("object"), "class": task.get("class"),
+                "station": task.get("region"), "dwell_s": self.report_dwell_s})
+            if self._dwell_timer is None:
+                self._dwell_timer = self.create_timer(0.1, self.inspect_dwell_tick)
+            else:
+                self._dwell_timer.reset()
+            return
         self.get_logger().info(
             f"[INSPECTING] {task.get('object')} at {task.get('region')}: "
             f"holding {self.inspect_dwell_s:.1f} s facing "
@@ -2236,7 +2365,8 @@ class PpddlNav2StlSat(Node):
         # directly rather than through publish_hold_stop, which is gated on the
         # replan hold state and would do nothing here.
         self.cmd_vel_pub.publish(Twist())
-        if now - self._dwell["hold_started_sim_s"] < self.inspect_dwell_s:
+        dwell_s = self.report_dwell_s if task.get("kind") == "report" else self.inspect_dwell_s
+        if now - self._dwell["hold_started_sim_s"] < dwell_s:
             return
         self.finish_inspect_dwell()
 
@@ -2291,6 +2421,27 @@ class PpddlNav2StlSat(Node):
         held_s = self.sim_time_now() - (dwell["hold_started_sim_s"] or dwell["started_sim_s"])
         self.cancel_inspect_dwell(None)
         name = task.get("object")
+        if task.get("kind") == "report":
+            target = self.object_registry.get(name) if self.object_registry else None
+            if target is not None:
+                self.object_registry.mark_reported(name, at=self.sim_time_now())
+            self.get_logger().warn(
+                f"[REPORTED] {name} ({task.get('class') or 'unknown class'}) at station "
+                f"{task.get('region')}: found in "
+                f"{target.region if target is not None else 'an unknown region'}; "
+                f"{len(self.object_registry.pending()) if self.object_registry else 0} left"
+            )
+            self.record_json_event("report_completed", {
+                "object": name,
+                "class": task.get("class"),
+                "station": task.get("region"),
+                "found_in_region": target.region if target is not None else None,
+                "object_xy": list(target.xy) if target is not None else None,
+                "inspected_at": target.inspected_at if target is not None else None,
+                "registry": self.object_registry.summary() if self.object_registry else None,
+            })
+            self.advance_route()
+            return
         if self.object_registry is not None and name:
             self.object_registry.mark_inspected(name, at=self.sim_time_now())
         self.get_logger().warn(
@@ -2526,6 +2677,8 @@ class PpddlNav2StlSat(Node):
             "deliberation_s_wall": self.symbolic.deliberation_wall_s,
             "held_s": self.symbolic.held_sim_s,
             "shield_vetoes": self.shield_veto_count,
+            "yields": self.yield_count,
+            "yielding": self.yield_active,
             "blocked_regions": sorted(self.symbolic.blocked_regions),
             # scand_metrics gates success on this instead of position alone.
             "mission_complete": self.mission_complete,
@@ -2626,6 +2779,24 @@ class PpddlNav2StlSat(Node):
                 a.args[-1].lower() for a in plan_report["plan_actions"]
                 if a.name.startswith("move")
             ]
+            # A plan file may say which regions the mission's GOAL names, as
+            # "; required-regions: r1 r3 r5". Regions the nominal route merely
+            # passes through are then not required, so a replan that routes
+            # around one of them can still complete the mission.
+            declared = self.declared_required_regions()
+            if declared:
+                self.mission_required_regions = declared
+            # "; report-station: r5" makes this an inspect-AND-REPORT mission:
+            # an object is done once it has been inspected and its finding
+            # handed over at the station (report-object in the domain).
+            self.replan_on_discovery = (
+                self.plan_file_directive("replan-on-discovery")[:1] == ["true"])
+            stations = self.plan_file_directive("report-station")
+            self.report_station = stations[0] if stations else None
+            if self.report_station and self.object_registry is not None:
+                self.object_registry.require_report = True
+                self.get_logger().info(
+                    f"Inspect-and-report mission: findings are reported at {self.report_station}")
             self.get_logger().info(
                 f"Mission requires visiting {len(set(self.mission_required_regions))} "
                 f"distinct regions across {len(self.mission_required_regions)} moves"
@@ -2686,6 +2857,12 @@ class PpddlNav2StlSat(Node):
             if target.region in self.regions:
                 objects[target.name] = "target"
                 facts.add(("object-at", target.name, target.region))
+                # report-object requires the inspection, so work already done
+                # has to be in the state a later round's plan is checked against
+                if target.inspected:
+                    facts.add(("inspected-object", target.name))
+        if self.report_station and self.report_station in self.regions:
+            facts.add(("report-station", self.report_station))
 
         return ProblemState(
             objects=objects,
@@ -2765,6 +2942,22 @@ class PpddlNav2StlSat(Node):
             },
         )
         return {"ok": False, "history": history}
+
+    def plan_file_directive(self, key):
+        """Values of a "; <key>: a b c" comment in the plan file, lower-cased."""
+        try:
+            lines = Path(str(self.plan_file)).read_text().splitlines()
+        except OSError:
+            return []
+        for line in lines:
+            body = line.strip().lstrip(";").strip()
+            if body.lower().startswith(key + ":"):
+                return [r.lower() for r in body.split(":", 1)[1].replace(",", " ").split()]
+        return []
+
+    def declared_required_regions(self):
+        """Regions named by a "; required-regions: ..." comment in the plan file."""
+        return self.plan_file_directive("required-regions")
 
     def load_pddl_plan_from_file(self):
         self.get_logger().info(f"Loading PDDL plan from {self.plan_file}")
@@ -2908,6 +3101,23 @@ class PpddlNav2StlSat(Node):
                 # a plan that drives the route and does none of the work.
                 waypoints.append(task["xy"])
                 tasks.append(dict(task, kind="inspect", action=action))
+                continue
+            if name == "report-object":
+                # (report-object ?r ?t ?l): stand at the station and hand over
+                # what was found. A waypoint of its own even when the previous
+                # move already ended there, so the route has a step to stop on.
+                station = action.args[-1].lower() if action.args else ""
+                if station not in self.regions:
+                    self.get_logger().warn(
+                        f"Skipping report-object with unknown station '{station}': {action.text()}")
+                    continue
+                obj = action.args[1].lower() if len(action.args) >= 2 else ""
+                target = self.object_registry.get(obj) if self.object_registry else None
+                waypoints.append(self.regions[station])
+                tasks.append({"kind": "report", "action": action, "object": obj,
+                              "class": target.class_name if target is not None else None,
+                              "region": station, "xy": self.regions[station],
+                              "object_xy": None, "yaw": None})
                 continue
             if not name.startswith("move") or len(action.args) < 3:
                 continue
@@ -3193,7 +3403,133 @@ class PpddlNav2StlSat(Node):
             for pose in msg.poses
         ]
 
+    def yield_blocker(self, path_points):
+        """The nearest tracked person who is both close and on the path, or None.
+
+        "On the path" is the monitor's own clearance plus a small margin, so the
+        robot starts yielding just before the STL clause is violated rather than
+        just after; "close" keeps a person 10 m down the aisle from stopping it.
+        """
+        if self.current_xy is None or len(path_points) < 2:
+            return None
+        best = None
+        for obstacle in self.build_tracked_obstacles():
+            if obstacle.obstacle_type != "human":
+                continue
+            to_robot = math.hypot(obstacle.xy[0] - self.current_xy[0],
+                                  obstacle.xy[1] - self.current_xy[1])
+            if to_robot > self.stl_yield_distance_m:
+                continue
+            to_path = self.distance_to_polyline(obstacle.xy, path_points)
+            if to_path > obstacle.clearance + self.stl_yield_path_margin_m:
+                continue
+            if best is None or to_robot < best[1]:
+                best = (obstacle, to_robot, to_path)
+        return best
+
+    def maybe_yield(self):
+        """Stop for a nearby person on the path. True while the robot is yielding.
+
+        The Tier-1 response to a clearance violation is a 0.3 m costmap disc and
+        a re-sent goal, at most once per cooldown, and none of it slows the
+        robot: by the time the new path takes effect it has closed another
+        couple of metres, and against someone crossing its path it drives
+        straight at them (0.32 m minimum clearance in an otherwise successful
+        run). Stopping is immediate and is what a person expects; the reactive
+        and symbolic replans remain for people who are in the way but not yet
+        close, and for anyone who is still there when the yield times out.
+        """
+        if not self.enable_stl_yield:
+            return False
+        if self.yield_active:
+            return True
+        if self.symbolic.state != symbolic_replan.IDLE or self.last_nav2_path is None:
+            return False
+        now = self.get_clock().now()
+        if self._yield_ended is not None:
+            if (now - self._yield_ended).nanoseconds / 1e9 < self.stl_yield_cooldown_s:
+                return False
+        path_points = self.path_msg_to_xy(self.last_nav2_path)
+        blocker = self.yield_blocker(path_points)
+        if blocker is None:
+            return False
+        obstacle, to_robot, to_path = blocker
+        self.yield_active = True
+        self.yield_count += 1
+        self._yield_path = path_points
+        self._yield_started = now
+        self._yield_clear_since = None
+        self._yield_last_seen = (now, to_robot)
+        self._yield_resume_idx = self._last_feedback_waypoint or 0
+        self.get_logger().warn(
+            f"Yielding to {obstacle.name}: {to_robot:.2f} m from the robot, "
+            f"{to_path:.2f} m from the path (clearance {obstacle.clearance:.2f} m)"
+        )
+        self.record_json_event("stl_yield_started", {
+            "obstacle": obstacle.name, "distance_to_robot_m": to_robot,
+            "distance_to_path_m": to_path, "clearance_m": obstacle.clearance,
+            "location": {"x": obstacle.xy[0], "y": obstacle.xy[1]},
+        })
+        self.cancel_active_nav2_goal()
+        self.yield_timer = self.create_timer(0.1, self.yield_tick)
+        return True
+
+    def yield_tick(self):
+        """Hold still; resume once the path has stayed clear, or on timeout."""
+        if not self.yield_active:
+            return
+        if self.symbolic.state != symbolic_replan.IDLE:
+            self.end_yield("a symbolic replan took over", resume=False)
+            return
+        self.cmd_vel_pub.publish(Twist())
+        now = self.get_clock().now()
+        blocker = self.yield_blocker(self._yield_path)
+        if blocker is not None:
+            self._yield_clear_since = None
+            self._yield_last_seen = (now, blocker[1])
+        elif self._yield_clear_since is None:
+            self._yield_clear_since = now
+        held_s = (now - self._yield_started).nanoseconds / 1e9
+        if self._yield_clear_since is not None:
+            clear_s = (now - self._yield_clear_since).nanoseconds / 1e9
+            seen_at, seen_m = self._yield_last_seen
+            # Last seen right next to the robot, then nothing: that is a lost
+            # track, not a departure. Resuming here drove into the person 2.5 s
+            # later (0.27 m) in the first trial of this behaviour.
+            # (Someone still tracked nearby but off the path is evidence of the
+            # opposite -- perception can see the area and the way is open.)
+            still_tracked_nearby = self.current_xy is not None and any(
+                math.hypot(o.xy[0] - self.current_xy[0], o.xy[1] - self.current_xy[1])
+                <= self.stl_yield_distance_m
+                for o in self.build_tracked_obstacles() if o.obstacle_type == "human")
+            vanished_close = (seen_m <= self.stl_yield_lost_track_m
+                              and not still_tracked_nearby
+                              and (now - seen_at).nanoseconds / 1e9 < self.stl_yield_lost_track_s)
+            if clear_s >= self.stl_yield_clear_s and not vanished_close:
+                self.end_yield("the path is clear", resume=True)
+                return
+        if held_s >= self.stl_yield_max_s:
+            self.end_yield("the person did not move on", resume=True)
+
+    def end_yield(self, reason, resume):
+        now = self.get_clock().now()
+        held_s = (now - self._yield_started).nanoseconds / 1e9 if self._yield_started else 0.0
+        if self.yield_timer is not None:
+            self.yield_timer.cancel()
+            self.yield_timer = None
+        self.yield_active = False
+        self._yield_ended = now
+        self.get_logger().info(f"Yield ended after {held_s:.1f} s: {reason}")
+        self.record_json_event("stl_yield_ended", {"held_s": held_s, "reason": reason})
+        if resume and self.active_waypoints:
+            # The old path is stale; make the monitor wait for Nav2's new one.
+            self.last_monitor_signature = None
+            self.last_nav2_path = None
+            self.resend_waypoint_suffix(self._yield_resume_idx)
+
     def refine_pddl_plan_from_monitor(self, plan_report, monitor_result):
+        if self.maybe_yield():
+            return plan_report
         if monitor_result.satisfied:
             self.clear_costmap_edit_if_active("STL monitor is satisfied")
             return plan_report
@@ -3648,6 +3984,21 @@ class PpddlNav2StlSat(Node):
     def send_waypoints(self, waypoints):
         # New route: the robot has something to drive again.
         self._plan_finished_sim_s = None
+        self._skipped_floor = None      # indices below refer to the old goal
+        # A cancel is still in flight: wait for that goal to finish first.
+        # waypoint_follower accepts a FollowWaypoints goal that arrives while it
+        # is cancelling the previous one and then never drives it -- no "Begin
+        # navigating", no result, and every later goal is swallowed the same
+        # way, so the robot sits still until the trial times out. (A new goal
+        # over a goal that is merely ACTIVE is fine; that is a preemption.)
+        if self._cancelling_goal_handle is not None:
+            self._deferred_waypoints = list(waypoints)
+            if self._deferred_send_timer is None:
+                self._deferred_send_timer = self.create_timer(
+                    self.cancel_settle_timeout_s, self.flush_deferred_waypoints)
+            return
+        # Whatever Nav2 is still driving is about to be preempted by this goal.
+        self.supersede_active_goal()
         # Only as far as the next inspection, if there is one before the end.
         # Callers hand over the whole remaining route and do not need to know
         # this happened -- `result_callback` drives the rest.
@@ -3702,11 +4053,80 @@ class PpddlNav2StlSat(Node):
         self.get_logger().info("Nav2 waypoint goal accepted")
         self.record_json_event("nav2_goal_accepted")
         result_future = goal_handle.get_result_async()
-        result_future.add_done_callback(self.result_callback)
+        result_future.add_done_callback(
+            lambda future, handle=goal_handle: self.result_callback(future, handle)
+        )
+
+    def spurious_success(self):
+        """Re-send the goal when Nav2 reports success far from where it ends.
+
+        While the detectors load, AMCL's ``map -> odom`` can stall for a few
+        seconds. Nav2's controller then cannot transform the goal ("Transform
+        data too old when converting from map to odom") and its goal checker
+        answers "Reached the goal!" for EVERY waypoint within a tick: the whole
+        plan "completes" in five seconds with the robot parked at the spawn
+        point, and the run ends plan-exhausted having driven 0 m. A success is
+        only believed if the robot is actually near the end of the segment it
+        was sent; otherwise the same segment goes out again once localisation
+        has had a moment to recover.
+        """
+        segment = self._pending_waypoints or []
+        if not segment or self.current_xy is None:
+            return False
+        end_x, end_y = segment[-1]
+        off_m = math.hypot(end_x - self.current_xy[0], end_y - self.current_xy[1])
+        if off_m <= self.spurious_success_radius_m:
+            self._spurious_retries = 0
+            return False
+        if self._spurious_retries >= self.spurious_success_max_retries:
+            self.get_logger().error(
+                f"Nav2 reported success {off_m:.1f} m from the segment end "
+                f"{self._spurious_retries} times; accepting it"
+            )
+            return False
+        self._spurious_retries += 1
+        self.get_logger().warn(
+            f"Nav2 reported success but the robot is {off_m:.1f} m from the segment end; "
+            f"re-sending in {self.spurious_success_retry_s:.1f}s "
+            f"({self._spurious_retries}/{self.spurious_success_max_retries})"
+        )
+        self.record_json_event("nav2_spurious_success", {
+            "distance_to_segment_end_m": off_m, "attempt": self._spurious_retries})
+        self._spurious_retry_timer = self.create_timer(
+            self.spurious_success_retry_s, self.resend_after_spurious_success)
+        return True
+
+    def resend_after_spurious_success(self):
+        if self._spurious_retry_timer is not None:
+            self._spurious_retry_timer.cancel()
+            self._spurious_retry_timer = None
+        if self.active_goal_handle is not None or self._pending_waypoints is None:
+            return          # a replan already put a goal through
+        # The phantom pass walked the waypoint counter to the end of the segment.
+        self._last_feedback_waypoint = None
+        self.send_waypoints(self._pending_waypoints)
+
+    def supersede_active_goal(self):
+        """Mark the goal Nav2 currently holds as one this node gave up on purpose."""
+        handle = self.active_goal_handle
+        if handle is not None and not any(handle is h for h in self._superseded_goal_handles):
+            self._superseded_goal_handles.append(handle)
+
+    def flush_deferred_waypoints(self):
+        """Send the route that was waiting on a cancel (or on its timeout)."""
+        if self._deferred_send_timer is not None:
+            self._deferred_send_timer.cancel()
+            self._deferred_send_timer = None
+        self._cancelling_goal_handle = None
+        waypoints, self._deferred_waypoints = self._deferred_waypoints, None
+        if waypoints is not None:
+            self.send_waypoints(waypoints)
 
     def cancel_active_nav2_goal(self):
         if self.active_goal_handle is None:
             return
+        self.supersede_active_goal()
+        self._cancelling_goal_handle = self.active_goal_handle
         self.get_logger().info("Canceling active Nav2 waypoint goal before STL feedback replan")
         self.record_json_event("nav2_goal_cancel_requested")
         cancel_future = self.active_goal_handle.cancel_goal_async()
@@ -3729,6 +4149,9 @@ class PpddlNav2StlSat(Node):
         idx = feedback_msg.feedback.current_waypoint
         if self._last_feedback_waypoint is not None and idx > self._last_feedback_waypoint:
             completed = idx - 1
+            if self.waypoint_was_skipped(completed):
+                self._last_feedback_waypoint = idx
+                return
             # Against the route, so the count is over everything the robot was
             # asked to do rather than over its moves alone -- an inspection is a
             # step, and one that takes five seconds of standing still is
@@ -3743,10 +4166,96 @@ class PpddlNav2StlSat(Node):
                 )
         self._last_feedback_waypoint = idx
 
-    def result_callback(self, future):
+    def waypoint_was_skipped(self, completed):
+        """True if Nav2 moved on from waypoint ``completed`` without reaching it.
+
+        waypoint_follower runs with ``stop_on_failure: false``: when navigation
+        to a waypoint fails (typically because a person, or the costmap disc
+        drawn around one, sits on the goal) it silently advances to the next.
+        The feedback index then looks exactly like progress, every later resume
+        starts past the skipped waypoint, and the mission ends "plan exhausted,
+        r1 never visited" with 100 % route progress. Checking the robot's actual
+        distance tells the two apart; a skipped waypoint is re-sent a bounded
+        number of times before the skip is accepted.
+        """
+        segment = self._pending_waypoints or []
+        if self.current_xy is None or not 0 <= completed < len(segment):
+            return False
+        x, y = segment[completed]
+        off_m = math.hypot(x - self.current_xy[0], y - self.current_xy[1])
+        if off_m <= self.region_visit_radius_m:
+            return False
+        key = (round(x, 2), round(y, 2))
+        tries = self._skip_retry_counts.get(key, 0)
+        self.record_json_event("nav2_waypoint_skipped", {
+            "waypoint": {"x": x, "y": y}, "distance_m": off_m, "retries_so_far": tries})
+        if tries >= self.skipped_waypoint_max_retries:
+            self.get_logger().error(
+                f"Nav2 skipped waypoint ({x:.2f}, {y:.2f}) again ({off_m:.1f} m away); "
+                f"giving up on it after {tries} retries"
+            )
+            return False
+        self._skip_retry_counts[key] = tries + 1
+        if self._skipped_floor is None or completed < self._skipped_floor:
+            self._skipped_floor = completed
+        self.get_logger().warn(
+            f"Nav2 moved on from waypoint ({x:.2f}, {y:.2f}) while {off_m:.1f} m away; "
+            f"re-sending it in {self.skipped_waypoint_retry_s:.1f}s "
+            f"({tries + 1}/{self.skipped_waypoint_max_retries})"
+        )
+        if self._skip_retry_timer is None:
+            self._skip_retry_timer = self.create_timer(
+                self.skipped_waypoint_retry_s, self.resend_skipped_waypoint)
+        return True
+
+    def resend_skipped_waypoint(self):
+        if self._skip_retry_timer is not None:
+            self._skip_retry_timer.cancel()
+            self._skip_retry_timer = None
+        if self._skipped_floor is None:
+            return          # a replan or a yield already re-sent the route
+        if self.yield_active or self.symbolic.state != symbolic_replan.IDLE:
+            return          # whoever holds the robot resumes via resend_waypoint_suffix
+        self.resend_waypoint_suffix(self._skipped_floor)
+
+    def result_callback(self, future, goal_handle=None):
         outcome = future.result()
         status = getattr(outcome, "status", GoalStatus.STATUS_SUCCEEDED)
         result = outcome.result
+
+        # A result for a goal this node replaced or cancelled, or for any goal
+        # other than the live one. Every replan sends a new FollowWaypoints goal
+        # over the old one, and the old one then finishes ABORTED (preempted) --
+        # typically AFTER the new goal was accepted. Handling that here cleared
+        # the live goal's handle and escalated a "Nav2 abort" that never
+        # happened: one symbolic replan per reactive replan, then [NO ROUTE] and
+        # a plan-exhausted failure while the robot was still driving.
+        superseded = any(goal_handle is h for h in self._superseded_goal_handles)
+        stale = (goal_handle is not None and self.active_goal_handle is not None
+                 and goal_handle is not self.active_goal_handle)
+        if goal_handle is not None and (superseded or stale):
+            self._superseded_goal_handles = [
+                h for h in self._superseded_goal_handles if h is not goal_handle
+            ]
+            if self.active_goal_handle is goal_handle:
+                self.active_goal_handle = None
+            self.get_logger().info(
+                f"Ignoring result (status {int(status)}) of a Nav2 goal this node superseded"
+            )
+            self.record_json_event("nav2_goal_superseded", {"status": int(status)})
+            if goal_handle is self._cancelling_goal_handle:
+                # waypoint_follower reports CANCELED before bt_navigator has
+                # finished cancelling its NavigateToPose. A goal sent in that
+                # gap has its first waypoint fail ("Failed to process waypoint
+                # 0, moving to next") or is never driven at all, so give the
+                # inner cancel a moment before the deferred route goes out.
+                if self._deferred_send_timer is not None:
+                    self._deferred_send_timer.cancel()
+                self._deferred_send_timer = self.create_timer(
+                    self.cancel_downstream_settle_s, self.flush_deferred_waypoints)
+            return
+        if goal_handle is not None and goal_handle is self._cancelling_goal_handle:
+            self._cancelling_goal_handle = None
         self.active_goal_handle = None
 
         if status == GoalStatus.STATUS_CANCELED:
@@ -3787,6 +4296,9 @@ class PpddlNav2StlSat(Node):
                 f"replan could be escalated")
             return
 
+        if self.spurious_success():
+            return
+
         missed = list(getattr(result, "missed_waypoints", []) or [])
         if missed:
             self.get_logger().warn(f"Missed waypoints: {missed}")
@@ -3799,7 +4311,7 @@ class PpddlNav2StlSat(Node):
         # has arrived at the thing to look at. Dwell, then drive the rest.
         arrived = (self.waypoint_tasks[self._segment_len - 1]
                    if 0 < self._segment_len <= len(self.waypoint_tasks) else None)
-        if (arrived or {}).get("kind") == "inspect":
+        if (arrived or {}).get("kind") in ("inspect", "report"):
             self.begin_inspect_dwell(arrived)
             return
         if self._segment_len and self._segment_len < len(self.active_waypoints or []):

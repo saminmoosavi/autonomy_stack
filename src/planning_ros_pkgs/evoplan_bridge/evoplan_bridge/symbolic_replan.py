@@ -217,7 +217,7 @@ def build_reason_text(trigger: str, detail: dict) -> str:
 #: the object plus a stationary dwell. ``pickup-box``, ``dropoff-box``,
 #: ``inspect-shelf`` and ``approach`` still have no executor -- ``approach`` by
 #: design, since the moves that reach the object are the whole of its content.
-EXECUTABLE_ACTION_PREFIXES = ("move", "inspect-object")
+EXECUTABLE_ACTION_PREFIXES = ("move", "inspect-object", "report-object")
 
 
 def filter_executable_actions(actions, executable_prefix=EXECUTABLE_ACTION_PREFIXES):

@@ -1,0 +1,13 @@
+; Plan for pipeline/missions/factory_reroute_01.pddl, as produced by Fast
+; Downward (astar(lmcut()), cost 5): visit R1 and R3 and return to the hub,
+; reaching R3 from the west through R2.
+;
+; R2 is on the route but not in the goal. The line below tells the executor
+; so: without it every move destination of this plan counts as required, and a
+; replan that routes around R2 would be scored "r2 never visited".
+; required-regions: r1 r3 r5
+(move jackal_1 r5 r1)
+(move jackal_1 r1 r2)
+(move jackal_1 r2 r3)
+(move jackal_1 r3 r2)
+(move jackal_1 r2 r5)

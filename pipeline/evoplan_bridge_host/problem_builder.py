@@ -45,7 +45,7 @@ from pddl_splice import (find_block, goal_conjuncts, remove_init_fact, set_goal,
 #: mean any obstacle replan during an inspection run narrowed the goal to a
 #: single (at ...) and abandoned every object still uninspected.
 EXECUTABLE_GOAL_PREDICATES = frozenset({"visited", "at", "reached",
-                                        "inspected-object"})
+                                        "inspected-object", "reported"})
 
 #: Object types in factory_jackal_domain.pddl that denote a navigable region.
 LOCATION_TYPES = frozenset({"location", "aisle", "shelf_zone", "loading_zone",
@@ -229,18 +229,23 @@ def splice_inspection_targets(problem_text: str, instances, declared=None) -> st
         if declared is not None and region not in declared:
             continue
         seen.add(name)
-        usable.append((name, region, bool((instance or {}).get("inspected"))))
+        usable.append((name, region, bool((instance or {}).get("inspected")),
+                       bool((instance or {}).get("reported"))))
     if not usable:
         return problem_text
     usable.sort()
 
     text = problem_text
     already = objects_in_problem(text)
-    text = splice_objects(text, [(name, TARGET_TYPE) for name, _, _ in usable
+    # A mission that names a report station wants every finding brought back
+    # to one; a mission that names none is an inspect-only mission, as before.
+    report = any(re.search(r"\(\s*report-station\s+\S+\s*\)", line.split(";", 1)[0])
+                 for line in text.splitlines())
+    text = splice_objects(text, [(name, TARGET_TYPE) for name, _, _, _ in usable
                                  if name not in already])
     regions = regions_in_problem(text)
     facts = []
-    for name, region, inspected in usable:
+    for name, region, inspected, reported in usable:
         text = remove_init_fact(text, "location-unknown", name)
         # Idempotent: a re-splice after the object was re-localised must replace
         # its position, not assert a second one alongside the first.
@@ -254,13 +259,17 @@ def splice_inspection_targets(problem_text: str, instances, declared=None) -> st
         facts.append(f"(object-at {name} {region})")
         if inspected:
             facts.append(f"(inspected-object {name})")
+        text = remove_init_fact(text, "reported", name)
+        if reported:
+            facts.append(f"(reported {name})")
     text = splice_init(text, facts)
 
     goals = list(goal_conjuncts(text))
-    for name, _, _ in usable:
-        conjunct = f"(inspected-object {name})"
-        if conjunct not in goals:
-            goals.append(conjunct)
+    for name, _, _, _ in usable:
+        for conjunct in ([f"(inspected-object {name})"]
+                         + ([f"(reported {name})"] if report else [])):
+            if conjunct not in goals:
+                goals.append(conjunct)
     return set_goal(text, goals[0] if len(goals) == 1
                     else "(and " + " ".join(goals) + ")")
 

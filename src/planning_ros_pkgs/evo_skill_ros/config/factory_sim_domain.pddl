@@ -100,6 +100,15 @@
     ;; this one is about a target the runtime discovered, and `inspect-object`
     ;; below does lower to robot motion.
     (inspected-object ?t - target)
+
+    ;; Inspect AND REPORT. Looking at an object is half of a mission that asks
+    ;; what is out there; the finding also has to get back to somewhere it can
+    ;; be handed over. A mission opts in by naming one or more report stations
+    ;; in :init, and the runtime then adds (reported ?t) to the goal next to
+    ;; (inspected-object ?t) for every object it discovers. A mission that
+    ;; names no station never sees a (reported ...) goal and is unaffected.
+    (report-station ?l - location)
+    (reported ?t - target)
   )
 
   ;; ------------------------------------------------------------
@@ -232,5 +241,23 @@
       (not (location-unknown ?t))
     )
     :effect (inspected-object ?t)
+  )
+
+  ;; ------------------------------------------------------------
+  ;; report-object: hand over the finding at a report station.
+  ;;
+  ;; Requires the inspection, so "report" cannot be satisfied by driving to
+  ;; the station first and the object second: the plan has to go and look, and
+  ;; then come back. Lowered by the executor to a Nav2 goal at the station and
+  ;; a short stationary hold, after which it emits the report.
+  ;; ------------------------------------------------------------
+  (:action report-object
+    :parameters (?r - robot ?t - target ?l - location)
+    :precondition (and
+      (at ?r ?l)
+      (report-station ?l)
+      (inspected-object ?t)
+    )
+    :effect (reported ?t)
   )
 )
